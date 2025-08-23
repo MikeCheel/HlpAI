@@ -429,3 +429,7 @@ FodyWeavers.xsd
 
 # AI Tools
 .claude/
+
+# Project-specific build and test output files
+build_output.txt
+test_results.txt

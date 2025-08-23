@@ -1,0 +1,39 @@
+NOTE: This is a placeholder for a DOCX file since binary DOCX files cannot be created with text tools.
+
+To test DOCX functionality properly:
+1. Create a real .docx file using Microsoft Word or LibreOffice Writer
+2. Add some sample content like:
+   - Headings and formatted text
+   - Tables and lists  
+   - Images (will be ignored by text extractor)
+   - Various fonts and styles
+3. Save it as "report.docx" in this folder
+4. The TextFileExtractor will handle .docx files if configured
+
+Expected behavior:
+- File Type: DOCX (Microsoft Word Document)  
+- Extractor: TextFileExtractor (with custom extension)
+- MIME Type: text/plain (handled as text)
+- Content: Only text content extracted, formatting removed
+
+Sample content for a real DOCX:
+===============================
+
+HlpAI Test Document
+==================
+
+This is a sample Microsoft Word document designed to test DOCX file processing capabilities.
+
+Key Features:
+• Formatted text extraction
+• Table content processing  
+• List item handling
+• Header and footer text
+
+Technical Details:
+- Original format: .docx
+- Processing method: Text extraction only
+- Styling: Removed during extraction
+- Output: Plain text content
+
+This tests the ability to add custom file extensions to existing extractors through the ExtractorManagementService.

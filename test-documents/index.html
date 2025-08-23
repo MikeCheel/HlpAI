@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HlpAI Test Document - HTML Sample</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .content {
+            margin: 20px 0;
+        }
+        .highlight {
+            background-color: yellow;
+        }
+        .code {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-left: 3px solid #007acc;
+            font-family: monospace;
+        }
+    </style>
+    <script>
+        // This script content should be filtered out by the HTML extractor
+        function initializePage() {
+            console.log("Page initialized");
+            document.getElementById('status').textContent = 'Ready';
+        }
+        window.onload = initializePage;
+    </script>
+</head>
+<body>
+    <div class="header">
+        <h1>HlpAI HTML Test Document</h1>
+        <p>This is a sample HTML file designed to test the HTML extraction capabilities of HlpAI.</p>
+    </div>
+
+    <div class="content">
+        <h2>Key Features Being Tested</h2>
+        <ul>
+            <li><strong>Text extraction</strong> from HTML content</li>
+            <li><em>Formatting preservation</em> where appropriate</li>
+            <li>Script and style tag filtering</li>
+            <li>Structured content processing</li>
+        </ul>
+
+        <h2>Sample Content</h2>
+        <p>This paragraph contains <span class="highlight">highlighted text</span> and demonstrates how the HTML extractor processes mixed content.</p>
+
+        <blockquote>
+            "The HTML File Extractor removes script and style tags while preserving the meaningful text content for document analysis and search functionality."
+        </blockquote>
+
+        <h3>Technical Information</h3>
+        <div class="code">
+            File Type: HTML (.html)
+            Extractor: HtmlFileExtractor
+            MIME Type: text/html
+            Processing: Removes &lt;script&gt; and &lt;style&gt; tags
+        </div>
+
+        <h3>Content Types</h3>
+        <ol>
+            <li>Headers (H1-H6)</li>
+            <li>Paragraphs and text blocks</li>
+            <li>Lists (ordered and unordered)</li>
+            <li>Blockquotes and emphasized content</li>
+            <li>Links and navigation elements</li>
+        </ol>
+
+        <h2>Testing Notes</h2>
+        <p>When this HTML file is processed by HlpAI:</p>
+        <ul>
+            <li>The JavaScript code in the &lt;script&gt; tag should be filtered out</li>
+            <li>The CSS styles in the &lt;style&gt; tag should be removed</li>
+            <li>Only the visible text content should be extracted</li>
+            <li>HTML entities should be properly decoded</li>
+        </ul>
+
+        <footer>
+            <p><small>Status: <span id="status">Loading...</span> | File created for HlpAI testing purposes</small></p>
+        </footer>
+    </div>
+
+    <!-- This HTML comment should also be filtered out -->
+</body>
+</html>

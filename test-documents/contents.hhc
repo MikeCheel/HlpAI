@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HTML>
+<HEAD>
+<meta name="GENERATOR" content="Microsoft&reg; HTML Help Workshop 4.1">
+<!-- Sitemap 1.0 -->
+</HEAD>
+<BODY>
+<OBJECT type="text/site properties">
+    <param name="ImageType" value="Folder">
+</OBJECT>
+<UL>
+    <LI> <OBJECT type="text/sitemap">
+        <param name="Name" value="HlpAI Documentation">
+        <param name="Local" value="index.htm">
+        </OBJECT>
+    <UL>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="Getting Started">
+            <param name="Local" value="getting-started.htm">
+            </OBJECT>
+        <UL>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Installation Guide">
+                <param name="Local" value="installation.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Quick Start Tutorial">
+                <param name="Local" value="quickstart.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Configuration Setup">
+                <param name="Local" value="configuration.htm">
+                </OBJECT>
+        </UL>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="File Extractors">
+            <param name="Local" value="extractors.htm">
+            </OBJECT>
+        <UL>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Text File Extractor">
+                <param name="Local" value="text-extractor.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="HTML File Extractor">
+                <param name="Local" value="html-extractor.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="PDF File Extractor">
+                <param name="Local" value="pdf-extractor.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="CHM File Extractor">
+                <param name="Local" value="chm-extractor.htm">
+                </OBJECT>
+        </UL>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="Advanced Features">
+            <param name="Local" value="advanced.htm">
+            </OBJECT>
+        <UL>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Extractor Management">
+                <param name="Local" value="extractor-management.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Custom File Types">
+                <param name="Local" value="custom-types.htm">
+                </OBJECT>
+            <LI> <OBJECT type="text/sitemap">
+                <param name="Name" value="Batch Processing">
+                <param name="Local" value="batch-processing.htm">
+                </OBJECT>
+        </UL>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="API Reference">
+            <param name="Local" value="api-reference.htm">
+            </OBJECT>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="Troubleshooting">
+            <param name="Local" value="troubleshooting.htm">
+            </OBJECT>
+        <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="FAQ">
+            <param name="Local" value="faq.htm">
+            </OBJECT>
+    </UL>
+</UL>
+</BODY></HTML>

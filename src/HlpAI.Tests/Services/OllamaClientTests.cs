@@ -94,7 +94,7 @@ public class OllamaClientTests
     [Arguments(0.3)]
     [Arguments(0.7)]
     [Arguments(1.0)]
-    public async Task GenerateAsync_WithDifferentTemperatures_DoesNotThrow(double temperature)
+    public async Task GenerateAsync_WithDifferentTemperatures_WorksCorrectly(double temperature)
     {
         // Arrange
         const string prompt = "Test prompt";
@@ -216,11 +216,12 @@ public class OllamaClientTests
     }
 
     [Test]
-    public void Dispose_CallMultipleTimes_DoesNotThrow()
+    public void Dispose_CallMultipleTimes_WorksCorrectly()
     {
         // Act & Assert
         _client.Dispose();
         _client.Dispose(); // Should not throw on multiple calls
+        // Test passes if no exception thrown
     }
 
     [Test]

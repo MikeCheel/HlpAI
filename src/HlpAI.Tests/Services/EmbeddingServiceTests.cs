@@ -315,7 +315,7 @@ public class EmbeddingServiceTests
     }
 
     [Test]
-    public void Dispose_CallMultipleTimes_DoesNotThrow()
+    public void Dispose_CallMultipleTimes_WorksCorrectly()
     {
         // Arrange
         var service = new EmbeddingService();
@@ -323,6 +323,7 @@ public class EmbeddingServiceTests
         // Act & Assert
         service.Dispose();
         service.Dispose(); // Should not throw on multiple calls
+        // Test passes if no exception thrown
     }
 
     [Test]

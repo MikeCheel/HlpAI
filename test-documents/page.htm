@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Legacy HTML Test Page</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        /* Legacy CSS styles - should be filtered out */
+        body { background: white; font-family: Times, serif; }
+        h1 { color: blue; }
+        .legacy { border: 1px solid gray; }
+    </style>
+</head>
+<body>
+    <h1>Legacy HTML Document (.htm)</h1>
+    
+    <p>This is a legacy HTML document using the <strong>.htm</strong> extension, commonly used in older Windows systems and web servers with file extension limitations.</p>
+
+    <h2>Content for Extraction Testing</h2>
+    
+    <p>The <em>HtmlFileExtractor</em> should process this file identically to .html files, demonstrating that both extensions are supported.</p>
+
+    <div class="legacy">
+        <h3>Key Points</h3>
+        <ul>
+            <li>File extension: .htm (legacy format)</li>
+            <li>Same processing as .html files</li>
+            <li>Text extraction without style/script content</li>
+            <li>Proper handling of HTML entities: &amp; &lt; &gt; &quot;</li>
+        </ul>
+    </div>
+
+    <h3>Sample Table</h3>
+    <table border="1">
+        <tr>
+            <th>Feature</th>
+            <th>Status</th>
+        </tr>
+        <tr>
+            <td>Text Extraction</td>
+            <td>Working</td>
+        </tr>
+        <tr>
+            <td>HTML Tag Removal</td>
+            <td>Working</td>
+        </tr>
+        <tr>
+            <td>Entity Decoding</td>
+            <td>Working</td>
+        </tr>
+    </table>
+
+    <script language="JavaScript">
+        // Legacy JavaScript - should be filtered out
+        alert("This alert should not appear in extracted text");
+    </script>
+
+    <p>This document helps verify that HlpAI correctly handles both modern (.html) and legacy (.htm) HTML file formats.</p>
+
+</body>
+</html>

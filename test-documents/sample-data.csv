@@ -1,0 +1,11 @@
+File Name,File Type,Size (KB),Date Modified,Extractor Used,Status,Processing Time (ms),Character Count
+sample.txt,Text,2.3,2024-08-23 10:15:00,TextFileExtractor,Success,45,1250
+README.md,Markdown,3.1,2024-08-23 10:16:00,TextFileExtractor,Success,52,2100
+application.log,Log,4.7,2024-08-23 10:17:00,TextFileExtractor,Success,38,3850
+sample-data.csv,CSV,1.8,2024-08-23 10:18:00,TextFileExtractor,Success,41,925
+index.html,HTML,5.2,2024-08-23 10:19:00,HtmlFileExtractor,Success,67,4200
+page.htm,HTML,2.9,2024-08-23 10:20:00,HtmlFileExtractor,Success,43,2800
+document.pdf,PDF,150.5,2024-08-23 10:21:00,PdfFileExtractor,Success,234,15600
+help.chm,CHM,89.2,2024-08-23 10:22:00,ChmFileExtractor,Success,189,12300
+contents.hhc,HHC,1.1,2024-08-23 10:23:00,HhcFileExtractor,Success,28,750
+report.docx,DOCX,45.8,2024-08-23 10:24:00,TextFileExtractor,Success,156,8900

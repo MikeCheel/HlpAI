@@ -3,6 +3,7 @@ using System.Text;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
+using HlpAI.Services;
 using SystemPath = System.IO.Path;
 
 namespace HlpAI.FileExtractors;
@@ -23,34 +24,82 @@ public class ChmFileExtractor(ILogger? logger = null) : IFileExtractor, IDisposa
         {
             try
             {
+                if (!File.Exists(filePath))
+                {
+                    _logger?.LogWarning("CHM file does not exist: {FilePath}", filePath);
+                    return $"Error: CHM file not found: {filePath}";
+                }
+                
                 Directory.CreateDirectory(_tempDir);
 
+                var hhExePath = ConfigurationService.GetHhExePath(_logger);
                 var processInfo = new ProcessStartInfo
                 {
-                    FileName = "hh.exe",
+                    FileName = hhExePath,
                     Arguments = $"-decompile \"{_tempDir}\" \"{filePath}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true
+                    RedirectStandardError = true,
+                    WorkingDirectory = SystemPath.GetDirectoryName(filePath) ?? Environment.CurrentDirectory
                 };
 
                 using var process = Process.Start(processInfo);
                 if (process != null)
                 {
-                    await process.WaitForExitAsync();
+                    // Start reading output and error streams immediately to prevent deadlocks
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    var errorTask = process.StandardError.ReadToEndAsync();
+
+                    // Wait for the process to complete with a reasonable timeout (30 seconds)
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    try
+                    {
+                        await process.WaitForExitAsync(cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger?.LogWarning("HH.exe process timed out after 30 seconds for file {FilePath}", filePath);
+                        process.Kill(true);
+                        return "Error: CHM extraction timed out";
+                    }
+
+                    var output = await outputTask;
+                    var error = await errorTask;
 
                     if (process.ExitCode != 0)
                     {
-                        var error = await process.StandardError.ReadToEndAsync();
                         _logger?.LogWarning("HH.exe returned exit code {ExitCode}: {Error}", process.ExitCode, error);
+                    }
+                    
+                    // Log output for debugging purposes
+                    if (!string.IsNullOrWhiteSpace(output))
+                    {
+                        _logger?.LogDebug("HH.exe output: {Output}", output);
                     }
                 }
 
                 var extractedText = new StringBuilder();
+                
+                // Log temp directory contents for debugging
+                if (Directory.Exists(_tempDir))
+                {
+                    var files = Directory.GetFiles(_tempDir, "*", SearchOption.AllDirectories);
+                    _logger?.LogDebug("Found {FileCount} files in temp directory {TempDir}: {Files}", 
+                        files.Length, _tempDir, string.Join(", ", files.Take(10)));
+                }
+                else
+                {
+                    _logger?.LogWarning("Temp directory {TempDir} does not exist after CHM extraction", _tempDir);
+                }
+                
                 await ExtractTextFromDirectory(_tempDir, extractedText);
 
-                return extractedText.ToString();
+                var result = extractedText.ToString();
+                _logger?.LogDebug("Extracted {TextLength} characters from CHM file {FilePath}", 
+                    result.Length, filePath);
+                    
+                return result;
             }
             catch (Exception ex)
             {

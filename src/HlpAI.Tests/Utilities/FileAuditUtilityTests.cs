@@ -226,7 +226,7 @@ public class FileAuditUtilityTests
     }
 
     [Test]
-    public async Task AuditDirectory_WithoutLogger_DoesNotThrow()
+    public async Task AuditDirectory_WithoutLogger_WorksCorrectly()
     {
         // Arrange
         var textFile = Path.Combine(_tempDirectory, "test.txt");

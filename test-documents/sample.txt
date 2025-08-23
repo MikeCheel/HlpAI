@@ -1,0 +1,27 @@
+Sample Plain Text Document
+===========================
+
+This is a sample text file that demonstrates the text file extraction capabilities of HlpAI.
+
+Key Features:
+- Plain text processing
+- Markdown support
+- Log file analysis
+- CSV data extraction
+
+Sample Content:
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+Technical Information:
+- File Type: Plain Text (.txt)
+- Encoding: UTF-8
+- Extractor: TextFileExtractor
+- MIME Type: text/plain
+
+Use Cases:
+1. Documentation processing
+2. Log file analysis
+3. Configuration file parsing
+4. General text extraction
+
+This file can be used to test the text extraction functionality of the HlpAI application.

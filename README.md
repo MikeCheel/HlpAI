@@ -32,10 +32,18 @@ A comprehensive .NET 9.0 application combining **Model Context Protocol (MCP)** 
 - **Smart chunking**: Optimized 1000-word chunks with overlap
 - **Comprehensive reporting**: Detailed indexing status and file analysis
 
+🔧 **Extractor Management System**
+- **Dynamic file type support**: Add/remove file extensions on the fly
+- **Interactive management**: Menu option 16 for full extractor control
+- **Command line tools**: Manage extractors via CLI arguments
+- **Configuration persistence**: All changes stored in SQLite database
+- **Extractor statistics**: Detailed analytics on supported file types
+
 ⚙️ **Flexible Architecture**
 - **Zero-config interactive mode**: Guided setup with no command-line knowledge required
 - **Three operation modes**: MCP-only, RAG-only, or Hybrid (default)
-- **Interactive console**: 13+ commands for comprehensive control
+- **Interactive console**: 16+ commands for comprehensive control
+- **Test documents included**: Ready-to-use sample files for all supported types
 - **Dynamic directory switching**: Change document directories without restart
 - **Auto-discovery**: Automatic detection of installed Ollama models
 - **MCP server mode**: Run as a service for external integration
@@ -58,6 +66,10 @@ dotnet restore && dotnet build
 # 2. Install AI models
 ollama pull llama3.2          # Text generation
 ollama pull nomic-embed-text  # Vector embeddings (for RAG)
+
+# 3. Test with included sample documents (optional)
+# Ready-to-use test files are available in the test-documents/ folder
+dotnet run -- --audit "test-documents"
 ```
 
 ### 🎯 Two Ways to Start
@@ -267,6 +279,9 @@ Continue with this configuration? (y/n): y
 - **`11`** - Show comprehensive indexing report
 - **`12`** - Run as MCP server (for integration)
 - **`13`** - Change document directory (interactive mode only)
+- **`14`** - Configuration settings
+- **`15`** - View error logs
+- **`16`** - **File extractor management** (✨ NEW)
 - **`c`** - Clear screen
 - **`m`** - Show menu
 - **`q`** - Quit
@@ -360,6 +375,46 @@ Initializing RAG system...
 ✅ Successfully switched to directory: C:\NewDocuments
 📱 Returning to main menu...
 ```
+
+**🔧 File Extractor Management (Option 16)**
+```
+Command: 16
+
+🔧 File Extractor Management
+============================
+
+Extractor Management Options:
+1. List all extractors and their supported file types
+2. View extractor statistics  
+3. Add file extension to an extractor
+4. Remove file extension from an extractor
+5. Test file extraction
+6. Reset extractor to default configuration
+7. View configuration audit
+b. Back to main menu
+q. Quit application
+
+Enter your choice (1-7, b, q): 1
+
+📦 Available File Extractors:
+=============================
+
+🔧 Text File Extractor (text)
+   Type: TextFileExtractor
+   MIME Type: text/plain
+   Description: Extracts plain text content from text-based files
+   Extensions: .txt, .md, .log, .csv, .docx
+   ⚡ Custom extensions added: 1
+   📎 Custom: .docx
+```
+
+**Key Features:**
+- ✅ **Dynamic extension management**: Add `.docx`, `.rtf`, `.xml`, or any text-based extension
+- ✅ **Real-time testing**: Test extraction on specific files before committing changes
+- ✅ **Configuration persistence**: All changes automatically saved to database
+- ✅ **Statistics and auditing**: Comprehensive view of all extractor configurations
+- ✅ **Reset functionality**: Restore any extractor to its original default state
+- ✅ **Conflict detection**: Prevents duplicate extension assignments
 
 ## 🖥️ MCP Server Mode
 
@@ -855,17 +910,64 @@ Total Files: 156
 | 📕 **PDF** | `.pdf` | Documents and reports | ✅ All platforms |
 | 📚 **HHC** | `.hhc` | HTML Help Contents files (standalone) | ✅ All platforms |
 | 📚 **CHM** | `.chm` | Windows help files (compiled) | ⚠️ **Windows only** |
+| 🔧 **Custom** | *User-defined* | Add any extension to existing extractors | ✅ All platforms |
 
 **Platform Limitations:**
 - **CHM files**: Require Windows with `hh.exe` (HTML Help utility) in PATH
 - **HHC files**: Cross-platform standalone support (uses HTML parsing)
 - **On Linux/macOS**: CHM files will be skipped, but HHC files work normally
 
+**Extractor Management:**
+- **Dynamic extension support**: Add `.docx`, `.rtf`, `.xml`, or any text-based extension to existing extractors
+- **Interactive management**: Use menu option 16 for guided extractor configuration
+- **Statistics and auditing**: View supported extensions and customization details
+- **Reset to defaults**: Restore original configurations when needed
+
 **Automatically Excluded:**
 - Hidden files, system files, executables
 - Images, media files, archives  
 - Files larger than 100MB
 - Password-protected PDFs
+
+## 📂 Test Documents
+
+A comprehensive set of sample files is included in the `test-documents/` folder to help you test all extraction capabilities:
+
+### 🧪 Included Test Files
+
+| File | Type | Purpose |
+|------|------|---------|
+| `sample.txt` | Plain Text | Basic text extraction testing |
+| `README.md` | Markdown | Formatted text with code blocks and tables |
+| `application.log` | Log File | Timestamped log entries |
+| `sample-data.csv` | CSV | Tabular data processing |
+| `index.html` | HTML | Modern HTML with script/style filtering |
+| `page.htm` | Legacy HTML | .htm extension compatibility |
+| `contents.hhc` | Help Contents | Table of contents extraction |
+| `TEST-FILES-README.md` | Documentation | Complete usage guide |
+| `test-extractors.bat` | Batch Script | Automated testing script |
+
+### 🚀 Quick Test Commands
+
+```bash
+# Test all sample files
+cd test-documents && test-extractors.bat
+
+# Test individual features
+dotnet run -- --audit "test-documents"
+dotnet run -- --list-extractors
+dotnet run -- --test-extraction "test-documents\sample.txt"
+
+# Interactive testing
+dotnet run "test-documents"  # Use as your document directory
+```
+
+**Perfect for:**
+- ✅ Learning how different file types are processed
+- ✅ Testing extractor management features  
+- ✅ Verifying installation and setup
+- ✅ Experimenting with new custom extensions
+- ✅ Understanding extraction capabilities before processing your own documents
 
 ## 🏗️ Architecture
 
@@ -1273,6 +1375,12 @@ dotnet run "C:\MyDocuments" "llama3.2" "hybrid"
 
 # Audit mode (analyze before indexing)
 dotnet run -- --audit "C:\MyDocuments"
+
+# Extractor management commands
+dotnet run -- --list-extractors                    # Show all available extractors
+dotnet run -- --extractor-stats                    # Display extractor statistics  
+dotnet run -- --add-file-type text:docx,rtf       # Add extensions to extractors
+dotnet run -- --test-extraction "C:\test.docx"    # Test file extraction
 ```
 
 #### Advanced Examples
@@ -1385,11 +1493,70 @@ Once started, use these commands in the interactive console:
 | `11` | Indexing report | Comprehensive file analysis |
 | `12`/`server` | MCP server mode | For external integration |
 | `13`/`dir` | Change directory | Interactive mode only |
+| `14` | Configuration settings | App configuration management |
+| `15` | View error logs | Error log viewer and management |
+| `16` | **File extractor management** | ✨ **NEW: Dynamic file type support** |
 | `c`/`clear` | Clear screen | Refresh display |
 | `m`/`menu` | Show menu | Display command list |
 | `q`/`quit` | Exit application | Graceful shutdown |
 
 ## 🛠️ Development & Integration
+
+### 🧪 Testing Framework
+
+**Important**: This project uses **TUnit** as the testing framework, not MSTest or xUnit.
+
+#### Running Tests
+```bash
+# Run all tests (may have compatibility issues to resolve)
+dotnet test
+
+# Run with coverage analysis (90% target)
+powershell -ExecutionPolicy Bypass -File "run-tests-with-coverage.ps1"
+
+# Run specific test class
+dotnet test --filter "FullyQualifiedName~ExtractorManagementServiceTests"
+```
+
+#### TUnit Syntax Guide
+When writing new tests, use TUnit syntax:
+
+```csharp
+using TUnit.Core;
+using TUnit.Assertions;
+
+public class MyServiceTests
+{
+    [Before(Test)]
+    public async Task Setup() { /* setup code */ }
+    
+    [After(Test)] 
+    public void Cleanup() { /* cleanup code */ }
+    
+    [Test]
+    public async Task MyTest_ShouldDoSomething()
+    {
+        // Arrange
+        var service = new MyService();
+        
+        // Act
+        var result = await service.DoSomethingAsync();
+        
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result.Success).IsTrue();
+        await Assert.That(result.Data.Count).IsEqualTo(5);
+    }
+}
+```
+
+**Key TUnit Differences:**
+- Use `[Test]` instead of `[TestMethod]`
+- Use `[Before(Test)]` instead of `[TestInitialize]`
+- Use `[After(Test)]` instead of `[TestCleanup]`  
+- All assertions must be awaited: `await Assert.That(...)`
+- No `Assert.DoesNotThrow()` - use try/catch pattern
+- Use `.Contains()` method: `await Assert.That(list.Contains(item)).IsTrue()`
 
 ### 📦 Single File Executable
 
