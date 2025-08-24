@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using HlpAI.MCP;
+using HlpAI.Services;
 
 namespace HlpAI.Services;
 
@@ -16,7 +17,7 @@ public class CommandLineArgumentsService
     public CommandLineArgumentsService(string[] args, ILogger? logger = null)
     {
         _logger = logger;
-        _positionalArguments = new List<string>();
+        _positionalArguments = [];
         _arguments = ParseArguments(args);
     }
 
@@ -295,6 +296,20 @@ public class CommandLineArgumentsService
                HasArgument("remove-file-type") ||
                HasArgument("test-extraction") ||
                HasArgument("reset-extractor");
+    }
+
+    /// <summary>
+    /// Check if command contains only AI provider management commands
+    /// </summary>
+    public bool IsAiProviderManagementCommand()
+    {
+        return HasArgument("list-providers") ||
+               HasArgument("provider-stats") ||
+               HasArgument("set-provider") ||
+               HasArgument("test-provider") ||
+               HasArgument("detect-providers") ||
+               HasArgument("set-provider-url") ||
+               HasArgument("set-default-model");
     }
 
     /// <summary>
@@ -660,13 +675,13 @@ public class CommandLineArgumentsService
             else
             {
                 // Use sample test files
-                testFiles = new List<string>
-                {
+                testFiles =
+                [
                     "document.txt", "README.md", "style.css", "script.js", 
                     "data.csv", "report.pdf", "temp.tmp", "backup~",
                     "image.png", "video.mp4", "archive.zip", "config.xml",
                     "help.chm", "contents.hhc", "page.html", "log.log"
-                };
+                ];
             }
 
             var result = await filterService.TestPatternsAsync(testFiles);
@@ -680,7 +695,7 @@ public class CommandLineArgumentsService
             Console.WriteLine($"Rejected: {result.RejectedFiles.Count}");
             Console.WriteLine();
 
-            if (result.AcceptedFiles.Any())
+            if (result.AcceptedFiles.Count != 0)
             {
                 Console.WriteLine("✅ Accepted Files:");
                 foreach (var file in result.AcceptedFiles)
@@ -690,7 +705,7 @@ public class CommandLineArgumentsService
                 Console.WriteLine();
             }
 
-            if (result.RejectedFiles.Any())
+            if (result.RejectedFiles.Count != 0)
             {
                 Console.WriteLine("❌ Rejected Files:");
                 foreach (var file in result.RejectedFiles)
@@ -911,6 +926,295 @@ public class CommandLineArgumentsService
     }
 
     /// <summary>
+    /// Apply AI provider configuration from command line arguments
+    /// </summary>
+    public async Task<AiProviderConfiguration> ApplyAiProviderConfigurationAsync()
+    {
+        var config = new AiProviderConfiguration();
+        var appConfig = ConfigurationService.LoadConfiguration(_logger);
+
+        // Check for --list-providers
+        if (HasArgument("list-providers"))
+        {
+            config.ShowProviders = true;
+            
+            Console.WriteLine("\n🤖 Available AI Providers");
+            Console.WriteLine("========================");
+            
+            var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
+            var providers = providerDescriptions.Keys.ToList();
+            
+            for (int i = 0; i < providers.Count; i++)
+            {
+                var provider = providers[i];
+                var info = AiProviderFactory.GetProviderInfo(provider);
+                var isCurrent = appConfig.LastProvider == provider;
+                var status = isCurrent ? "✅ (Current)" : "";
+                
+                Console.WriteLine($"{i + 1}. {providerDescriptions[provider]} {status}");
+                Console.WriteLine($"   Default URL: {info.DefaultUrl}");
+                Console.WriteLine($"   Default Model: {GetDefaultModelForProvider(provider, appConfig)}");
+                Console.WriteLine();
+            }
+        }
+
+        // Check for --provider-stats
+        if (HasArgument("provider-stats"))
+        {
+            config.ShowStats = true;
+            
+            Console.WriteLine("\n📊 AI Provider Statistics");
+            Console.WriteLine("========================");
+            Console.WriteLine($"Current Provider: {appConfig.LastProvider}");
+            Console.WriteLine($"Current Model: {appConfig.LastModel ?? "Not set"}");
+            Console.WriteLine();
+            Console.WriteLine("Provider URLs:");
+            Console.WriteLine($"  • Ollama: {appConfig.OllamaUrl}");
+            Console.WriteLine($"  • LM Studio: {appConfig.LmStudioUrl}");
+            Console.WriteLine($"  • Open Web UI: {appConfig.OpenWebUiUrl}");
+            Console.WriteLine();
+            Console.WriteLine("Default Models:");
+            Console.WriteLine($"  • Ollama: {appConfig.OllamaDefaultModel}");
+            Console.WriteLine($"  • LM Studio: {appConfig.LmStudioDefaultModel}");
+            Console.WriteLine($"  • Open Web UI: {appConfig.OpenWebUiDefaultModel}");
+            Console.WriteLine();
+        }
+
+        // Check for --set-provider
+        if (HasArgument("set-provider"))
+        {
+            var providerName = GetArgument("set-provider");
+            if (!string.IsNullOrEmpty(providerName))
+            {
+                if (Enum.TryParse<AiProviderType>(providerName, true, out var providerType))
+                {
+                    appConfig.LastProvider = providerType;
+                    
+                    // Set appropriate default model
+                    appConfig.LastModel = providerType switch
+                    {
+                        AiProviderType.Ollama => appConfig.OllamaDefaultModel,
+                        AiProviderType.LmStudio => appConfig.LmStudioDefaultModel,
+                        AiProviderType.OpenWebUi => appConfig.OpenWebUiDefaultModel,
+                        _ => "default"
+                    };
+                    
+                    config.ProviderChanged = true;
+                    config.NewProvider = providerType;
+                    Console.WriteLine($"✅ AI provider set to: {providerType}");
+                    Console.WriteLine($"✅ Default model set to: {appConfig.LastModel}");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Invalid provider: {providerName}");
+                    Console.WriteLine("Available providers: Ollama, LmStudio, OpenWebUi");
+                }
+            }
+        }
+
+        // Check for --set-provider-url
+        if (HasArgument("set-provider-url"))
+        {
+            var value = GetArgument("set-provider-url");
+            if (!string.IsNullOrEmpty(value))
+            {
+                var parts = value.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    var providerName = parts[0].Trim();
+                    var url = parts[1].Trim();
+                    
+                    if (Enum.TryParse<AiProviderType>(providerName, true, out var providerType))
+                    {
+                        switch (providerType)
+                        {
+                            case AiProviderType.Ollama:
+                                appConfig.OllamaUrl = url;
+                                break;
+                            case AiProviderType.LmStudio:
+                                appConfig.LmStudioUrl = url;
+                                break;
+                            case AiProviderType.OpenWebUi:
+                                appConfig.OpenWebUiUrl = url;
+                                break;
+                        }
+                        
+                        config.UrlChanged = true;
+                        config.ProviderUrlChanged = providerType;
+                        Console.WriteLine($"✅ {providerType} URL set to: {url}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ Invalid provider: {providerName}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Invalid format for --set-provider-url. Use: provider:url");
+                }
+            }
+        }
+
+        // Check for --set-default-model
+        if (HasArgument("set-default-model"))
+        {
+            var value = GetArgument("set-default-model");
+            if (!string.IsNullOrEmpty(value))
+            {
+                var parts = value.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    var providerName = parts[0].Trim();
+                    var model = parts[1].Trim();
+                    
+                    if (Enum.TryParse<AiProviderType>(providerName, true, out var providerType))
+                    {
+                        switch (providerType)
+                        {
+                            case AiProviderType.Ollama:
+                                appConfig.OllamaDefaultModel = model;
+                                break;
+                            case AiProviderType.LmStudio:
+                                appConfig.LmStudioDefaultModel = model;
+                                break;
+                            case AiProviderType.OpenWebUi:
+                                appConfig.OpenWebUiDefaultModel = model;
+                                break;
+                        }
+                        
+                        config.ModelChanged = true;
+                        config.ProviderModelChanged = providerType;
+                        Console.WriteLine($"✅ {providerType} default model set to: {model}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ Invalid provider: {providerName}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Invalid format for --set-default-model. Use: provider:model");
+                }
+            }
+        }
+
+        // Check for --test-provider
+        if (HasArgument("test-provider"))
+        {
+            var providerName = GetArgument("test-provider");
+            if (string.IsNullOrEmpty(providerName))
+            {
+                providerName = appConfig.LastProvider.ToString();
+            }
+            
+            if (Enum.TryParse<AiProviderType>(providerName, true, out var providerType))
+            {
+                config.HasTest = true;
+                config.TestProvider = providerType;
+                
+                try
+                {
+                    var provider = AiProviderFactory.CreateProvider(
+                        providerType,
+                        GetDefaultModelForProvider(providerType, appConfig),
+                        GetProviderUrl(appConfig, providerType)
+                    );
+                    
+                    Console.WriteLine($"\n🔌 Testing {provider.ProviderName} connection...");
+                    Console.WriteLine($"URL: {provider.BaseUrl}");
+                    
+                    var isAvailable = await provider.IsAvailableAsync();
+                    if (isAvailable)
+                    {
+                        Console.WriteLine($"✅ {provider.ProviderName} is available!");
+                        
+                        var models = await provider.GetModelsAsync();
+                        if (models.Count > 0)
+                        {
+                            Console.WriteLine($"Available models: {string.Join(", ", models)}");
+                        }
+                        else
+                        {
+                            Console.WriteLine("⚠️ No models found (provider may be running but no models loaded)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ {provider.ProviderName} is not available");
+                        Console.WriteLine("Make sure the provider is running and accessible at the configured URL");
+                    }
+                    
+                    provider.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Error testing provider: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"❌ Invalid provider: {providerName}");
+            }
+        }
+
+        // Check for --detect-providers
+        if (HasArgument("detect-providers"))
+        {
+            config.DetectProviders = true;
+            
+            Console.WriteLine("\n🔍 Detecting Available AI Providers");
+            Console.WriteLine("===================================");
+            
+            try
+            {
+                var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
+                
+                Console.WriteLine("\nProvider Availability:");
+                foreach (var (providerType, isAvailable) in availableProviders)
+                {
+                    var info = AiProviderFactory.GetProviderInfo(providerType);
+                    var status = isAvailable ? "✅ Available" : "❌ Not available";
+                    Console.WriteLine($"{info.Name}: {status} ({info.DefaultUrl})");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error detecting providers: {ex.Message}");
+            }
+        }
+
+        // Save configuration if any changes were made
+        if (config.ProviderChanged || config.UrlChanged || config.ModelChanged)
+        {
+            ConfigurationService.SaveConfiguration(appConfig, _logger);
+        }
+
+        return config;
+    }
+
+    private string GetDefaultModelForProvider(AiProviderType provider, AppConfiguration config)
+    {
+        return provider switch
+        {
+            AiProviderType.Ollama => config.OllamaDefaultModel,
+            AiProviderType.LmStudio => config.LmStudioDefaultModel,
+            AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+            _ => "default"
+        };
+    }
+
+    private string? GetProviderUrl(AppConfiguration config, AiProviderType provider)
+    {
+        return provider switch
+        {
+            AiProviderType.Ollama => config.OllamaUrl,
+            AiProviderType.LmStudio => config.LmStudioUrl,
+            AiProviderType.OpenWebUi => config.OpenWebUiUrl,
+            _ => null
+        };
+    }
+
+    /// <summary>
     /// Check if there are any positional arguments (non-flag arguments)
     /// </summary>
     public bool HasPositionalArguments()
@@ -1009,4 +1313,22 @@ public class ExtractorManagementConfiguration
     public int ExtractorsReset { get; set; }
     public ExtractionStatistics? Statistics { get; set; }
     public ExtractionTestResult? TestResult { get; set; }
+}
+
+/// <summary>
+/// AI provider configuration from command line arguments
+/// </summary>
+public class AiProviderConfiguration
+{
+    public bool ShowProviders { get; set; }
+    public bool ShowStats { get; set; }
+    public bool HasTest { get; set; }
+    public bool DetectProviders { get; set; }
+    public bool ProviderChanged { get; set; }
+    public bool UrlChanged { get; set; }
+    public bool ModelChanged { get; set; }
+    public AiProviderType? NewProvider { get; set; }
+    public AiProviderType? ProviderUrlChanged { get; set; }
+    public AiProviderType? ProviderModelChanged { get; set; }
+    public AiProviderType? TestProvider { get; set; }
 }

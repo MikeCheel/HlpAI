@@ -204,14 +204,14 @@ public class FileTypeFilterService : IDisposable
             var includePatterns = await _configService.GetConfigurationAsync("include_patterns", "file_filtering");
             if (!string.IsNullOrEmpty(includePatterns))
             {
-                config.IncludePatterns = JsonSerializer.Deserialize<List<string>>(includePatterns) ?? new List<string>();
+                config.IncludePatterns = JsonSerializer.Deserialize<List<string>>(includePatterns) ?? [];
             }
 
             // Load exclude patterns
             var excludePatterns = await _configService.GetConfigurationAsync("exclude_patterns", "file_filtering");
             if (!string.IsNullOrEmpty(excludePatterns))
             {
-                config.ExcludePatterns = JsonSerializer.Deserialize<List<string>>(excludePatterns) ?? new List<string>();
+                config.ExcludePatterns = JsonSerializer.Deserialize<List<string>>(excludePatterns) ?? [];
             }
 
             // Load supported types
@@ -357,7 +357,7 @@ public class FileTypeFilterService : IDisposable
         try
         {
             var config = await GetFilterConfigurationAsync();
-            config.IncludePatterns ??= new List<string>();
+            config.IncludePatterns ??= [];
             
             if (!config.IncludePatterns.Contains(pattern, StringComparer.OrdinalIgnoreCase))
             {
@@ -382,7 +382,7 @@ public class FileTypeFilterService : IDisposable
         try
         {
             var config = await GetFilterConfigurationAsync();
-            config.ExcludePatterns ??= new List<string>();
+            config.ExcludePatterns ??= [];
             
             if (!config.ExcludePatterns.Contains(pattern, StringComparer.OrdinalIgnoreCase))
             {
@@ -586,9 +586,9 @@ public class FileTypeFilterConfiguration
 /// </summary>
 public class FileFilterResult
 {
-    public List<string> AcceptedFiles { get; set; } = new();
-    public List<string> RejectedFiles { get; set; } = new();
-    public List<string> ErrorFiles { get; set; } = new();
+    public List<string> AcceptedFiles { get; set; } = [];
+    public List<string> RejectedFiles { get; set; } = [];
+    public List<string> ErrorFiles { get; set; } = [];
     public int TotalProcessed { get; set; }
 }
 
@@ -598,9 +598,9 @@ public class FileFilterResult
 public class FileFilterTestResult
 {
     public FileTypeFilterConfiguration Configuration { get; set; } = new();
-    public List<string> TestFiles { get; set; } = new();
-    public List<string> AcceptedFiles { get; set; } = new();
-    public List<string> RejectedFiles { get; set; } = new();
+    public List<string> TestFiles { get; set; } = [];
+    public List<string> AcceptedFiles { get; set; } = [];
+    public List<string> RejectedFiles { get; set; } = [];
 }
 
 /// <summary>

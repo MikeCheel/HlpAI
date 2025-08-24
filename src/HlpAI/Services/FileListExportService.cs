@@ -403,7 +403,7 @@ public class FileListExportService : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to retrieve export history");
-            return new List<FileExportResult>();
+            return [];
         }
     }
 

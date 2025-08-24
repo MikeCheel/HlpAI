@@ -58,8 +58,8 @@ public class FileListExportServiceTests
 
     private List<ResourceInfo> CreateTestResources()
     {
-        return new List<ResourceInfo>
-        {
+        return
+        [
             new ResourceInfo
             {
                 Uri = "file:///test1.txt",
@@ -81,7 +81,7 @@ public class FileListExportServiceTests
                 Description = "Test CSV file",
                 MimeType = "text/csv"
             }
-        };
+        ];
     }
 
     [Test]

@@ -42,10 +42,17 @@ public static class Program
             return;
         }
 
+        // Handle AI provider management commands
+        if (cmdArgs.IsAiProviderManagementCommand())
+        {
+            await cmdArgs.ApplyAiProviderConfigurationAsync();
+            return;
+        }
+
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
         {
-            string auditPath = args.Length > 1 ? args[1] : @"C:\Demo\Documents";
+            string auditPath = args.Length > 1 ? args[1] : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             FileAuditUtility.AuditDirectory(auditPath);
             return;
         }
@@ -112,17 +119,17 @@ public static class Program
 
         try
         {
-            Console.WriteLine("Checking Ollama connection...");
-            if (await server._ollamaClient.IsAvailableAsync())
+            Console.WriteLine("Checking AI provider connection...");
+            if (await server._aiProvider.IsAvailableAsync())
             {
-                var models = await server._ollamaClient.GetModelsAsync();
-                Console.WriteLine($"✅ Ollama connected! Available models: {string.Join(", ", models)}");
+                var models = await server._aiProvider.GetModelsAsync();
+                Console.WriteLine($"✅ {server._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
                 Console.WriteLine($"Using model: {ollamaModel}");
             }
             else
             {
-                Console.WriteLine("⚠️ Ollama not available. AI features will show connection errors.");
-                Console.WriteLine("To use AI features, install and run Ollama: https://ollama.ai");
+                Console.WriteLine($"⚠️ {server._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                Console.WriteLine($"To use AI features, ensure {server._aiProvider.ProviderName} is running at {server._aiProvider.BaseUrl}");
             }
 
             Console.WriteLine($"\nOperation Mode: {mode}");
@@ -251,6 +258,11 @@ public static class Program
                         case "extractor-management":
                             await ShowExtractorManagementMenuAsync();
                             break;
+                        case "17":
+                        case "ai":
+                        case "ai-provider":
+                            await ShowAiProviderMenuAsync();
+                            break;
                         case "c":
                         case "clear":
                             ClearScreen();
@@ -294,7 +306,7 @@ public static class Program
         };
     }
 
-    private record SetupResult(string Directory, string Model, OperationMode Mode);
+    private sealed record SetupResult(string Directory, string Model, OperationMode Mode);
 
     private static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger)
     {
@@ -350,7 +362,7 @@ public static class Program
                 continue;
             }
             
-            if (input.ToLower() == "quit" || input.ToLower() == "exit")
+            if (input.Equals("quit", StringComparison.CurrentCultureIgnoreCase) || input.Equals("exit", StringComparison.CurrentCultureIgnoreCase))
             {
                 return null;
             }
@@ -374,13 +386,11 @@ public static class Program
                         var errorMessage = $"Failed to create directory: {ex.Message}";
                         Console.WriteLine($"❌ {errorMessage}");
                         await errorLoggingService.LogErrorAsync(errorMessage, ex, "Interactive setup - directory creation");
-                        continue;
                     }
                 }
                 else
                 {
                     Console.WriteLine("Please enter a valid existing directory path, or type 'quit' to exit.");
-                    continue;
                 }
             }
             else
@@ -415,6 +425,7 @@ public static class Program
         OperationMode selectedMode = config.RememberLastOperationMode ? config.LastOperationMode : OperationMode.Hybrid;
         
         // Show last operation mode if available
+        bool skipModeSelection = false;
         if (config.RememberLastOperationMode)
         {
             Console.WriteLine($"💾 Last used operation mode: {config.LastOperationMode}");
@@ -428,44 +439,45 @@ public static class Program
             else
             {
                 Console.WriteLine($"✅ Using operation mode: {selectedMode}");
-                goto ConfigurationSummary; // Skip mode selection loop
+                skipModeSelection = true;
             }
         }
         
-        while (true)
+        if (!skipModeSelection)
         {
-            Console.Write("Select operation mode (1-3, default: 1): ");
-            var modeInput = Console.ReadLine()?.Trim();
-            
-            if (string.IsNullOrEmpty(modeInput) || modeInput == "1")
+            while (true)
             {
-                selectedMode = OperationMode.Hybrid;
-                break;
+                Console.Write("Select operation mode (1-3, default: 1): ");
+                var modeInput = Console.ReadLine()?.Trim();
+                
+                if (string.IsNullOrEmpty(modeInput) || modeInput == "1")
+                {
+                    selectedMode = OperationMode.Hybrid;
+                    break;
+                }
+                else if (modeInput == "2")
+                {
+                    selectedMode = OperationMode.MCP;
+                    break;
+                }
+                else if (modeInput == "3")
+                {
+                    selectedMode = OperationMode.RAG;
+                    break;
+                }
+                else if (modeInput.Equals("quit", StringComparison.CurrentCultureIgnoreCase) || modeInput.Equals("exit", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    return null;
+                }
+                else
+                {
+                    Console.WriteLine("❌ Invalid selection. Please enter 1, 2, or 3.");
+                }
             }
-            else if (modeInput == "2")
-            {
-                selectedMode = OperationMode.MCP;
-                break;
-            }
-            else if (modeInput == "3")
-            {
-                selectedMode = OperationMode.RAG;
-                break;
-            }
-            else if (modeInput.ToLower() == "quit" || modeInput.ToLower() == "exit")
-            {
-                return null;
-            }
-            else
-            {
-                Console.WriteLine("❌ Invalid selection. Please enter 1, 2, or 3.");
-            }
+
+            Console.WriteLine($"✅ Selected mode: {selectedMode}");
+            Console.WriteLine();
         }
-
-        Console.WriteLine($"✅ Selected mode: {selectedMode}");
-        Console.WriteLine();
-
-        ConfigurationSummary:
         // Summary
         Console.WriteLine("📋 Configuration Summary");
         Console.WriteLine("========================");
@@ -606,7 +618,7 @@ public static class Program
                 var jsonElement = (JsonElement)response.Result;
                 if (jsonElement.TryGetProperty("resources", out var resourcesArray))
                 {
-                    resources = JsonSerializer.Deserialize<List<ResourceInfo>>(resourcesArray.GetRawText()) ?? new List<ResourceInfo>();
+                    resources = JsonSerializer.Deserialize<List<ResourceInfo>>(resourcesArray.GetRawText()) ?? [];
                 }
             }
             catch (Exception ex)
@@ -882,14 +894,14 @@ public static class Program
 
     private static async Task DemoShowModels(EnhancedMcpRagServer server)
     {
-        if (await server._ollamaClient.IsAvailableAsync())
+        if (await server._aiProvider.IsAvailableAsync())
         {
-            var models = await server._ollamaClient.GetModelsAsync();
-            Console.WriteLine($"\nAvailable Ollama models: {string.Join(", ", models)}");
+            var models = await server._aiProvider.GetModelsAsync();
+            Console.WriteLine($"\nAvailable {server._aiProvider.ProviderName} models: {string.Join(", ", models)}");
         }
         else
         {
-            Console.WriteLine("\nOllama is not available. Cannot retrieve models.");
+            Console.WriteLine($"\n{server._aiProvider.ProviderName} is not available. Cannot retrieve models.");
         }
     }
 
@@ -897,7 +909,7 @@ public static class Program
     {
         Console.WriteLine("\n=== System Status ===");
         Console.WriteLine($"Operation Mode: {server._operationMode}");
-        Console.WriteLine($"Ollama Available: {(await server._ollamaClient.IsAvailableAsync() ? "✅ Yes" : "❌ No")}");
+        Console.WriteLine($"{server._aiProvider.ProviderName} Available: {(await server._aiProvider.IsAvailableAsync() ? "✅ Yes" : "❌ No")}");
         
         if (server._vectorStore != null)
         {
@@ -1264,7 +1276,7 @@ public static class Program
         var systemConfig = await configService.GetCategoryConfigurationAsync("system");
         var appConfig = await configService.GetCategoryConfigurationAsync("application");
         
-        if (systemConfig.Any())
+        if (systemConfig.Count != 0)
         {
             Console.WriteLine("System Configuration:");
             foreach (var kvp in systemConfig)
@@ -1274,7 +1286,7 @@ public static class Program
             Console.WriteLine();
         }
         
-        if (appConfig.Any())
+        if (appConfig.Count != 0)
         {
             Console.WriteLine("Application Configuration:");
             foreach (var kvp in appConfig)
@@ -1788,7 +1800,7 @@ public static class Program
                     
                 case "d":
                 case "detail":
-                    await ShowLogDetailAsync(errorLoggingService, pagedLogs);
+                    await ShowLogDetailAsync(pagedLogs);
                     break;
                     
                 case "q":
@@ -1922,7 +1934,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static Task ShowLogDetailAsync(ErrorLoggingService loggingService, List<ErrorLogEntry> currentPageLogs)
+    private static Task ShowLogDetailAsync(List<ErrorLogEntry> currentPageLogs)
     {
         if (currentPageLogs.Count == 0)
         {
@@ -2079,7 +2091,7 @@ public static class Program
             {
                 Console.WriteLine($"   ⚡ Custom extensions added: {customCount}");
                 var customExtensions = extractor.CustomExtensions.Except(extractor.DefaultExtensions).ToList();
-                if (customExtensions.Any())
+                if (customExtensions.Count != 0)
                 {
                     Console.WriteLine($"   📎 Custom: {string.Join(", ", customExtensions)}");
                 }
@@ -2101,14 +2113,14 @@ public static class Program
         Console.WriteLine($"Total supported extensions: {stats.TotalSupportedExtensions}");
         Console.WriteLine();
         
-        foreach (var (key, extractorStats) in stats.ExtractorStats)
+        foreach (var (_, extractorStats) in stats.ExtractorStats)
         {
             Console.WriteLine($"🔧 {extractorStats.Name}:");
             Console.WriteLine($"   Supported extensions: {extractorStats.SupportedExtensionCount}");
             Console.WriteLine($"   Default extensions: {extractorStats.DefaultExtensionCount}");
             Console.WriteLine($"   Custom extensions: {extractorStats.CustomExtensionCount}");
             
-            if (extractorStats.SupportedExtensions.Any())
+            if (extractorStats.SupportedExtensions.Count != 0)
             {
                 Console.WriteLine($"   Extensions: {string.Join(", ", extractorStats.SupportedExtensions)}");
             }
@@ -2210,7 +2222,7 @@ public static class Program
         
         var selectedExtractor = extractorList[extractorIndex - 1];
         
-        if (!selectedExtractor.Value.CustomExtensions.Any())
+        if (selectedExtractor.Value.CustomExtensions.Count == 0)
         {
             Console.WriteLine($"❌ {selectedExtractor.Value.Name} has no extensions to remove.");
             Console.WriteLine("Press any key to continue...");
@@ -2384,18 +2396,18 @@ public static class Program
             Console.WriteLine($"   Default extensions: {string.Join(", ", extractor.DefaultExtensions)}");
             
             var customExtensions = extractor.CustomExtensions.Except(extractor.DefaultExtensions).ToList();
-            if (customExtensions.Any())
+            if (customExtensions.Count != 0)
             {
                 Console.WriteLine($"   ➕ Added: {string.Join(", ", customExtensions)}");
             }
             
             var removedDefaults = extractor.DefaultExtensions.Except(extractor.CustomExtensions).ToList();
-            if (removedDefaults.Any())
+            if (removedDefaults.Count != 0)
             {
                 Console.WriteLine($"   ➖ Removed: {string.Join(", ", removedDefaults)}");
             }
             
-            if (!customExtensions.Any() && !removedDefaults.Any())
+            if (customExtensions.Count == 0 && removedDefaults.Count == 0)
             {
                 Console.WriteLine($"   ✅ Using default configuration");
             }
@@ -2410,7 +2422,7 @@ public static class Program
         var allExtensions = extractors.SelectMany(e => e.Value.CustomExtensions).ToList();
         var duplicateExtensions = allExtensions.GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
         
-        if (duplicateExtensions.Any())
+        if (duplicateExtensions.Count != 0)
         {
             Console.WriteLine("⚠️  WARNING: Duplicate extensions found:");
             foreach (var duplicate in duplicateExtensions)
@@ -2511,7 +2523,7 @@ public static class Program
         Console.Write("Enter new document directory path (or 'cancel' to abort): ");
         var newPath = Console.ReadLine()?.Trim();
         
-        if (string.IsNullOrEmpty(newPath) || newPath.ToLower() == "cancel")
+        if (string.IsNullOrEmpty(newPath) || newPath.Equals("cancel", StringComparison.CurrentCultureIgnoreCase))
         {
             Console.WriteLine("Directory change cancelled.");
             return currentServer;
@@ -2576,16 +2588,16 @@ public static class Program
             // Create new server with the new directory
             var newServer = new EnhancedMcpRagServer(logger, newPath, ollamaModel, mode);
             
-            Console.WriteLine("Checking Ollama connection...");
-            if (await newServer._ollamaClient.IsAvailableAsync())
+            Console.WriteLine("Checking AI provider connection...");
+            if (await newServer._aiProvider.IsAvailableAsync())
             {
-                var models = await newServer._ollamaClient.GetModelsAsync();
-                Console.WriteLine($"✅ Ollama connected! Available models: {string.Join(", ", models)}");
+                var models = await newServer._aiProvider.GetModelsAsync();
+                Console.WriteLine($"✅ {newServer._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
                 Console.WriteLine($"Using model: {ollamaModel}");
             }
             else
             {
-                Console.WriteLine("⚠️ Ollama not available. AI features will show connection errors.");
+                Console.WriteLine($"⚠️ {newServer._aiProvider.ProviderName} not available. AI features will show connection errors.");
             }
             
             Console.WriteLine($"\nOperation Mode: {mode}");
@@ -2761,5 +2773,289 @@ public static class Program
         // Fallback to JSON if plain text extraction fails
         Console.WriteLine($"\n{fallbackTitle}:");
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
+    }
+
+    private static async Task ShowAiProviderMenuAsync()
+    {
+        var config = ConfigurationService.LoadConfiguration();
+        bool running = true;
+        
+        while (running)
+        {
+            Console.WriteLine("\n🤖 AI Provider Configuration");
+            Console.WriteLine("============================");
+            Console.WriteLine($"Current Provider: {config.LastProvider}");
+            Console.WriteLine($"Current Model: {config.LastModel ?? "Not set"}");
+            Console.WriteLine();
+            Console.WriteLine("Provider Settings:");
+            Console.WriteLine($"1. Ollama URL: {config.OllamaUrl}");
+            Console.WriteLine($"2. LM Studio URL: {config.LmStudioUrl}");
+            Console.WriteLine($"3. Open Web UI URL: {config.OpenWebUiUrl}");
+            Console.WriteLine();
+            Console.WriteLine("Default Models:");
+            Console.WriteLine($"4. Ollama Default: {config.OllamaDefaultModel}");
+            Console.WriteLine($"5. LM Studio Default: {config.LmStudioDefaultModel}");
+            Console.WriteLine($"6. Open Web UI Default: {config.OpenWebUiDefaultModel}");
+            Console.WriteLine();
+            Console.WriteLine("Options:");
+            Console.WriteLine("7. Select AI Provider");
+            Console.WriteLine("8. Test Provider Connection");
+            Console.WriteLine("9. List Available Models");
+            Console.WriteLine("10. Detect Available Providers");
+            Console.WriteLine("b. Back to main menu");
+            Console.WriteLine();
+            
+            Console.Write("Select option (1-10, b): ");
+            var input = Console.ReadLine()?.ToLower().Trim();
+            
+            switch (input)
+            {
+                case "1":
+                    await ConfigureProviderUrlAsync("Ollama", url => config.OllamaUrl = url);
+                    break;
+                case "2":
+                    await ConfigureProviderUrlAsync("LM Studio", url => config.LmStudioUrl = url);
+                    break;
+                case "3":
+                    await ConfigureProviderUrlAsync("Open Web UI", url => config.OpenWebUiUrl = url);
+                    break;
+                case "4":
+                    await ConfigureDefaultModelAsync("Ollama", model => config.OllamaDefaultModel = model);
+                    break;
+                case "5":
+                    await ConfigureDefaultModelAsync("LM Studio", model => config.LmStudioDefaultModel = model);
+                    break;
+                case "6":
+                    await ConfigureDefaultModelAsync("Open Web UI", model => config.OpenWebUiDefaultModel = model);
+                    break;
+                case "7":
+                    await SelectAiProviderAsync(config);
+                    break;
+                case "8":
+                    await TestProviderConnectionAsync(config);
+                    break;
+                case "9":
+                    await ListAvailableModelsAsync(config);
+                    break;
+                case "10":
+                    await DetectAvailableProvidersAsync();
+                    break;
+                case "b":
+                case "back":
+                    running = false;
+                    break;
+                default:
+                    Console.WriteLine("❌ Invalid option. Please try again.");
+                    break;
+            }
+            
+            if (running)
+            {
+                await Task.Delay(1000); // Brief pause to let user see the result
+            }
+        }
+        
+        // Save configuration after changes
+        ConfigurationService.SaveConfiguration(config);
+    }
+
+    private static Task ConfigureProviderUrlAsync(string providerName, Action<string> setUrlAction)
+    {
+        Console.WriteLine($"\n🔧 Configure {providerName} URL");
+        Console.WriteLine("==============================");
+        
+        Console.Write($"Enter {providerName} URL (press Enter to keep current): ");
+        var url = Console.ReadLine()?.Trim();
+        
+        if (!string.IsNullOrEmpty(url))
+        {
+            setUrlAction(url);
+            Console.WriteLine($"✅ {providerName} URL updated to: {url}");
+        }
+        else
+        {
+            Console.WriteLine("✅ URL unchanged.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private static Task ConfigureDefaultModelAsync(string providerName, Action<string> setModelAction)
+    {
+        Console.WriteLine($"\n🔧 Configure {providerName} Default Model");
+        Console.WriteLine("========================================");
+        
+        Console.Write($"Enter {providerName} default model (press Enter to keep current): ");
+        var model = Console.ReadLine()?.Trim();
+        
+        if (!string.IsNullOrEmpty(model))
+        {
+            setModelAction(model);
+            Console.WriteLine($"✅ {providerName} default model updated to: {model}");
+        }
+        else
+        {
+            Console.WriteLine("✅ Default model unchanged.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private static Task SelectAiProviderAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🤖 Select AI Provider");
+        Console.WriteLine("=====================");
+        
+        var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
+        var providers = providerDescriptions.Keys.ToList();
+        
+        for (int i = 0; i < providers.Count; i++)
+        {
+            Console.WriteLine($"{i + 1}. {providerDescriptions[providers[i]]}");
+        }
+        
+        Console.Write($"Select provider (1-{providers.Count}): ");
+        var input = Console.ReadLine()?.Trim();
+        
+        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+        {
+            var selectedProvider = providers[selection - 1];
+            config.LastProvider = selectedProvider;
+            
+            // Set appropriate default model based on provider
+            config.LastModel = selectedProvider switch
+            {
+                AiProviderType.Ollama => config.OllamaDefaultModel,
+                AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                _ => "default"
+            };
+            
+            Console.WriteLine($"✅ Selected provider: {selectedProvider}");
+            Console.WriteLine($"✅ Default model set to: {config.LastModel}");
+        }
+        else
+        {
+            Console.WriteLine("❌ Invalid selection.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestProviderConnectionAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🔌 Test Provider Connection");
+        Console.WriteLine("============================");
+        
+        try
+        {
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                GetProviderUrl(config, config.LastProvider)
+            );
+            
+            Console.WriteLine($"Testing connection to {provider.ProviderName}...");
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            if (isAvailable)
+            {
+                Console.WriteLine($"✅ {provider.ProviderName} is available at {provider.BaseUrl}");
+                
+                var models = await provider.GetModelsAsync();
+                if (models.Count > 0)
+                {
+                    Console.WriteLine($"Available models: {string.Join(", ", models)}");
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ No models found (provider may be running but no models loaded)");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
+                Console.WriteLine("Make sure the provider is running and accessible.");
+            }
+            
+            provider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error testing provider: {ex.Message}");
+        }
+    }
+
+    private static async Task ListAvailableModelsAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n📋 List Available Models");
+        Console.WriteLine("========================");
+        
+        try
+        {
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                GetProviderUrl(config, config.LastProvider)
+            );
+            
+            var models = await provider.GetModelsAsync();
+            
+            if (models.Count > 0)
+            {
+                Console.WriteLine($"Available models in {provider.ProviderName}:");
+                for (int i = 0; i < models.Count; i++)
+                {
+                    Console.WriteLine($"  {i + 1}. {models[i]}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"❌ No models found in {provider.ProviderName}");
+                Console.WriteLine("Make sure models are loaded in the provider.");
+            }
+            
+            provider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error listing models: {ex.Message}");
+        }
+    }
+
+    private static async Task DetectAvailableProvidersAsync()
+    {
+        Console.WriteLine("\n🔍 Detect Available Providers");
+        Console.WriteLine("==============================");
+        
+        Console.WriteLine("Scanning for available AI providers...");
+        
+        try
+        {
+            var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
+            
+            Console.WriteLine("\nProvider Availability:");
+            foreach (var (providerType, isAvailable) in availableProviders)
+            {
+                var status = isAvailable ? "✅ Available" : "❌ Not available";
+                var info = AiProviderFactory.GetProviderInfo(providerType);
+                Console.WriteLine($"{info.Name}: {status} ({info.DefaultUrl})");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error detecting providers: {ex.Message}");
+        }
+    }
+
+    private static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
+    {
+        return providerType switch
+        {
+            AiProviderType.Ollama => config.OllamaUrl,
+            AiProviderType.LmStudio => config.LmStudioUrl,
+            AiProviderType.OpenWebUi => config.OpenWebUiUrl,
+            _ => null
+        };
     }
 }

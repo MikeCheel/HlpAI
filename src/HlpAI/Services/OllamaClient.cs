@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace HlpAI.Services
 {
-    public class OllamaClient : IDisposable
+    public class OllamaClient : IAiProvider
     {
         private const int OLLAMA_TIMEOUT = 10;  //  Minutes
 
@@ -14,6 +14,12 @@ namespace HlpAI.Services
         private readonly string _model;
         private readonly ILogger? _logger;
         private bool _disposed = false;
+        
+        public AiProviderType ProviderType => AiProviderType.Ollama;
+        public string ProviderName => "Ollama";
+        public string DefaultModel => "llama3.2";
+        public string BaseUrl => _baseUrl;
+        public string CurrentModel => _model;
 
         // Constructor for dependency injection (used in tests)
         public OllamaClient(HttpClient httpClient, string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null)

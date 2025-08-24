@@ -5,8 +5,8 @@ namespace HlpAI.Tests.TestHelpers;
 
 public class MockHttpMessageHandler : HttpMessageHandler
 {
-    private readonly Dictionary<string, (HttpStatusCode statusCode, string content)> _responses = new();
-    private readonly List<(string method, string url, string? content)> _requests = new();
+    private readonly Dictionary<string, (HttpStatusCode statusCode, string content)> _responses = [];
+    private readonly List<(string method, string url, string? content)> _requests = [];
 
     public void SetupResponse(string url, HttpStatusCode statusCode, string content)
     {

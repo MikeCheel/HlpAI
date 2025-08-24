@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using HlpAI.Services;
 
 namespace HlpAI.Models;
 
@@ -18,7 +19,13 @@ public class AppConfiguration
     public bool RememberLastDirectory { get; set; } = true;
 
     /// <summary>
-    /// The last used Ollama model
+    /// The last used AI provider
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AiProviderType LastProvider { get; set; } = AiProviderType.Ollama;
+
+    /// <summary>
+    /// The last used AI model
     /// </summary>
     public string? LastModel { get; set; }
 
@@ -26,6 +33,41 @@ public class AppConfiguration
     /// Whether to remember and suggest the last model on startup
     /// </summary>
     public bool RememberLastModel { get; set; } = true;
+
+    /// <summary>
+    /// Whether to remember and suggest the last provider on startup
+    /// </summary>
+    public bool RememberLastProvider { get; set; } = true;
+
+    /// <summary>
+    /// Base URL for Ollama provider
+    /// </summary>
+    public string? OllamaUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>
+    /// Base URL for LM Studio provider
+    /// </summary>
+    public string? LmStudioUrl { get; set; } = "http://localhost:1234";
+
+    /// <summary>
+    /// Base URL for Open Web UI provider
+    /// </summary>
+    public string? OpenWebUiUrl { get; set; } = "http://localhost:3000";
+
+    /// <summary>
+    /// Default model for Ollama provider
+    /// </summary>
+    public string OllamaDefaultModel { get; set; } = "llama3.2";
+
+    /// <summary>
+    /// Default model for LM Studio provider
+    /// </summary>
+    public string LmStudioDefaultModel { get; set; } = "default";
+
+    /// <summary>
+    /// Default model for Open Web UI provider
+    /// </summary>
+    public string OpenWebUiDefaultModel { get; set; } = "default";
 
     /// <summary>
     /// The last used operation mode

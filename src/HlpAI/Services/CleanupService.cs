@@ -551,7 +551,7 @@ public class CleanupService : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to retrieve cleanup history");
-            return new List<CleanupResult>();
+            return [];
         }
     }
 
@@ -625,7 +625,7 @@ public class CleanupResult
     public TimeSpan Duration { get; set; }
     public string? ErrorMessage { get; set; }
     public CleanupOptions Options { get; set; } = new();
-    public Dictionary<string, string> Details { get; set; } = new();
+    public Dictionary<string, string> Details { get; set; } = [];
 
     public bool VectorDatabaseCleaned { get; set; }
     public long VectorDatabaseSize { get; set; }

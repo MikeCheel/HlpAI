@@ -16,24 +16,35 @@ namespace HlpAI.MCP
         private static readonly string[] RequiredQuestionFields = ["question"];
         private static readonly string[] RequiredFileUriAndAnalysisFields = ["file_uri", "analysis_type"];
 
-        private readonly ILogger<EnhancedMcpRagServer> _logger;
-        private readonly List<IFileExtractor> _extractors;
-        private readonly string _rootPath;
-        public readonly OllamaClient _ollamaClient;
-        private readonly EmbeddingService _embeddingService;
-        public readonly IVectorStore _vectorStore;
-        public readonly OperationMode _operationMode;
-        
-        public string RootPath => _rootPath;
-        private bool _disposed = false;
+    private readonly ILogger<EnhancedMcpRagServer> _logger;
+    private readonly List<IFileExtractor> _extractors;
+    private readonly string _rootPath;
+    public readonly IAiProvider _aiProvider;
+    private readonly EmbeddingService _embeddingService;
+    public readonly IVectorStore _vectorStore;
+    public readonly OperationMode _operationMode;
+    
+    public string RootPath => _rootPath;
+    private bool _disposed = false;
 
-        public EnhancedMcpRagServer(ILogger<EnhancedMcpRagServer> logger, string rootPath, string ollamaModel = "llama3.2", OperationMode mode = OperationMode.Hybrid)
-        {
-            _logger = logger;
-            _rootPath = rootPath;
-            _operationMode = mode;
-            _ollamaClient = new OllamaClient(model: ollamaModel, logger: logger);
-            _embeddingService = new EmbeddingService(logger: logger);
+    public EnhancedMcpRagServer(ILogger<EnhancedMcpRagServer> logger, string rootPath, string aiModel = "llama3.2", OperationMode mode = OperationMode.Hybrid)
+    {
+        _logger = logger;
+        _rootPath = rootPath;
+        _operationMode = mode;
+        
+        // Load configuration to get provider settings
+        var config = ConfigurationService.LoadConfiguration(logger);
+        
+        // Create AI provider based on configuration
+        _aiProvider = AiProviderFactory.CreateProvider(
+            config.LastProvider,
+            aiModel,
+            GetProviderUrl(config, config.LastProvider),
+            logger
+        );
+        
+        _embeddingService = new EmbeddingService(logger: logger);
 
             // Use SQLite-backed vector store
             var dbPath = Path.Combine(_rootPath, "vectors.db");
@@ -46,6 +57,17 @@ namespace HlpAI.MCP
                 new ChmFileExtractor(logger),
                 new HhcFileExtractor()
             ];
+        }
+
+        private static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
+        {
+            return providerType switch
+            {
+                AiProviderType.Ollama => config.OllamaUrl,
+                AiProviderType.LmStudio => config.LmStudioUrl,
+                AiProviderType.OpenWebUi => config.OpenWebUiUrl,
+                _ => null
+            };
         }
 
         public async Task InitializeAsync()
@@ -409,7 +431,7 @@ namespace HlpAI.MCP
                 new
                 {
                     name = "ask_ai",
-                    description = "Ask AI a question about file contents using Ollama",
+                    description = "Ask AI a question about file contents using the configured AI provider",
                     inputSchema = new
                     {
                         type = "object",
@@ -756,9 +778,9 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "Question is required");
             }
 
-            if (!await _ollamaClient.IsAvailableAsync())
+            if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, "Ollama is not available. Please ensure Ollama is running on localhost:11434");
+                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
             }
 
             string? context = explicitContext;
@@ -784,7 +806,7 @@ namespace HlpAI.MCP
                 }
             }
 
-            var aiResponse = await _ollamaClient.GenerateAsync(question, context, temperature);
+            var aiResponse = await _aiProvider.GenerateAsync(question, context, temperature);
 
             return new McpResponse
             {
@@ -886,12 +908,12 @@ namespace HlpAI.MCP
                 }
             }
 
-            if (!await _ollamaClient.IsAvailableAsync())
+            if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, "Ollama is not available. Please ensure Ollama is running on localhost:11434");
+                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
             }
 
-            var analysis = await _ollamaClient.GenerateAsync(prompt, context, 0.3);
+            var analysis = await _aiProvider.GenerateAsync(prompt, context, 0.3);
 
             return new McpResponse
             {
@@ -1009,9 +1031,9 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "Question is required");
             }
 
-            if (!await _ollamaClient.IsAvailableAsync())
+            if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, "Ollama is not available. Please ensure Ollama is running on localhost:11434");
+                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
             }
 
             var ragQuery = new RagQuery
@@ -1030,7 +1052,7 @@ namespace HlpAI.MCP
                     $"[From {SystemPath.GetFileName(r.Chunk.SourceFile)} - Similarity: {r.Similarity:F3}]\n{r.Chunk.Content}"));
             }
 
-            var aiResponse = await _ollamaClient.GenerateAsync(question, context, temperature);
+            var aiResponse = await _aiProvider.GenerateAsync(question, context, temperature);
 
             return new McpResponse
             {
@@ -1120,7 +1142,7 @@ namespace HlpAI.MCP
         {
             if (!_disposed && disposing)
             {
-                _ollamaClient?.Dispose();
+                _aiProvider?.Dispose();
                 _embeddingService?.Dispose();
                 _vectorStore?.Dispose();
                 foreach (var extractor in _extractors.OfType<IDisposable>())
