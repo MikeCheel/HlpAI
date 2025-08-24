@@ -881,10 +881,12 @@ public static class Program
     private static async Task DemoReindex(EnhancedMcpRagServer server)
     {
         Console.WriteLine("Reindexing documents...");
+        
+        // When user chooses reindex from menu, automatically use force: true
         var request = new McpRequest
         {
             Method = "tools/call",
-            Params = new { name = "reindex_documents", arguments = new { } }
+            Params = new { name = "reindex_documents", arguments = new { force = true } }
         };
 
         var response = await server.HandleRequestAsync(request);
@@ -947,6 +949,7 @@ public static class Program
         
         while (configRunning)
         {
+            ClearScreen();
             // Get current hh.exe configuration from SQLite
             var configuredHhPath = await hhExeService.GetConfiguredHhExePathAsync();
             var isAutoDetected = await hhExeService.IsHhExePathAutoDetectedAsync();
@@ -985,10 +988,11 @@ public static class Program
             Console.WriteLine("7. View configuration database details");
             Console.WriteLine("8. Reset all settings to defaults");
             Console.WriteLine("9. Delete configuration database");
+            Console.WriteLine("10. Change AI model");
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-9, b): ");
+            Console.Write("Select option (1-10, b): ");
             var input = Console.ReadLine()?.ToLower().Trim();
             
             switch (input)
@@ -1094,6 +1098,10 @@ public static class Program
                         break;
                     }
                     
+                case "10":
+                    await ChangeAiModelAsync(sqliteConfig);
+                    break;
+                    
                 case "b":
                 case "back":
                     configRunning = false;
@@ -1108,6 +1116,223 @@ public static class Program
             {
                 await Task.Delay(1500); // Brief pause to let user see the result
             }
+        }
+    }
+
+    private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig)
+    {
+        Console.WriteLine("\n🤖 Change AI Model");
+        Console.WriteLine("==================");
+        
+        var config = ConfigurationService.LoadConfiguration();
+        
+        // Get current AI provider configuration from SQLite
+        var currentConfig = await sqliteConfig.GetAiProviderConfigurationAsync();
+        if (currentConfig.HasValue)
+        {
+            Console.WriteLine($"Current Provider: {currentConfig.Value.ProviderType}");
+            Console.WriteLine($"Current Model: {currentConfig.Value.Model}");
+        }
+        else
+        {
+            Console.WriteLine($"Current Provider: {config.LastProvider}");
+            Console.WriteLine($"Current Model: {config.LastModel ?? "Not set"}");
+        }
+        
+        Console.WriteLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("1. List available models for current provider");
+        Console.WriteLine("2. Select a different model");
+        Console.WriteLine("3. Change AI provider (opens AI provider menu)");
+        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine();
+        
+        Console.Write("Select option (1-3, b): ");
+        var choice = Console.ReadLine()?.ToLower().Trim();
+        
+        switch (choice)
+        {
+            case "1":
+                await ListAvailableModelsAsync(config);
+                break;
+                
+            case "2":
+                await SelectModelFromConfigMenuAsync(config);
+                break;
+                
+            case "3":
+                await ShowAiProviderMenuAsync();
+                break;
+                
+            case "b":
+            case "back":
+                break;
+                
+            default:
+                Console.WriteLine("❌ Invalid option. Please try again.");
+                break;
+        }
+        
+        if (choice != "b" && choice != "back")
+        {
+            await Task.Delay(2000); // Brief pause to let user see the result
+        }
+    }
+
+    private static async Task ListAvailableModelsAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n📋 Available Models");
+        Console.WriteLine("==================");
+        
+        try
+        {
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                GetProviderUrl(config, config.LastProvider)
+            );
+            
+            Console.WriteLine($"Checking models for {provider.ProviderName}...");
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            if (!isAvailable)
+            {
+                Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
+                Console.WriteLine("Make sure the provider is running and accessible.");
+                provider.Dispose();
+                return;
+            }
+            
+            var models = await provider.GetModelsAsync();
+            if (models.Count > 0)
+            {
+                Console.WriteLine($"\n✅ Found {models.Count} models:");
+                for (int i = 0; i < models.Count; i++)
+                {
+                    var isCurrent = models[i] == config.LastModel;
+                    var status = isCurrent ? " ✅ (Current)" : "";
+                    Console.WriteLine($"{i + 1}. {models[i]}{status}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("⚠️ No models found (provider may be running but no models loaded)");
+            }
+            
+            provider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error listing models: {ex.Message}");
+        }
+    }
+
+    private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🎯 Select Model");
+        Console.WriteLine("===============");
+        
+        try
+        {
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                GetProviderUrl(config, config.LastProvider)
+            );
+            
+            Console.WriteLine($"Getting models from {provider.ProviderName}...");
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            if (!isAvailable)
+            {
+                Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
+                Console.WriteLine("Make sure the provider is running and accessible.");
+                provider.Dispose();
+                return;
+            }
+            
+            var models = await provider.GetModelsAsync();
+            if (models.Count == 0)
+            {
+                Console.WriteLine("⚠️ No models found. You can still enter a model name manually.");
+                Console.Write("Enter model name: ");
+                var manualModel = Console.ReadLine()?.Trim();
+                if (!string.IsNullOrEmpty(manualModel))
+                {
+                    UpdateModelConfiguration(config, manualModel);
+                }
+                provider.Dispose();
+                return;
+            }
+            
+            Console.WriteLine($"\nAvailable models:");
+            for (int i = 0; i < models.Count; i++)
+            {
+                var isCurrent = models[i] == config.LastModel;
+                var status = isCurrent ? " ✅ (Current)" : "";
+                Console.WriteLine($"{i + 1}. {models[i]}{status}");
+            }
+            
+            Console.WriteLine($"{models.Count + 1}. Enter custom model name");
+            Console.WriteLine();
+            
+            Console.Write($"Select model (1-{models.Count + 1}): ");
+            var input = Console.ReadLine()?.Trim();
+            
+            if (int.TryParse(input, out int selection))
+            {
+                if (selection >= 1 && selection <= models.Count)
+                {
+                    var selectedModel = models[selection - 1];
+                    UpdateModelConfiguration(config, selectedModel);
+                }
+                else if (selection == models.Count + 1)
+                {
+                    Console.Write("Enter custom model name: ");
+                    var customModel = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(customModel))
+                    {
+                        UpdateModelConfiguration(config, customModel);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Invalid selection.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid input. Please enter a number.");
+            }
+            
+            provider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error selecting model: {ex.Message}");
+        }
+    }
+
+    private static void UpdateModelConfiguration(AppConfiguration config, string newModel)
+    {
+        try
+        {
+            // Update both JSON and SQLite configuration
+            var success = ConfigurationService.UpdateAiProviderConfiguration(config.LastProvider, newModel);
+            
+            if (success)
+            {
+                Console.WriteLine($"✅ Model updated successfully: {newModel}");
+                Console.WriteLine($"✅ Configuration saved to both JSON and SQLite database");
+            }
+            else
+            {
+                Console.WriteLine($"❌ Failed to update model configuration");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error updating model configuration: {ex.Message}");
         }
     }
 
@@ -1675,15 +1900,15 @@ public static class Program
     {
         using var errorLoggingService = new ErrorLoggingService();
         
-        Console.WriteLine("\n📊 Error Log Viewer");
-        Console.WriteLine("===================");
-        
         // Get total log count for pagination
         var allLogs = await errorLoggingService.GetRecentLogsAsync(10000); // Get a large number to count total
         var totalLogs = allLogs.Count;
         
         if (totalLogs == 0)
         {
+            ClearScreen();
+            Console.WriteLine("📊 Error Log Viewer");
+            Console.WriteLine("===================");
             Console.WriteLine("No error logs found.");
             Console.WriteLine("\nPress any key to continue...");
             Console.ReadKey(true);
@@ -2002,6 +2227,7 @@ public static class Program
     {
         using var extractorService = new ExtractorManagementService();
         
+        ClearScreen();
         Console.WriteLine("\n🔧 File Extractor Management");
         Console.WriteLine("============================");
         
@@ -2782,6 +3008,7 @@ public static class Program
         
         while (running)
         {
+            ClearScreen();
             Console.WriteLine("\n🤖 AI Provider Configuration");
             Console.WriteLine("============================");
             Console.WriteLine($"Current Provider: {config.LastProvider}");
@@ -2986,42 +3213,7 @@ public static class Program
         }
     }
 
-    private static async Task ListAvailableModelsAsync(AppConfiguration config)
-    {
-        Console.WriteLine("\n📋 List Available Models");
-        Console.WriteLine("========================");
-        
-        try
-        {
-            var provider = AiProviderFactory.CreateProvider(
-                config.LastProvider,
-                config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider)
-            );
-            
-            var models = await provider.GetModelsAsync();
-            
-            if (models.Count > 0)
-            {
-                Console.WriteLine($"Available models in {provider.ProviderName}:");
-                for (int i = 0; i < models.Count; i++)
-                {
-                    Console.WriteLine($"  {i + 1}. {models[i]}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"❌ No models found in {provider.ProviderName}");
-                Console.WriteLine("Make sure models are loaded in the provider.");
-            }
-            
-            provider.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Error listing models: {ex.Message}");
-        }
-    }
+
 
     private static async Task DetectAvailableProvidersAsync()
     {

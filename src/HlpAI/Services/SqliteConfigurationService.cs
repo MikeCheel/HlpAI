@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -353,6 +354,120 @@ public class SqliteConfigurationService : IDisposable
         {
             _logger?.LogError(ex, "Error optimizing database");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Sets the AI provider configuration
+    /// </summary>
+    /// <param name="providerType">The AI provider type</param>
+    /// <param name="model">The model name</param>
+    /// <returns>True if successful</returns>
+    public async Task<bool> SetAiProviderConfigurationAsync(AiProviderType providerType, string model)
+    {
+        try
+        {
+            // Store provider type
+            await SetConfigurationAsync("LastProvider", providerType.ToString(), "ai_provider");
+            
+            // Store model name
+            await SetConfigurationAsync("LastModel", model, "ai_provider");
+            
+            // Store timestamp
+            await SetConfigurationAsync("LastUpdated", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"), "ai_provider");
+            
+            _logger?.LogInformation("AI provider configuration saved: {Provider} with model {Model}", providerType, model);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error saving AI provider configuration");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets the AI provider configuration
+    /// </summary>
+    /// <returns>Tuple containing provider type and model, or null if not configured</returns>
+    public async Task<(AiProviderType ProviderType, string Model)?> GetAiProviderConfigurationAsync()
+    {
+        try
+        {
+            var providerStr = await GetConfigurationAsync("LastProvider", "ai_provider");
+            var model = await GetConfigurationAsync("LastModel", "ai_provider");
+            
+            if (string.IsNullOrEmpty(providerStr) || string.IsNullOrEmpty(model))
+            {
+                _logger?.LogDebug("AI provider configuration not found in SQLite database");
+                return null;
+            }
+
+            if (Enum.TryParse<AiProviderType>(providerStr, out var providerType))
+            {
+                _logger?.LogDebug("Retrieved AI provider configuration: {Provider} with model {Model}", providerType, model);
+                return (providerType, model);
+            }
+            
+            _logger?.LogWarning("Invalid provider type in configuration: {ProviderStr}", providerStr);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error retrieving AI provider configuration");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Clears the AI provider configuration
+    /// </summary>
+    /// <returns>True if successful</returns>
+    public async Task<bool> ClearAiProviderConfigurationAsync()
+    {
+        try
+        {
+            await RemoveConfigurationAsync("LastProvider", "ai_provider");
+            await RemoveConfigurationAsync("LastModel", "ai_provider");
+            await RemoveConfigurationAsync("LastUpdated", "ai_provider");
+            
+            _logger?.LogInformation("AI provider configuration cleared");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error clearing AI provider configuration");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets the timestamp when the AI provider configuration was last updated
+    /// </summary>
+    /// <returns>Last update timestamp or null if not configured</returns>
+    public async Task<DateTime?> GetAiProviderConfigurationTimestampAsync()
+    {
+        try
+        {
+            var timestampStr = await GetConfigurationAsync("LastUpdated", "ai_provider");
+            
+            if (string.IsNullOrEmpty(timestampStr))
+            {
+                return null;
+            }
+
+            if (DateTime.TryParse(timestampStr, out var timestamp))
+            {
+                return timestamp;
+            }
+            
+            _logger?.LogWarning("Invalid timestamp format in AI provider configuration: {TimestampStr}", timestampStr);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error retrieving AI provider configuration timestamp");
+            return null;
         }
     }
 

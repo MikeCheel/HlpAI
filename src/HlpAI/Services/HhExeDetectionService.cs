@@ -49,13 +49,9 @@ public class HhExeDetectionService : IDisposable
         {
             _logger?.LogInformation("hh.exe found at default location: {DefaultPath}", defaultPath);
             
-            // Store the path in configuration if it's the first time we find it
-            var currentPath = await _configService.GetConfigurationAsync("hh_exe_path", "system");
-            if (string.IsNullOrEmpty(currentPath))
-            {
-                await _configService.SetConfigurationAsync("hh_exe_path", defaultPath, "system");
-                await _configService.SetConfigurationBoolAsync("hh_exe_auto_detected", true, "system");
-            }
+            // Always update the configuration when hh.exe is found at the default location
+            await _configService.SetConfigurationAsync("hh_exe_path", defaultPath, "system");
+            await _configService.SetConfigurationBoolAsync("hh_exe_auto_detected", true, "system");
             
             // Store the successful detection in the database
             await StoreDetectionResultAsync(defaultPath, true, "Found at default Windows location");

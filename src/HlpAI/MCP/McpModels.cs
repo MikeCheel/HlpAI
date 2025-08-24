@@ -35,3 +35,35 @@ public class ResourceContent
     public required string MimeType { get; set; }
     public required string Text { get; set; }
 }
+
+public class ResourcesListResponse
+{
+    public required List<ResourceInfo> Resources { get; set; }
+}
+
+public class ToolsListResponse
+{
+    public required List<object> Tools { get; set; }
+}
+
+public class ReadResourceResponse
+{
+    public required List<ResourceContent> Contents { get; set; }
+}
+
+public class TextContentResponse
+{
+    public required List<TextContent> Content { get; set; }
+}
+
+public class TextContent
+{
+    public required string Type { get; set; } = "text";
+    public required string Text { get; set; }
+}
+
+public class ErrorResponse
+{
+    public required int Code { get; set; }
+    public required string Message { get; set; }
+}

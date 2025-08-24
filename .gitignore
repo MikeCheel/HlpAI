@@ -427,8 +427,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# AI Tools
+# AI Tools and related
 .claude/
+ai-todos.md
 
 # Project-specific build and test output files
 build_output.txt

@@ -359,7 +359,7 @@ namespace HlpAI.MCP
             return Task.FromResult(new McpResponse
             {
                 Id = request.Id,
-                Result = new { resources }
+                Result = new ResourcesListResponse { Resources = resources }
             });
         }
 
@@ -394,9 +394,9 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new ReadResourceResponse
                 {
-                    contents = new[]
+                    Contents = new List<ResourceContent>
                     {
                         new ResourceContent
                         {
@@ -532,7 +532,7 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new { tools }
+                Result = new ToolsListResponse { Tools = tools }
             };
         }
 
@@ -673,14 +673,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = report.ToString()
+                            Type = "text",
+                            Text = report.ToString()
                         }
                     }
                 }
@@ -735,14 +735,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = $"Found {results.Count} files containing '{query}':\n" +
+                            Type = "text",
+                            Text = $"Found {results.Count} files containing '{query}':\n" +
                                    string.Join("\n", results.Select(r => $"- {((dynamic)r).file} ({((dynamic)r).matches} matches)"))
                         }
                     }
@@ -811,14 +811,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = aiResponse
+                            Type = "text",
+                            Text = aiResponse
                         }
                     }
                 }
@@ -918,14 +918,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = $"File: {fileUri}\nAnalysis Type: {analysisType}\nMode: {(_operationMode == OperationMode.RAG || _operationMode == OperationMode.Hybrid ? "RAG-Enhanced" : "Standard")}\n\n{analysis}"
+                            Type = "text",
+                            Text = $"File: {fileUri}\nAnalysis Type: {analysisType}\nMode: {(_operationMode == OperationMode.RAG || _operationMode == OperationMode.Hybrid ? "RAG-Enhanced" : "Standard")}\n\n{analysis}"
                         }
                     }
                 }
@@ -991,14 +991,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = resultText.ToString()
+                            Type = "text",
+                            Text = resultText.ToString()
                         }
                     }
                 }
@@ -1057,14 +1057,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = $"RAG-Enhanced Response (using {searchResults.Count} context chunks):\n\n{aiResponse}"
+                            Type = "text",
+                            Text = $"RAG-Enhanced Response (using {searchResults.Count} context chunks):\n\n{aiResponse}"
                         }
                     }
                 }
@@ -1087,21 +1087,21 @@ namespace HlpAI.MCP
 
             if (!force && await _vectorStore.GetChunkCountAsync() > 0)
             {
-                return new McpResponse
+            return new McpResponse
+            {
+                Id = request.Id,
+                Result = new TextContentResponse
                 {
-                    Id = request.Id,
-                    Result = new
+                    Content = new List<TextContent>
                     {
-                        content = new[]
+                        new TextContent
                         {
-                            new
-                            {
-                                type = "text",
-                                text = $"Index already exists with {await _vectorStore.GetChunkCountAsync()} chunks. Use 'force: true' to rebuild."
-                            }
+                            Type = "text",
+                            Text = $"Index already exists with {await _vectorStore.GetChunkCountAsync()} chunks. Use 'force: true' to rebuild."
                         }
                     }
-                };
+                }
+            };
             }
 
             await _vectorStore.ClearIndexAsync();
@@ -1110,14 +1110,14 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = request.Id,
-                Result = new
+                Result = new TextContentResponse
                 {
-                    content = new[]
+                    Content = new List<TextContent>
                     {
-                        new
+                        new TextContent
                         {
-                            type = "text",
-                            text = $"Successfully reindexed {await _vectorStore.GetChunkCountAsync()} chunks from {result.IndexedFiles.Count} files in {result.Duration}."
+                            Type = "text",
+                            Text = $"Successfully reindexed {await _vectorStore.GetChunkCountAsync()} chunks from {result.IndexedFiles.Count} files in {result.Duration}."
                         }
                     }
                 }
@@ -1134,7 +1134,7 @@ namespace HlpAI.MCP
             return new McpResponse
             {
                 Id = id,
-                Error = new { code = -1, message }
+                Error = new ErrorResponse { Code = -1, Message = message }
             };
         }
 

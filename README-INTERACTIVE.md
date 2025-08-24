@@ -447,14 +447,80 @@ Initializing RAG system...
 📱 Returning to main menu...
 ```
 
+1. Change AI Provider (Current: Ollama)
+2. Change AI Model (Current: llama3.2)
+3. Change Operation Mode (Current: Hybrid)
+4. View Current Configuration
+5. Reset to Default Settings
+b. Back to main menu
+
+Enter your choice (1-5, b): 1
+
+🤖 Change AI Provider
+✅ Available AI Providers:
+  1. Ollama (http://localhost:11434) - ✅ Available
+  2. LM Studio (http://localhost:1234) - ❌ Not available
+  3. Open WebUI (http://localhost:3000) - ✅ Available
+
+Select provider (1-3): 3
+✅ Selected provider: Open WebUI
+✅ Configuration updated successfully!
+```
 #### **Command 14: Configuration Settings**
-Access and modify application settings.
+Access and modify application settings including AI provider switching.
 
 **Usage:**
 ```
 Command: 14
 
 ⚙️ Configuration Settings
+1. Change AI Provider (Current: Ollama)
+2. Change AI Model (Current: llama3.2)
+3. Change Operation Mode (Current: Hybrid)
+4. View Current Configuration
+5. Reset to Default Settings
+b. Back to main menu
+
+Enter your choice (1-5, b): 1
+
+🤖 Change AI Provider
+✅ Available AI Providers:
+  1. Ollama (http://localhost:11434) - ✅ Available
+  2. LM Studio (http://localhost:1234) - ❌ Not available
+  3. Open WebUI (http://localhost:3000) - ✅ Available
+
+Select provider (1-3): 3
+✅ Selected provider: Open WebUI
+✅ Configuration updated successfully!
+```
+
+**Provider Switching Features:**
+- 🔄 **Hot-swappable**: Change providers without restarting the application
+- 🔍 **Auto-detection**: Automatically detects available providers and their status
+- ⚡ **Instant switching**: Changes take effect immediately
+- 📊 **Provider status**: Shows availability and connection status for each provider
+- 🎯 **Model compatibility**: Automatically handles model compatibility between providers
+- 💾 **Configuration persistence**: Provider changes are saved and restored on restart
+
+**Supported AI Providers:**
+- **Ollama** (default): Local AI models running via Ollama (http://localhost:11434)
+- **LM Studio**: Local models via LM Studio API (http://localhost:1234)
+- **Open WebUI**: Web-based AI interface (http://localhost:3000)
+
+**Switching Process:**
+1. Select "Change AI Provider" from configuration menu
+2. View available providers with their connection status
+3. Select the desired provider
+4. System automatically validates the new provider connection
+5. Configuration is updated and saved immediately
+6. All subsequent AI operations use the new provider
+
+**Provider Requirements:**
+- **Ollama**: Must have Ollama installed and running with desired models
+- **LM Studio**: Must have LM Studio running with API enabled
+- **Open WebUI**: Must have Open WebUI instance accessible
+
+**Note**: Some providers may have different model capabilities. The system will automatically handle model compatibility and may suggest appropriate models when switching providers.
 =========================
 1. Change AI Provider (Current: Ollama)
 2. Change AI Model (Current: llama3.2)

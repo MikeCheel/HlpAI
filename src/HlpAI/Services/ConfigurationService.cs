@@ -133,7 +133,66 @@ public static class ConfigurationService
         
         var config = LoadConfiguration(logger);
         config.LastModel = model;
+        
+        // Also save to SQLite for consistency
+        try
+        {
+            using var sqliteConfig = new SqliteConfigurationService(logger);
+            var providerConfig = sqliteConfig.GetAiProviderConfigurationAsync().GetAwaiter().GetResult();
+            if (providerConfig.HasValue)
+            {
+                sqliteConfig.SetAiProviderConfigurationAsync(providerConfig.Value.ProviderType, model).GetAwaiter().GetResult();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to update model in SQLite configuration (falling back to JSON only)");
+        }
+        
         return SaveConfiguration(config, logger);
+    }
+
+    /// <summary>
+    /// Updates the AI provider configuration in both JSON and SQLite
+    /// </summary>
+    /// <param name="providerType">The AI provider type</param>
+    /// <param name="model">The model name</param>
+    /// <param name="logger">Optional logger for diagnostics</param>
+    /// <returns>True if updated successfully in both stores</returns>
+    public static bool UpdateAiProviderConfiguration(AiProviderType providerType, string model, ILogger? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        
+        var config = LoadConfiguration(logger);
+        config.LastProvider = providerType;
+        config.LastModel = model;
+        
+        // Save to SQLite first (primary storage)
+        bool sqliteSuccess = false;
+        try
+        {
+            using var sqliteConfig = new SqliteConfigurationService(logger);
+            sqliteSuccess = sqliteConfig.SetAiProviderConfigurationAsync(providerType, model).GetAwaiter().GetResult();
+            if (sqliteSuccess)
+            {
+                logger?.LogInformation("AI provider configuration saved to SQLite: {Provider} with model {Model}", providerType, model);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to save AI provider configuration to SQLite");
+            sqliteSuccess = false;
+        }
+        
+        // Always save to JSON for backward compatibility
+        var jsonSuccess = SaveConfiguration(config, logger);
+        
+        if (jsonSuccess)
+        {
+            logger?.LogInformation("AI provider configuration saved to JSON: {Provider} with model {Model}", providerType, model);
+        }
+        
+        return sqliteSuccess && jsonSuccess;
     }
 
     /// <summary>
@@ -248,13 +307,13 @@ public static class ConfigurationService
             }
         }
 
-        // If auto-detect is enabled, try to find it
+        // If auto-detect is enabled and no valid manual path exists, try to find it
         if (config.AutoDetectHhExe)
         {
             var detectedPath = DetectHhExePath(logger);
-            if (detectedPath != null)
+            if (detectedPath != null && ValidateHhExePath(detectedPath, logger))
             {
-                // Save the detected path for future use
+                // Save the detected path for future use only if it's valid
                 config.HhExePath = detectedPath;
                 SaveConfiguration(config, logger);
                 return detectedPath;

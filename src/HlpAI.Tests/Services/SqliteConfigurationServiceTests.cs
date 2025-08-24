@@ -3,6 +3,7 @@ using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using TUnit.Assertions;
 using TUnit.Core;
+using HlpAI.Models;
 
 namespace HlpAI.Tests.Services;
 
@@ -419,4 +420,205 @@ public class SqliteConfigurationServiceTests
             await Assert.That(result).IsEqualTo($"value_{i}");
         }
     }
+
+    #region AI Provider Configuration Tests
+
+    [Test]
+    public async Task SetAiProviderConfigurationAsync_WithValidData_ReturnsTrue()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType providerType = AiProviderType.Ollama;
+        const string model = "llama2";
+
+        // Act
+        var result = await service.SetAiProviderConfigurationAsync(providerType, model);
+
+        // Assert
+        await Assert.That(result).IsTrue();
+    }
+
+    [Test]
+    public async Task GetAiProviderConfigurationAsync_AfterSet_ReturnsCorrectValues()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType expectedProvider = AiProviderType.LmStudio;
+        const string expectedModel = "codellama:7b";
+
+        // Act
+        await service.SetAiProviderConfigurationAsync(expectedProvider, expectedModel);
+        var result = await service.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Value.ProviderType).IsEqualTo(expectedProvider);
+        await Assert.That(result!.Value.Model).IsEqualTo(expectedModel);
+    }
+
+    [Test]
+    public async Task GetAiProviderConfigurationAsync_WhenNotSet_ReturnsNull()
+    {
+        // Arrange
+        using var service = CreateTestService();
+
+        // Act
+        var result = await service.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(result).IsNull();
+    }
+
+    [Test]
+    public async Task SetAiProviderConfigurationAsync_UpdatesExistingConfiguration()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType originalProvider = AiProviderType.Ollama;
+        const string originalModel = "llama2";
+        const AiProviderType updatedProvider = AiProviderType.OpenWebUi;
+        const string updatedModel = "mistral:7b";
+
+        // Act
+        await service.SetAiProviderConfigurationAsync(originalProvider, originalModel);
+        await service.SetAiProviderConfigurationAsync(updatedProvider, updatedModel);
+        var result = await service.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Value.ProviderType).IsEqualTo(updatedProvider);
+        await Assert.That(result!.Value.Model).IsEqualTo(updatedModel);
+    }
+
+    [Test]
+    public async Task ClearAiProviderConfigurationAsync_RemovesConfiguration()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType providerType = AiProviderType.Ollama;
+        const string model = "llama2";
+
+        // Act
+        await service.SetAiProviderConfigurationAsync(providerType, model);
+        var clearResult = await service.ClearAiProviderConfigurationAsync();
+        var getResult = await service.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(clearResult).IsTrue();
+        await Assert.That(getResult).IsNull();
+    }
+
+    [Test]
+    public async Task ClearAiProviderConfigurationAsync_WhenNotSet_ReturnsTrue()
+    {
+        // Arrange
+        using var service = CreateTestService();
+
+        // Act
+        var result = await service.ClearAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(result).IsTrue();
+    }
+
+    [Test]
+    public async Task SetAiProviderConfigurationAsync_WithAllProviderTypes_WorksCorrectly()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        var testCases = new[]
+        {
+            (AiProviderType.Ollama, "llama2:7b"),
+            (AiProviderType.LmStudio, "codellama:13b"),
+            (AiProviderType.OpenWebUi, "mistral:latest")
+        };
+
+        foreach (var (providerType, model) in testCases)
+        {
+            // Act
+            var setResult = await service.SetAiProviderConfigurationAsync(providerType, model);
+            var getResult = await service.GetAiProviderConfigurationAsync();
+
+            // Assert
+            await Assert.That(setResult).IsTrue();
+            await Assert.That(getResult).IsNotNull();
+            await Assert.That(getResult!.Value.ProviderType).IsEqualTo(providerType);
+            await Assert.That(getResult!.Value.Model).IsEqualTo(model);
+        }
+    }
+
+    [Test]
+    public async Task SetAiProviderConfigurationAsync_WithSpecialCharactersInModel_WorksCorrectly()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType providerType = AiProviderType.Ollama;
+        const string modelWithSpecialChars = "model-name_v2.1:latest";
+
+        // Act
+        var setResult = await service.SetAiProviderConfigurationAsync(providerType, modelWithSpecialChars);
+        var getResult = await service.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(setResult).IsTrue();
+        await Assert.That(getResult).IsNotNull();
+        await Assert.That(getResult!.Value.Model).IsEqualTo(modelWithSpecialChars);
+    }
+
+    [Test]
+    public async Task AiProviderConfiguration_PersistsAfterServiceRestart()
+    {
+        // Arrange
+        const AiProviderType providerType = AiProviderType.LmStudio;
+        const string model = "persistent-model";
+
+        // Act
+        using (var service1 = CreateSharedTestService())
+        {
+            await service1.SetAiProviderConfigurationAsync(providerType, model);
+        }
+
+        using var service2 = CreateSharedTestService();
+        var result = await service2.GetAiProviderConfigurationAsync();
+
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Value.ProviderType).IsEqualTo(providerType);
+        await Assert.That(result!.Value.Model).IsEqualTo(model);
+    }
+
+    [Test]
+    public async Task GetAiProviderConfigurationTimestampAsync_AfterSet_ReturnsRecentTimestamp()
+    {
+        // Arrange
+        using var service = CreateTestService();
+        const AiProviderType providerType = AiProviderType.Ollama;
+        const string model = "test-model";
+        var beforeSet = DateTime.UtcNow;
+
+        // Act
+        await service.SetAiProviderConfigurationAsync(providerType, model);
+        var timestamp = await service.GetAiProviderConfigurationTimestampAsync();
+        var afterSet = DateTime.UtcNow;
+
+        // Assert
+        await Assert.That(timestamp).IsNotNull();
+        await Assert.That(timestamp!.Value).IsGreaterThanOrEqualTo(beforeSet.AddSeconds(-1)); // Allow 1 second tolerance
+        await Assert.That(timestamp!.Value).IsLessThanOrEqualTo(afterSet.AddSeconds(1)); // Allow 1 second tolerance
+    }
+
+    [Test]
+    public async Task GetAiProviderConfigurationTimestampAsync_WhenNotSet_ReturnsNull()
+    {
+        // Arrange
+        using var service = CreateTestService();
+
+        // Act
+        var timestamp = await service.GetAiProviderConfigurationTimestampAsync();
+
+        // Assert
+        await Assert.That(timestamp).IsNull();
+    }
+
+    #endregion
 }
