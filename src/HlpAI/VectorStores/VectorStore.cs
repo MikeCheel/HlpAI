@@ -5,10 +5,10 @@ using SystemPath = System.IO.Path;
 
 namespace HlpAI.VectorStores
 {
-    public class VectorStore(EmbeddingService embeddingService, ILogger? logger = null) : IVectorStore
+    public class VectorStore(IEmbeddingService embeddingService, ILogger? logger = null) : IVectorStore
     {
         private readonly List<DocumentChunk> _chunks = [];
-        private readonly EmbeddingService _embeddingService = embeddingService;
+        private readonly IEmbeddingService _embeddingService = embeddingService;
         private readonly ILogger? _logger = logger;
         private bool _disposed = false;
 

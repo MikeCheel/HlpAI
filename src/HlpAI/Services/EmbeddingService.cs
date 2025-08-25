@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace HlpAI.Services
 {
-    public class EmbeddingService : IDisposable
+    public class EmbeddingService : IEmbeddingService
     {
         private const int EMBEDDING_TIMEOUT = 10;  //  Minutes
         private readonly HttpClient _httpClient;

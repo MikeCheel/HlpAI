@@ -23,6 +23,15 @@ public class FileTypeFilterService : IDisposable
         ".hhc"                           // HhcFileExtractor
     };
 
+    // Default exclude patterns to prevent system files from being processed
+    private static readonly string[] DefaultExcludePatterns = 
+    {
+        "vector.db",      // Vector database file
+        "vectors.db",     // Vector database file (alternative name)
+        "*.db-*",         // Database backup files
+        "config.db"       // Configuration database
+    };
+
     public FileTypeFilterService(ILogger? logger = null)
     {
         _logger = logger;
@@ -212,6 +221,11 @@ public class FileTypeFilterService : IDisposable
             if (!string.IsNullOrEmpty(excludePatterns))
             {
                 config.ExcludePatterns = JsonSerializer.Deserialize<List<string>>(excludePatterns) ?? [];
+            }
+            else
+            {
+                // Use default exclude patterns if none are configured
+                config.ExcludePatterns = DefaultExcludePatterns.ToList();
             }
 
             // Load supported types

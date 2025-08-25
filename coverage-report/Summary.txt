@@ -1,0 +1,85 @@
+Summary
+  Generated on: 8/24/2025 - 5:24:25 PM
+  Coverage date: 8/23/2025 - 7:07:24 PM
+  Parser: Cobertura
+  Assemblies: 1
+  Classes: 63
+  Files: 29
+  Line coverage: 26.5%
+  Covered lines: 2084
+  Uncovered lines: 5777
+  Coverable lines: 7861
+  Total lines: 11951
+  Branch coverage: 18.2% (564 of 3097)
+  Covered branches: 564
+  Total branches: 3097
+  Method coverage: 47.7% (276 of 578)
+  Full method coverage: 37.8% (219 of 578)
+  Covered methods: 276
+  Fully covered methods: 219
+  Total methods: 578
+
+HlpAI                                               26.5%
+  HlpAI.FileExtractors.ChmFileExtractor             81.7%
+  HlpAI.FileExtractors.HhcFileExtractor              8.1%
+  HlpAI.FileExtractors.HtmlFileExtractor             100%
+  HlpAI.FileExtractors.PdfFileExtractor             12.5%
+  HlpAI.FileExtractors.TextFileExtractor             100%
+  HlpAI.MCP.EnhancedMcpRagServer                       0%
+  HlpAI.MCP.McpRequest                                 0%
+  HlpAI.MCP.McpResponse                                0%
+  HlpAI.MCP.ReadResourceRequest                        0%
+  HlpAI.MCP.ResourceContent                            0%
+  HlpAI.MCP.ResourceInfo                             100%
+  HlpAI.Models.AppConfiguration                      100%
+  HlpAI.Models.DocumentChunk                         100%
+  HlpAI.Models.FailedFile                              0%
+  HlpAI.Models.IndexingResult                          0%
+  HlpAI.Models.RagQuery                              100%
+  HlpAI.Models.SearchResult                          100%
+  HlpAI.Models.SkippedFile                             0%
+  HlpAI.Program                                        0%
+  HlpAI.Services.AiProviderConfiguration               0%
+  HlpAI.Services.AiProviderFactory                  92.3%
+  HlpAI.Services.CleanupConfiguration                  0%
+  HlpAI.Services.CleanupOperationResult                0%
+  HlpAI.Services.CleanupOptions                        0%
+  HlpAI.Services.CleanupResult                         0%
+  HlpAI.Services.CleanupService                        0%
+  HlpAI.Services.CleanupStatistics                     0%
+  HlpAI.Services.CommandLineArgumentsService        25.9%
+  HlpAI.Services.ConfigurableFileExtractor          91.6%
+  HlpAI.Services.ConfigurationService               61.1%
+  HlpAI.Services.ConfigurationStats                  100%
+  HlpAI.Services.EmbeddingService                   55.3%
+  HlpAI.Services.ErrorLogEntry                       100%
+  HlpAI.Services.ErrorLoggingService                78.1%
+  HlpAI.Services.ErrorLogStatistics                  100%
+  HlpAI.Services.ExtractionStatistics                100%
+  HlpAI.Services.ExtractionTestResult                100%
+  HlpAI.Services.ExtractorInfo                       100%
+  HlpAI.Services.ExtractorManagementConfiguration      0%
+  HlpAI.Services.ExtractorManagementService         87.8%
+  HlpAI.Services.ExtractorStats                      100%
+  HlpAI.Services.FileExportConfiguration             100%
+  HlpAI.Services.FileExportResult                    100%
+  HlpAI.Services.FileExportSettings                  100%
+  HlpAI.Services.FileFilteringConfiguration            0%
+  HlpAI.Services.FileFilterResult                      0%
+  HlpAI.Services.FileFilterStatistics                  0%
+  HlpAI.Services.FileFilterTestResult                  0%
+  HlpAI.Services.FileListExportService              90.8%
+  HlpAI.Services.FileTypeFilterConfiguration           0%
+  HlpAI.Services.FileTypeFilterService                 0%
+  HlpAI.Services.HhExeDetectionResult                100%
+  HlpAI.Services.HhExeDetectionService              91.5%
+  HlpAI.Services.LmStudioProvider                   29.7%
+  HlpAI.Services.LoggingConfiguration                100%
+  HlpAI.Services.OllamaClient                       84.4%
+  HlpAI.Services.OpenWebUiProvider                  30.2%
+  HlpAI.Services.PromptService                      53.9%
+  HlpAI.Services.ProviderInfo                        100%
+  HlpAI.Services.SqliteConfigurationService         75.4%
+  HlpAI.Utilities.FileAuditUtility                    79%
+  HlpAI.VectorStores.SqliteVectorStore                 0%
+  HlpAI.VectorStores.VectorStore                       0%

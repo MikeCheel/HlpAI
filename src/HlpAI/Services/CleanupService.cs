@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using HlpAI.Models;
 
 namespace HlpAI.Services;
 

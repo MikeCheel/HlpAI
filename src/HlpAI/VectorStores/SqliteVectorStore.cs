@@ -13,11 +13,11 @@ namespace HlpAI.VectorStores
     public class SqliteVectorStore : IVectorStore
     {
         private readonly SqliteConnection _connection;
-        private readonly EmbeddingService _embeddingService;
+        private readonly IEmbeddingService _embeddingService;
         private readonly ILogger? _logger;
         private bool _disposed = false;
 
-        public SqliteVectorStore(EmbeddingService embeddingService, string dbPath = "vectors.db", ILogger? logger = null)
+        public SqliteVectorStore(IEmbeddingService embeddingService, string dbPath = "vectors.db", ILogger? logger = null)
         {
             _embeddingService = embeddingService;
             _logger = logger;

@@ -260,6 +260,18 @@ public class SqliteVectorStoreTests
         await _vectorStore.IndexDocumentAsync("file2.txt", "Content for file two");
         await _vectorStore.IndexDocumentAsync("other.txt", "Content for other file");
         
+        // First test without file filters to ensure documents are indexed
+        var queryWithoutFilters = new RagQuery 
+        { 
+            Query = "content", 
+            TopK = 10, 
+            MinSimilarity = 0.0f,
+            FileFilters = []
+        };
+        
+        var allResults = await _vectorStore.SearchAsync(queryWithoutFilters);
+        await Assert.That(allResults).IsNotEmpty(); // This should pass if documents are indexed
+        
         var query = new RagQuery 
         { 
             Query = "content", 

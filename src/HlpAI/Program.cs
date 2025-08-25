@@ -5,6 +5,8 @@ using HlpAI.Models;
 using HlpAI.MCP;
 using HlpAI.Services;
 using HlpAI.Utilities;
+using HlpAI.VectorStores;
+using HlpAI.FileExtractors;
 
 namespace HlpAI;
 
@@ -262,6 +264,12 @@ public static class Program
                         case "ai":
                         case "ai-provider":
                             await ShowAiProviderMenuAsync();
+                            break;
+                        case "18":
+                        case "vector":
+                        case "vector-db":
+                        case "vector-database":
+                            await ShowVectorDatabaseManagementMenuAsync();
                             break;
                         case "c":
                         case "clear":
@@ -618,10 +626,9 @@ public static class Program
         {
             try
             {
-                var jsonElement = (JsonElement)response.Result;
-                if (jsonElement.TryGetProperty("resources", out var resourcesArray))
+                if (response.Result is ResourcesListResponse resourcesResponse)
                 {
-                    resources = JsonSerializer.Deserialize<List<ResourceInfo>>(resourcesArray.GetRawText()) ?? [];
+                    resources = resourcesResponse.Resources;
                 }
             }
             catch (Exception ex)
@@ -2300,7 +2307,527 @@ public static class Program
         }
     }
 
-    private static async Task ShowExtractorListAsync(ExtractorManagementService service)
+    private static async Task ShowVectorDatabaseManagementMenuAsync()
+    {
+        using var cleanupService = new CleanupService();
+        using var embeddingService = new EmbeddingService();
+        using var vectorStore = new SqliteVectorStore(embeddingService);
+        
+        ClearScreen();
+        Console.WriteLine("\n🗄️ Vector Database Management");
+        Console.WriteLine("==============================");
+        
+        var running = true;
+        
+        while (running)
+        {
+            try
+            {
+                Console.WriteLine("\nVector Database Options:");
+                Console.WriteLine("1. View database status");
+                Console.WriteLine("2. Clear vector index (keep database)");
+                Console.WriteLine("3. Delete vector database (with backup)");
+                Console.WriteLine("4. Delete vector database (no backup)");
+                Console.WriteLine("5. Reindex all documents");
+                Console.WriteLine("6. View database statistics");
+                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("q. Quit application");
+                
+                Console.Write("\nEnter your choice (1-6, b, q): ");
+                var input = Console.ReadLine()?.ToLower();
+                
+                switch (input)
+                {
+                    case "1":
+                        await ShowVectorDatabaseStatusAsync(vectorStore);
+                        break;
+                    case "2":
+                        await ClearVectorIndexAsync(vectorStore);
+                        break;
+                    case "3":
+                        await DeleteVectorDatabaseAsync(cleanupService, true);
+                        break;
+                    case "4":
+                        await DeleteVectorDatabaseAsync(cleanupService, false);
+                        break;
+                    case "5":
+                        await ReindexDocumentsAsync();
+                        break;
+                    case "6":
+                        await ShowVectorDatabaseStatsAsync(vectorStore);
+                        break;
+                    case "b":
+                    case "back":
+                        running = false;
+                        break;
+                    case "q":
+                    case "quit":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Console.WriteLine("Invalid choice. Please try again.");
+                        await Task.Delay(1000);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error: {ex.Message}");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey(true);
+            }
+        }
+    }
+
+    private static async Task ShowVectorDatabaseStatusAsync(SqliteVectorStore vectorStore)
+    {
+        Console.WriteLine("\n📊 Vector Database Status");
+        Console.WriteLine("==========================");
+        
+        try
+        {
+            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "vectors.db");
+            var exists = File.Exists(dbPath);
+            
+            Console.WriteLine($"Database file: {(exists ? "✅ Exists" : "❌ Not found")}");
+            
+            if (exists)
+            {
+                var fileInfo = new FileInfo(dbPath);
+                Console.WriteLine($"File size: {fileInfo.Length / 1024.0:F2} KB");
+                Console.WriteLine($"Last modified: {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
+                
+                // Try to get document count
+                try
+                {
+                    var count = await vectorStore.GetChunkCountAsync();
+                    Console.WriteLine($"Document chunks: {count}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Could not read document count: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Database will be created when documents are first indexed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error checking database status: {ex.Message}");
+        }
+        
+        Console.WriteLine("\nPress any key to continue...");
+        Console.ReadKey(true);
+    }
+
+    private static async Task ClearVectorIndexAsync(SqliteVectorStore vectorStore)
+    {
+        Console.WriteLine("\n🗑️ Clear Vector Index");
+        Console.WriteLine("=====================");
+        
+        Console.WriteLine("This will remove all document chunks from the vector database.");
+        Console.WriteLine("The database file will remain but will be empty.");
+        Console.Write("\nAre you sure you want to continue? (y/N): ");
+        
+        var confirmation = Console.ReadLine()?.ToLower();
+        if (confirmation == "y" || confirmation == "yes")
+        {
+            try
+            {
+                await vectorStore.ClearIndexAsync();
+                Console.WriteLine("✅ Vector index cleared successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error clearing index: {ex.Message}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Operation cancelled.");
+        }
+        
+        Console.WriteLine("\nPress any key to continue...");
+        Console.ReadKey(true);
+    }
+
+    private static async Task DeleteVectorDatabaseAsync(CleanupService cleanupService, bool createBackup)
+    {
+        Console.WriteLine($"\n🗑️ Delete Vector Database {(createBackup ? "(with backup)" : "(no backup)")}");
+        Console.WriteLine("======================================");
+        
+        Console.WriteLine("This will completely remove the vector database file.");
+        if (createBackup)
+        {
+            Console.WriteLine("A backup will be created before deletion.");
+        }
+        else
+        {
+            Console.WriteLine("⚠️ WARNING: No backup will be created. This action cannot be undone!");
+        }
+        
+        Console.Write("\nAre you sure you want to continue? (y/N): ");
+        
+        var confirmation = Console.ReadLine()?.ToLower();
+        if (confirmation == "y" || confirmation == "yes")
+        {
+            try
+            {
+                var options = new CleanupOptions
+                {
+                    CleanVectorDatabase = true,
+                    VectorDatabasePath = "vector.db",
+                    CleanErrorLogs = false,
+                    CleanExportLogs = false,
+                    CleanTempFiles = false,
+                    CleanOutdatedCache = false,
+                    OptimizeDatabase = false
+                };
+                var result = await cleanupService.PerformCleanupAsync(options);
+                if (result.Success)
+                {
+                    Console.WriteLine("✅ Vector database deleted successfully.");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Failed to delete vector database: {result.Details.GetValueOrDefault("Vector Database", "Unknown error")}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error deleting database: {ex.Message}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Operation cancelled.");
+        }
+        
+        Console.WriteLine("\nPress any key to continue...");
+        Console.ReadKey(true);
+    }
+
+private static async Task ReindexDocumentsAsync()
+{
+    Console.WriteLine("\n🔄 Reindex Documents");
+    Console.WriteLine("====================");
+
+    if (!await ConfirmReindex())
+    {
+        Console.WriteLine("Operation cancelled.");
+        await WaitForKeyPress();
+        return;
+    }
+
+    try
+    {
+        await ExecuteReindex();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error during reindex: {ex.Message}");
+    }
+
+    await WaitForKeyPress();
+}
+
+private static Task<bool> ConfirmReindex()
+{
+    Console.WriteLine("This will rebuild the entire vector index from scratch.");
+    Console.WriteLine("All existing document chunks will be replaced.");
+    Console.Write("\nAre you sure you want to continue? (y/N): ");
+        
+    var confirmation = Console.ReadLine()?.ToLower();
+    return Task.FromResult(confirmation == "y" || confirmation == "yes");
+}
+
+private static async Task ExecuteReindex()
+{
+    Console.WriteLine("\n🔄 Starting reindex process...");
+    
+    var config = ConfigurationService.LoadConfiguration();
+    var currentDirectory = GetCurrentDirectory(config);
+    
+    using var embeddingService = new EmbeddingService();
+    using var vectorStore = new SqliteVectorStore(embeddingService);
+    
+    var result = await IndexDocumentsAsync(currentDirectory, vectorStore);
+    
+    await DisplayIndexingResults(result);
+}
+
+private static string GetCurrentDirectory(AppConfiguration config)
+{
+    return config.RememberLastDirectory && !string.IsNullOrEmpty(config.LastDirectory)
+        ? config.LastDirectory
+        : Directory.GetCurrentDirectory();
+}
+
+private static async Task DisplayIndexingResults(IndexingResult result)
+{
+    Console.WriteLine($"\n✅ Reindex completed!");
+    Console.WriteLine($"📄 Files indexed: {result.IndexedFiles.Count}");
+    Console.WriteLine($"⚠️ Files skipped: {result.SkippedFiles.Count}");
+    Console.WriteLine($"❌ Files failed: {result.FailedFiles.Count}");
+    Console.WriteLine($"⏱️ Duration: {result.Duration}");
+
+    await DisplaySkippedFiles(result.SkippedFiles);
+    await DisplayFailedFiles(result.FailedFiles);
+}
+
+private static Task DisplaySkippedFiles(List<SkippedFile> skippedFiles)
+{
+    if (skippedFiles.Count == 0) return Task.CompletedTask;
+
+    Console.WriteLine("\n📋 Skipped files:");
+    foreach (var skipped in skippedFiles.Take(10))
+    {
+        Console.WriteLine($"  • {Path.GetFileName(skipped.FilePath)}: {skipped.Reason}");
+    }
+    
+    if (skippedFiles.Count > 10)
+    {
+        Console.WriteLine($"  ... and {skippedFiles.Count - 10} more files");
+    }
+    
+    return Task.CompletedTask;
+}
+
+private static Task DisplayFailedFiles(List<FailedFile> failedFiles)
+{
+    if (failedFiles.Count == 0) return Task.CompletedTask;
+
+    Console.WriteLine("\n❌ Failed files:");
+    foreach (var failed in failedFiles.Take(10))
+    {
+        Console.WriteLine($"  • {Path.GetFileName(failed.FilePath)}: {failed.Error}");
+    }
+    
+    if (failedFiles.Count > 10)
+    {
+        Console.WriteLine($"  ... and {failedFiles.Count - 10} more files");
+    }
+    
+    return Task.CompletedTask;
+}
+
+private static Task WaitForKeyPress()
+{
+    Console.WriteLine("\nPress any key to continue...");
+    Console.ReadKey(true);
+    return Task.CompletedTask;
+}
+
+    static async Task<IndexingResult> IndexDocumentsAsync(string rootPath, SqliteVectorStore vectorStore)
+    {
+        var result = new IndexingResult
+        {
+            IndexingStarted = DateTime.UtcNow
+        };
+
+        // Initialize extractors
+        var extractors = new List<IFileExtractor>
+        {
+            new TextFileExtractor(),
+            new HtmlFileExtractor(),
+            new PdfFileExtractor(),
+            new ChmFileExtractor(),
+            new HhcFileExtractor()
+        };
+
+        var allFiles = Directory.GetFiles(rootPath, "*.*", SearchOption.AllDirectories);
+        
+        foreach (var file in allFiles)
+        {
+            try
+            {
+                var fileInfo = new FileInfo(file);
+                var fileExtension = Path.GetExtension(file);
+
+                // Skip system files and directories
+                if (ShouldSkipFile(file, fileInfo))
+                {
+                    result.SkippedFiles.Add(new SkippedFile
+                    {
+                        FilePath = file,
+                        Reason = GetSkipReason(file, fileInfo),
+                        FileExtension = fileExtension,
+                        FileSize = fileInfo.Length
+                    });
+                    continue;
+                }
+
+                // Find appropriate extractor
+                var extractor = extractors.FirstOrDefault(e => e.CanHandle(file));
+                if (extractor == null)
+                {
+                    result.SkippedFiles.Add(new SkippedFile
+                    {
+                        FilePath = file,
+                        Reason = $"No extractor available for file type '{fileExtension}'",
+                        FileExtension = fileExtension,
+                        FileSize = fileInfo.Length
+                    });
+                    continue;
+                }
+
+                // Try to extract content
+                var content = await extractor.ExtractTextAsync(file);
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    result.SkippedFiles.Add(new SkippedFile
+                    {
+                        FilePath = file,
+                        Reason = "File contains no extractable text content",
+                        FileExtension = fileExtension,
+                        FileSize = fileInfo.Length
+                    });
+                    continue;
+                }
+
+                // Index the document
+                var metadata = new Dictionary<string, object>
+                {
+                    ["mime_type"] = extractor.GetMimeType(),
+                    ["file_size"] = fileInfo.Length,
+                    ["last_modified"] = File.GetLastWriteTime(file),
+                    ["extractor_type"] = extractor.GetType().Name
+                };
+
+                await vectorStore.IndexDocumentAsync(file, content, metadata);
+                result.IndexedFiles.Add(file);
+            }
+            catch (Exception ex)
+            {
+                result.FailedFiles.Add(new FailedFile
+                {
+                    FilePath = file,
+                    Error = ex.Message,
+                    ExtractorType = extractors.FirstOrDefault(e => e.CanHandle(file))?.GetType().Name
+                });
+            }
+        }
+
+        result.IndexingCompleted = DateTime.UtcNow;
+        return result;
+    }
+
+    static bool ShouldSkipFile(string filePath, FileInfo fileInfo)
+    {
+        var fileName = Path.GetFileName(filePath);
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        
+        // Skip hidden files
+        if (fileName.StartsWith('.'))
+            return true;
+            
+        // Skip system files
+        if (fileInfo.Attributes.HasFlag(FileAttributes.System) || 
+            fileInfo.Attributes.HasFlag(FileAttributes.Hidden))
+            return true;
+            
+        // Skip binary files
+        var binaryExtensions = new[] { ".exe", ".dll", ".bin", ".obj", ".lib", ".so", ".dylib", 
+                                      ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico", ".tiff",
+                                      ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac",
+                                      ".zip", ".rar", ".7z", ".tar", ".gz" };
+        if (binaryExtensions.Contains(extension))
+            return true;
+            
+        // Skip very large files (>50MB)
+        if (fileInfo.Length > 50 * 1024 * 1024)
+            return true;
+            
+        return false;
+    }
+    
+    static string GetSkipReason(string filePath, FileInfo fileInfo)
+    {
+        var fileName = Path.GetFileName(filePath);
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        
+        if (fileName.StartsWith('.'))
+            return "Hidden file";
+            
+        if (fileInfo.Attributes.HasFlag(FileAttributes.System))
+            return "System file";
+            
+        if (fileInfo.Attributes.HasFlag(FileAttributes.Hidden))
+            return "Hidden file attribute";
+            
+        var binaryExtensions = new[] { ".exe", ".dll", ".bin", ".obj", ".lib", ".so", ".dylib" };
+        if (binaryExtensions.Contains(extension))
+            return "Binary executable file";
+            
+        var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico", ".tiff" };
+        if (imageExtensions.Contains(extension))
+            return "Image file";
+            
+        var mediaExtensions = new[] { ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac" };
+        if (mediaExtensions.Contains(extension))
+            return "Media file";
+            
+        var archiveExtensions = new[] { ".zip", ".rar", ".7z", ".tar", ".gz" };
+        if (archiveExtensions.Contains(extension))
+            return "Archive file";
+            
+        if (fileInfo.Length > 50 * 1024 * 1024)
+            return "File too large (>50MB)";
+            
+        return "Unknown reason";
+    }
+
+    static async Task ShowVectorDatabaseStatsAsync(SqliteVectorStore vectorStore)
+    {
+        Console.WriteLine("\n📊 Vector Database Statistics");
+        Console.WriteLine("=============================");
+        
+        try
+        {
+            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "vectors.db");
+            var exists = File.Exists(dbPath);
+            
+            if (!exists)
+            {
+                Console.WriteLine("❌ Vector database does not exist.");
+                Console.WriteLine("Run document indexing to create the database.");
+            }
+            else
+            {
+                var fileInfo = new FileInfo(dbPath);
+                Console.WriteLine($"📁 Database file: vectors.db");
+                Console.WriteLine($"📏 File size: {fileInfo.Length / 1024.0:F2} KB");
+                Console.WriteLine($"📅 Created: {fileInfo.CreationTime:yyyy-MM-dd HH:mm:ss}");
+                Console.WriteLine($"📝 Last modified: {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
+                
+                try
+                {
+                    var count = await vectorStore.GetChunkCountAsync();
+                    Console.WriteLine($"📄 Document chunks: {count:N0}");
+                    
+                    if (count > 0)
+                    {
+                        Console.WriteLine($"💾 Average chunk size: {(fileInfo.Length / count):F0} bytes");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Could not read document statistics: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error retrieving statistics: {ex.Message}");
+        }
+        
+        Console.WriteLine("\nPress any key to continue...");
+        Console.ReadKey(true);
+    }
+
+    static async Task ShowExtractorListAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n📦 Available File Extractors:");
         Console.WriteLine("=============================");
@@ -2331,7 +2858,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ShowExtractorStatsAsync(ExtractorManagementService service)
+    static async Task ShowExtractorStatsAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n📊 Extractor Statistics:");
         Console.WriteLine("========================");
@@ -2360,7 +2887,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task AddFileExtensionAsync(ExtractorManagementService service)
+    static async Task AddFileExtensionAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n➕ Add File Extension to Extractor");
         Console.WriteLine("===================================");
@@ -2422,7 +2949,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task RemoveFileExtensionAsync(ExtractorManagementService service)
+    static async Task RemoveFileExtensionAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n➖ Remove File Extension from Extractor");
         Console.WriteLine("=======================================");
@@ -2492,7 +3019,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task TestFileExtractionAsync(ExtractorManagementService service)
+    static async Task TestFileExtractionAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n🧪 Test File Extraction");
         Console.WriteLine("=======================");
@@ -2549,7 +3076,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ResetExtractorAsync(ExtractorManagementService service)
+    static async Task ResetExtractorAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n🔄 Reset Extractor to Default Configuration");
         Console.WriteLine("==========================================");
@@ -2608,7 +3135,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ShowConfigurationAuditAsync(ExtractorManagementService service)
+    static async Task ShowConfigurationAuditAsync(ExtractorManagementService service)
     {
         Console.WriteLine("\n🔍 Extractor Configuration Audit");
         Console.WriteLine("================================");
@@ -2679,7 +3206,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static Task RunServerMode(EnhancedMcpRagServer server)
+    static Task RunServerMode(EnhancedMcpRagServer server)
     {
         Console.WriteLine("\n🖥️  MCP Server Mode");
         Console.WriteLine("===================");
@@ -2738,7 +3265,7 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static async Task<EnhancedMcpRagServer?> ChangeDirectoryAsync(
+    static async Task<EnhancedMcpRagServer?> ChangeDirectoryAsync(
         EnhancedMcpRagServer currentServer, 
         ILogger<EnhancedMcpRagServer> logger, 
         string ollamaModel, 
@@ -2858,7 +3385,7 @@ public static class Program
         }
     }
 
-    internal static void ShowMenu()
+    public static void ShowMenu()
     {
         Console.WriteLine("\n📚 HlpAI - Available Commands:");
         Console.WriteLine("📁 File Operations:");
@@ -2881,12 +3408,14 @@ public static class Program
         Console.WriteLine("  14 - Configuration settings");
         Console.WriteLine("  15 - View error logs");
         Console.WriteLine("  16 - File extractor management");
+        Console.WriteLine("  17 - AI provider management");
+        Console.WriteLine("  18 - Vector database management");
         Console.WriteLine("  c - Clear screen");
         Console.WriteLine("  m - Show this menu");
         Console.WriteLine("  q - Quit");
     }
 
-    internal static void ClearScreen()
+    public static void ClearScreen()
     {
         try
         {
@@ -2908,7 +3437,7 @@ public static class Program
     /// <summary>
     /// Determines if running in a test environment to avoid console blocking
     /// </summary>
-    private static bool IsTestEnvironment()
+    static bool IsTestEnvironment()
     {
         return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
                System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("dotnet") ||
@@ -2916,7 +3445,7 @@ public static class Program
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true);
     }
 
-    internal static void ShowUsage()
+    public static void ShowUsage()
     {
         Console.WriteLine("🎯 MCP RAG Extended Demo");
         Console.WriteLine("========================");
@@ -3002,7 +3531,7 @@ public static class Program
         Console.WriteLine("TIP: Run with --audit first to analyze your documents before indexing!");
     }
 
-    private static void DisplayResponse(McpResponse response, string fallbackTitle = "Response")
+    static void DisplayResponse(McpResponse response, string fallbackTitle = "Response")
     {
         if (response.Result != null)
         {
@@ -3027,7 +3556,7 @@ public static class Program
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
-    private static async Task ShowAiProviderMenuAsync()
+    static async Task ShowAiProviderMenuAsync()
     {
         var config = ConfigurationService.LoadConfiguration();
         bool running = true;
@@ -3112,7 +3641,7 @@ public static class Program
         ConfigurationService.SaveConfiguration(config);
     }
 
-    private static Task ConfigureProviderUrlAsync(string providerName, Action<string> setUrlAction)
+    static Task ConfigureProviderUrlAsync(string providerName, Action<string> setUrlAction)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} URL");
         Console.WriteLine("==============================");
@@ -3133,7 +3662,7 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static Task ConfigureDefaultModelAsync(string providerName, Action<string> setModelAction)
+    static Task ConfigureDefaultModelAsync(string providerName, Action<string> setModelAction)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} Default Model");
         Console.WriteLine("========================================");
@@ -3154,7 +3683,7 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static Task SelectAiProviderAsync(AppConfiguration config)
+    static Task SelectAiProviderAsync(AppConfiguration config)
     {
         Console.WriteLine("\n🤖 Select AI Provider");
         Console.WriteLine("=====================");
@@ -3195,7 +3724,7 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static async Task TestProviderConnectionAsync(AppConfiguration config)
+    static async Task TestProviderConnectionAsync(AppConfiguration config)
     {
         Console.WriteLine("\n🔌 Test Provider Connection");
         Console.WriteLine("============================");
@@ -3241,7 +3770,7 @@ public static class Program
 
 
 
-    private static async Task DetectAvailableProvidersAsync()
+    static async Task DetectAvailableProvidersAsync()
     {
         Console.WriteLine("\n🔍 Detect Available Providers");
         Console.WriteLine("==============================");
@@ -3266,7 +3795,7 @@ public static class Program
         }
     }
 
-    private static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
+    static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
     {
         return providerType switch
         {

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using HlpAI.MCP;
-using HlpAI.Services;
 
 namespace HlpAI.Services;
 
