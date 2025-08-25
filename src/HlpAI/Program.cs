@@ -13,7 +13,7 @@ namespace HlpAI;
 public static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private static readonly PromptService _promptService = new PromptService();
+    private static readonly PromptService _promptService = new();
 
     /// <summary>
     /// Safely prompts for string input with default value handling
@@ -23,13 +23,7 @@ public static class Program
         return _promptService.PromptForString(prompt, defaultValue);
     }
 
-    /// <summary>
-    /// Safely prompts for yes/no input with default handling
-    /// </summary>
-    private static async Task<bool> SafePromptYesNoAsync(string prompt, bool defaultToYes = true)
-    {
-        return await _promptService.PromptYesNoAsync(prompt, defaultToYes);
-    }
+
 
     public static async Task Main(string[] args)
     {
@@ -1259,7 +1253,7 @@ public static class Program
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider)
+                GetProviderUrl(config, config.LastProvider) ?? string.Empty
             );
             
             Console.WriteLine($"Checking models for {provider.ProviderName}...");
@@ -1306,7 +1300,7 @@ public static class Program
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider)
+                GetProviderUrl(config, config.LastProvider) ?? string.Empty
             );
             
             Console.WriteLine($"Getting models from {provider.ProviderName}...");
@@ -3392,9 +3386,6 @@ private static Task WaitForKeyPress()
             // Create new server with the new directory
             var newServer = new EnhancedMcpRagServer(logger, newPath, ollamaModel, mode);
             
-            // Update the current server reference
-            currentServer = newServer;
-            
             Console.WriteLine("Checking AI provider connection...");
             if (await newServer._aiProvider.IsAvailableAsync())
             {
@@ -3480,7 +3471,7 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Clear screen with custom header and optional breadcrumb navigation
     /// </summary>
-    public static void ClearScreenWithHeader(string header, string breadcrumb = null)
+    public static void ClearScreenWithHeader(string header, string? breadcrumb = null)
     {
         try
         {
@@ -3508,7 +3499,7 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Show a brief pause with optional message before continuing
     /// </summary>
-    public static async Task ShowBriefPauseAsync(string message = null, int delayMs = 1500)
+    public static async Task ShowBriefPauseAsync(string? message = null, int delayMs = 1500)
     {
         if (!string.IsNullOrEmpty(message))
         {
@@ -3823,7 +3814,7 @@ private static Task WaitForKeyPress()
             
             // Enhanced pre-switch validation
             Console.WriteLine($"\n🔍 Validating {selectedProvider} configuration...");
-            var validationResult = await ValidateProviderConfigurationAsync(selectedProvider, config);
+            var validationResult = ValidateProviderConfiguration(selectedProvider, config);
             
             if (!validationResult.IsValid)
             {
@@ -3900,7 +3891,7 @@ private static Task WaitForKeyPress()
         try
         {
             // Enhanced validation before creating provider
-            var validationResult = await ValidateProviderConfigurationAsync(config.LastProvider, config);
+            var validationResult = ValidateProviderConfiguration(config.LastProvider, config);
             if (!validationResult.IsValid)
             {
                 Console.WriteLine($"❌ Configuration validation failed: {validationResult.ErrorMessage}");
@@ -4006,7 +3997,7 @@ private static Task WaitForKeyPress()
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                providerUrl
+                providerUrl ?? string.Empty
             );
             
             var isAvailable = await provider.IsAvailableAsync();
@@ -4066,7 +4057,7 @@ private static Task WaitForKeyPress()
             var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
             var availableList = availableProviders.Where(p => p.Value).ToList();
             
-            if (!availableList.Any())
+            if (availableList.Count == 0)
             {
                 Console.WriteLine("❌ No providers are currently available.");
                 Console.WriteLine("\nTroubleshooting:");
@@ -4116,7 +4107,7 @@ private static Task WaitForKeyPress()
                 
                 // Enhanced validation before switching
                 Console.WriteLine($"\n🔍 Performing comprehensive validation for {selectedProvider}...");
-                var validationResult = await ValidateProviderConfigurationAsync(selectedProvider, config);
+                var validationResult = ValidateProviderConfiguration(selectedProvider, config);
                 
                 if (!validationResult.IsValid)
                 {
@@ -4210,7 +4201,7 @@ private static Task WaitForKeyPress()
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                providerUrl
+                providerUrl ?? string.Empty
             );
 
             // Quick availability check (non-async for menu display)
@@ -4229,9 +4220,9 @@ private static Task WaitForKeyPress()
     }
 
     /// <summary>
-    /// Validates provider configuration before switching
+    /// Validates provider configuration before attempting connection
     /// </summary>
-    static async Task<ValidationResult> ValidateProviderConfigurationAsync(AiProviderType providerType, AppConfiguration config)
+    static ValidationResult ValidateProviderConfiguration(AiProviderType providerType, AppConfiguration config)
     {
         try
         {
