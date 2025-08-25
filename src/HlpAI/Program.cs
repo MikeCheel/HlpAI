@@ -171,6 +171,7 @@ public static class Program
                     switch (input?.ToLower())
                     {
                         case "1":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoListFiles(server);
                             else
@@ -181,6 +182,7 @@ public static class Program
                             }
                             break;
                         case "2":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoReadFile(server);
                             else
@@ -191,54 +193,63 @@ public static class Program
                             }
                             break;
                         case "3":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoSearchFiles(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "4":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoAskAI(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "5":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoAnalyzeFile(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "6":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoRagSearch(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "7":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoRagAsk(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "8":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoReindex(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "9":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoShowModels(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "10":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoShowStatus(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             break;
                         case "11":
+                            ClearScreen();
                             if (server != null) 
                                 await DemoIndexingReport(server);
                             else
@@ -246,6 +257,7 @@ public static class Program
                             break;
                         case "12":
                         case "server":
+                            ClearScreen();
                             if (server != null) 
                                 await RunServerMode(server);
                             else
@@ -254,6 +266,7 @@ public static class Program
                         case "13":
                         case "dir":
                         case "directory":
+                            ClearScreen();
                             if (server != null)
                             {
                                 server = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
@@ -265,27 +278,32 @@ public static class Program
                         case "config":
                         case "configuration":
                             await ShowConfigurationMenuAsync();
+                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "15":
                         case "logs":
                         case "errorlogs":
                             await ShowLogViewerAsync();
+                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "16":
                         case "extractors":
                         case "extractor-management":
                             await ShowExtractorManagementMenuAsync();
+                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "17":
                         case "ai":
                         case "ai-provider":
                             await ShowAiProviderMenuAsync();
+                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "18":
                         case "vector":
                         case "vector-db":
                         case "vector-database":
                             await ShowVectorDatabaseManagementMenuAsync();
+                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "c":
                         case "clear":
