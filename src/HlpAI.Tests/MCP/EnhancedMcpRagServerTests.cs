@@ -571,9 +571,9 @@ public class EnhancedMcpRagServerTests : IDisposable
         _mockLogger.Verify(l => l.Log(
             It.IsAny<LogLevel>(),
             It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Mock LM Studio") && v.ToString().Contains("new-test-model")),
-            It.IsAny<Exception>(),
-            It.IsAny<Func<It.IsAnyType, Exception, string>>()
+            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Mock LM Studio") && v.ToString()!.Contains("new-test-model")),
+            It.IsAny<Exception?>(),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()
         ), Times.Once);
     }
     
@@ -584,7 +584,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
         
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => server.UpdateAiProvider(null));
+        var exception = Assert.Throws<ArgumentNullException>(() => server.UpdateAiProvider(null!));
         await Assert.That(exception.ParamName).IsEqualTo("newProvider");
     }
     

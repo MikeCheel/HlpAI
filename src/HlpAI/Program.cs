@@ -936,7 +936,7 @@ public static class Program
     }
 
     // Track the current server instance for provider switching
-    private static EnhancedMcpRagServer currentServer = null;
+    private static EnhancedMcpRagServer? currentServer = null;
     
     private static async Task DemoShowModels(EnhancedMcpRagServer server)
     {
@@ -3397,7 +3397,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("⚠️  This will dispose the current server and create a new one.");
         
         // Dispose the current server
-        currentServer.Dispose();
+        currentServer?.Dispose();
         
         try
         {
