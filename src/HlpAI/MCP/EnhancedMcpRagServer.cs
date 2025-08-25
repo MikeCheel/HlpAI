@@ -509,7 +509,7 @@ namespace HlpAI.MCP
                             type = "object",
                             properties = new
                             {
-                                force = new { type = "boolean", description = "Force reindexing even if index exists", @default = false }
+                                force = new { type = "boolean", description = "Force reindexing even if index exists", @default = true }
                             }
                         }
                     },
@@ -1083,27 +1083,7 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "Missing arguments");
             }
 
-            bool force = arguments.TryGetProperty("force", out JsonElement forceProp) && forceProp.GetBoolean();
-
-            if (!force && await _vectorStore.GetChunkCountAsync() > 0)
-            {
-            return new McpResponse
-            {
-                Id = request.Id,
-                Result = new TextContentResponse
-                {
-                    Content = new List<TextContent>
-                    {
-                        new TextContent
-                        {
-                            Type = "text",
-                            Text = $"Index already exists with {await _vectorStore.GetChunkCountAsync()} chunks. Use 'force: true' to rebuild."
-                        }
-                    }
-                }
-            };
-            }
-
+            // Always force reindexing by default to prevent system conflicts
             await _vectorStore.ClearIndexAsync();
             var result = await IndexAllDocumentsAsync();
 

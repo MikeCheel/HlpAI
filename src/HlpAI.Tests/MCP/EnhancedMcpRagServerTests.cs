@@ -357,6 +357,141 @@ public class EnhancedMcpRagServerTests : IDisposable
         await Assert.That(response.Result).IsNull();
     }
 
+    [Test]
+    public async Task HandleRequestAsync_WithReindexDocuments_DefaultForceTrue_ReindexesSuccessfully()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.RAG);
+        
+        // Create test files to index
+        var testFile1 = Path.Combine(_testRootPath, "reindex-test1.txt");
+        var testFile2 = Path.Combine(_testRootPath, "reindex-test2.txt");
+        await File.WriteAllTextAsync(testFile1, "This is test content for reindexing test");
+        await File.WriteAllTextAsync(testFile2, "Another test file for reindexing verification");
+        
+        // Initialize the server to create initial index
+        await server.InitializeAsync();
+        
+        // Prepare reindex request without force parameter (should default to true)
+        var toolCallParams = new
+        {
+            name = "reindex_documents",
+            arguments = new { } // No force parameter - should default to true
+        };
+        
+        var request = new McpRequest
+        {
+            Method = "tools/call",
+            Params = toolCallParams
+        };
+
+        // Act
+        var response = await server.HandleRequestAsync(request);
+
+        // Assert
+        await Assert.That(response).IsNotNull();
+        await Assert.That(response.Error).IsNull();
+        await Assert.That(response.Result).IsNotNull();
+        
+        // Verify the response indicates successful reindexing
+        var result = response.Result as TextContentResponse;
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Content).IsNotNull();
+        await Assert.That(result.Content.Count).IsGreaterThan(0);
+        
+        var responseText = result.Content[0].Text;
+        await Assert.That(responseText).Contains("Successfully reindexed");
+        await Assert.That(responseText).Contains("2 files"); // Should show 2 indexed files
+    }
+
+    [Test]
+    public async Task HandleRequestAsync_WithReindexDocuments_ExplicitForceTrue_ReindexesSuccessfully()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.RAG);
+        
+        // Create test files to index
+        var testFile = Path.Combine(_testRootPath, "explicit-force-test.txt");
+        await File.WriteAllTextAsync(testFile, "Test content for explicit force parameter test");
+        
+        // Initialize the server to create initial index
+        await server.InitializeAsync();
+        
+        // Prepare reindex request with explicit force: true
+        var toolCallParams = new
+        {
+            name = "reindex_documents",
+            arguments = new { force = true }
+        };
+        
+        var request = new McpRequest
+        {
+            Method = "tools/call",
+            Params = toolCallParams
+        };
+
+        // Act
+        var response = await server.HandleRequestAsync(request);
+
+        // Assert
+        await Assert.That(response).IsNotNull();
+        await Assert.That(response.Error).IsNull();
+        await Assert.That(response.Result).IsNotNull();
+        
+        // Verify the response indicates successful reindexing
+        var result = response.Result as TextContentResponse;
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Content).IsNotNull();
+        await Assert.That(result.Content.Count).IsGreaterThan(0);
+        
+        var responseText = result.Content[0].Text;
+        await Assert.That(responseText).Contains("Successfully reindexed");
+    }
+
+    [Test]
+    public async Task HandleRequestAsync_WithReindexDocuments_ExplicitForceFalse_StillReindexes()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.RAG);
+        
+        // Create test files to index
+        var testFile = Path.Combine(_testRootPath, "force-false-test.txt");
+        await File.WriteAllTextAsync(testFile, "Test content for force false parameter test");
+        
+        // Initialize the server to create initial index
+        await server.InitializeAsync();
+        
+        // Prepare reindex request with explicit force: false
+        var toolCallParams = new
+        {
+            name = "reindex_documents",
+            arguments = new { force = false }
+        };
+        
+        var request = new McpRequest
+        {
+            Method = "tools/call",
+            Params = toolCallParams
+        };
+
+        // Act
+        var response = await server.HandleRequestAsync(request);
+
+        // Assert
+        await Assert.That(response).IsNotNull();
+        await Assert.That(response.Error).IsNull();
+        await Assert.That(response.Result).IsNotNull();
+        
+        // Verify the response indicates successful reindexing (even with force: false)
+        var result = response.Result as TextContentResponse;
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result!.Content).IsNotNull();
+        await Assert.That(result.Content.Count).IsGreaterThan(0);
+        
+        var responseText = result.Content[0].Text;
+        await Assert.That(responseText).Contains("Successfully reindexed");
+    }
+
     public void Dispose()
     {
         // Clean up test directory
