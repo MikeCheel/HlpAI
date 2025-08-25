@@ -13,6 +13,23 @@ namespace HlpAI;
 public static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly PromptService _promptService = new PromptService();
+
+    /// <summary>
+    /// Safely prompts for string input with default value handling
+    /// </summary>
+    private static string SafePromptForString(string prompt, string defaultValue = "")
+    {
+        return _promptService.PromptForString(prompt, defaultValue);
+    }
+
+    /// <summary>
+    /// Safely prompts for yes/no input with default handling
+    /// </summary>
+    private static async Task<bool> SafePromptYesNoAsync(string prompt, bool defaultToYes = true)
+    {
+        return await _promptService.PromptYesNoAsync(prompt, defaultToYes);
+    }
 
     public static async Task Main(string[] args)
     {
@@ -147,8 +164,7 @@ public static class Program
             bool running = true;
             while (running)
             {
-                Console.Write($"\nEnter command (1-16, c, m, q): ");
-                var input = Console.ReadLine();
+                var input = SafePromptForString("\nEnter command (1-16, c, m, q)", "q"); // Default to quit if Enter pressed
 
                 try
                 {
@@ -364,8 +380,7 @@ public static class Program
         
         while (directory == null)
         {
-            Console.Write("Enter the path to your documents directory: ");
-            var input = Console.ReadLine()?.Trim();
+            var input = SafePromptForString("Enter the path to your documents directory", "").Trim();
             
             if (string.IsNullOrEmpty(input))
             {
@@ -459,7 +474,7 @@ public static class Program
             while (true)
             {
                 Console.Write("Select operation mode (1-3, default: 1): ");
-                var modeInput = Console.ReadLine()?.Trim();
+                var modeInput = SafePromptForString("", "1").Trim();
                 
                 if (string.IsNullOrEmpty(modeInput) || modeInput == "1")
                 {
@@ -580,7 +595,7 @@ public static class Program
         while (true)
         {
             Console.Write($"Select a model (1-{availableModels.Count + 1}, or 'q' to quit): ");
-            var input = Console.ReadLine()?.Trim();
+            var input = SafePromptForString("", "b").Trim();
             
             if (input?.ToLower() == "q")
             {
@@ -597,8 +612,7 @@ public static class Program
                 }
                 else if (selection == availableModels.Count + 1)
                 {
-                    Console.Write("Enter custom model name: ");
-                    var customModel = Console.ReadLine()?.Trim();
+                    var customModel = SafePromptForString("Enter custom model name: ", "").Trim();
                     if (!string.IsNullOrEmpty(customModel))
                     {
                         Console.WriteLine($"✅ Selected custom model: {customModel}");
@@ -648,7 +662,7 @@ public static class Program
             Console.WriteLine();
             
             Console.Write("Select option (1-5): ");
-            var choice = Console.ReadLine()?.Trim();
+            var choice = SafePromptForString("", "b").Trim();
             
             if (!string.IsNullOrEmpty(choice) && choice != "5")
             {
@@ -673,14 +687,14 @@ public static class Program
             };
 
             Console.Write($"Enter output file name (default: file_list_{DateTime.Now:yyyyMMdd_HHmmss}.{format.ToString().ToLower()}): ");
-            var fileName = Console.ReadLine()?.Trim();
+            var fileName = SafePromptForString("", "export.json").Trim();
             if (string.IsNullOrEmpty(fileName))
             {
                 fileName = $"file_list_{DateTime.Now:yyyyMMdd_HHmmss}.{format.ToString().ToLower()}";
             }
 
             Console.Write("Include file metadata? (y/N): ");
-            var metadataChoice = Console.ReadLine()?.Trim().ToLower();
+            var metadataChoice = SafePromptForString("", "y").Trim().ToLower();
             var includeMetadata = metadataChoice == "y" || metadataChoice == "yes";
 
             Console.WriteLine($"\n🔄 Exporting {resources.Count} files to {format} format...");
@@ -707,8 +721,7 @@ public static class Program
 
     private static async Task DemoReadFile(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter file URI (e.g., file:///example.txt): ");
-        var uri = Console.ReadLine();
+        var uri = SafePromptForString("Enter file URI (e.g., file:///example.txt)", "");
 
         if (string.IsNullOrEmpty(uri))
         {
@@ -729,8 +742,7 @@ public static class Program
 
     private static async Task DemoSearchFiles(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter search query: ");
-        var query = Console.ReadLine();
+        var query = SafePromptForString("Enter search query", "");
 
         if (string.IsNullOrEmpty(query))
         {
@@ -752,7 +764,7 @@ public static class Program
     private static async Task DemoAskAI(EnhancedMcpRagServer server)
     {
         Console.Write("Enter your question: ");
-        var question = Console.ReadLine();
+        var question = SafePromptForString("", "What is this document about?");
 
         if (string.IsNullOrEmpty(question))
         {
@@ -761,10 +773,10 @@ public static class Program
         }
 
         Console.Write("Enter additional context (optional, press Enter to skip): ");
-        var context = Console.ReadLine();
+        var context = SafePromptForString("", "");
 
         Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = Console.ReadLine();
+        var tempInput = SafePromptForString("", "0.7");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -789,7 +801,7 @@ public static class Program
     private static async Task DemoAnalyzeFile(EnhancedMcpRagServer server)
     {
         Console.Write("Enter file URI (e.g., file:///example.txt): ");
-        var uri = Console.ReadLine();
+        var uri = SafePromptForString("", "");
 
         if (string.IsNullOrEmpty(uri))
         {
@@ -799,7 +811,7 @@ public static class Program
 
         Console.WriteLine("Available analysis types: summary, key_points, questions, topics, technical, explanation");
         Console.Write("Enter analysis type (default: summary): ");
-        var analysisType = Console.ReadLine();
+        var analysisType = SafePromptForString("", "summary");
 
         if (string.IsNullOrEmpty(analysisType))
         {
@@ -807,7 +819,7 @@ public static class Program
         }
 
         Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = Console.ReadLine();
+        var tempInput = SafePromptForString("", "0.7");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -831,7 +843,7 @@ public static class Program
     private static async Task DemoRagSearch(EnhancedMcpRagServer server)
     {
         Console.Write("Enter semantic search query: ");
-        var query = Console.ReadLine();
+        var query = SafePromptForString("", "search query");
 
         if (string.IsNullOrEmpty(query))
         {
@@ -853,7 +865,7 @@ public static class Program
     private static async Task DemoRagAsk(EnhancedMcpRagServer server)
     {
         Console.Write("Enter your question for RAG-enhanced AI: ");
-        var question = Console.ReadLine();
+        var question = SafePromptForString("", "What is the main topic?");
 
         if (string.IsNullOrEmpty(question))
         {
@@ -862,7 +874,7 @@ public static class Program
         }
 
         Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = Console.ReadLine();
+        var tempInput = SafePromptForString("", "0.7");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -870,7 +882,7 @@ public static class Program
         }
 
         Console.Write("Number of context chunks to retrieve (default 5): ");
-        var topKInput = Console.ReadLine();
+        var topKInput = SafePromptForString("", "5");
         int topK = 5;
         if (!string.IsNullOrEmpty(topKInput) && int.TryParse(topKInput, out var k))
         {
@@ -1003,7 +1015,7 @@ public static class Program
             Console.WriteLine();
             
             Console.Write("Select option (1-10, b): ");
-            var input = Console.ReadLine()?.ToLower().Trim();
+            var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
             {
@@ -1158,7 +1170,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Select option (1-3, b): ");
-        var choice = Console.ReadLine()?.ToLower().Trim();
+        var choice = SafePromptForString("", "b").ToLower().Trim();
         
         switch (choice)
         {
@@ -1266,7 +1278,7 @@ public static class Program
             {
                 Console.WriteLine("⚠️ No models found. You can still enter a model name manually.");
                 Console.Write("Enter model name: ");
-                var manualModel = Console.ReadLine()?.Trim();
+                var manualModel = SafePromptForString("", "").Trim();
                 if (!string.IsNullOrEmpty(manualModel))
                 {
                     UpdateModelConfiguration(config, manualModel);
@@ -1286,8 +1298,7 @@ public static class Program
             Console.WriteLine($"{models.Count + 1}. Enter custom model name");
             Console.WriteLine();
             
-            Console.Write($"Select model (1-{models.Count + 1}): ");
-            var input = Console.ReadLine()?.Trim();
+            var input = SafePromptForString($"Select model (1-{models.Count + 1}): ", "1").Trim();
             
             if (int.TryParse(input, out int selection))
             {
@@ -1299,7 +1310,7 @@ public static class Program
                 else if (selection == models.Count + 1)
                 {
                     Console.Write("Enter custom model name: ");
-                    var customModel = Console.ReadLine()?.Trim();
+                    var customModel = SafePromptForString("", "").Trim();
                     if (!string.IsNullOrEmpty(customModel))
                     {
                         UpdateModelConfiguration(config, customModel);
@@ -1378,7 +1389,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Select option (1-5, b): ");
-        var choice = Console.ReadLine()?.ToLower().Trim();
+        var choice = SafePromptForString("", "b").ToLower().Trim();
         
         switch (choice)
         {
@@ -1401,7 +1412,7 @@ public static class Program
                 Console.WriteLine("\n📝 Enter Custom Path");
                 Console.WriteLine("====================");
                 Console.Write("Enter the full path to hh.exe: ");
-                var customPath = Console.ReadLine()?.Trim();
+                var customPath = SafePromptForString("", "").Trim();
                 
                 if (!string.IsNullOrEmpty(customPath))
                 {
@@ -1606,7 +1617,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Select option (1-4, b): ");
-        var choice = Console.ReadLine()?.ToLower().Trim();
+        var choice = SafePromptForString("", "b").ToLower().Trim();
         
         switch (choice)
         {
@@ -1687,8 +1698,7 @@ public static class Program
         Console.WriteLine("b. Back to configuration menu");
         Console.WriteLine();
         
-        Console.Write("Select option (1-7, b): ");
-        var choice = Console.ReadLine()?.ToLower().Trim();
+        var choice = SafePromptForString("Select option (1-7, b): ", "b").ToLower().Trim();
         
         switch (choice)
         {
@@ -1747,7 +1757,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Select log level (1-3): ");
-        var choice = Console.ReadLine()?.Trim();
+        var choice = SafePromptForString("", "b").Trim();
         
         LogLevel newLevel = choice switch
         {
@@ -1778,7 +1788,7 @@ public static class Program
         
         var currentRetention = await loggingService.GetLogRetentionDaysAsync();
         Console.Write($"Enter retention days (current: {currentRetention}): ");
-        var input = Console.ReadLine()?.Trim();
+        var input = SafePromptForString("", "b").Trim();
         
         if (int.TryParse(input, out var days) && days > 0)
         {
@@ -1796,7 +1806,7 @@ public static class Program
         Console.WriteLine("\n📋 Recent Error Logs");
         Console.WriteLine("====================");
         Console.Write("How many recent logs to show (default 10)? ");
-        var input = Console.ReadLine()?.Trim();
+        var input = SafePromptForString("", "30").Trim();
         
         var count = 10;
         if (int.TryParse(input, out var parsedCount) && parsedCount > 0)
@@ -1973,7 +1983,7 @@ public static class Program
             Console.WriteLine();
             
             Console.Write("Enter command: ");
-            var input = Console.ReadLine()?.ToLower().Trim();
+            var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
             {
@@ -2101,7 +2111,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Enter choice (1-4): ");
-        var choice = Console.ReadLine()?.Trim();
+        var choice = SafePromptForString("", "b").Trim();
         
         return Task.FromResult(choice switch
         {
@@ -2196,7 +2206,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write($"Enter choice (1-{currentPageLogs.Count + 1}): ");
-        var input = Console.ReadLine()?.Trim();
+        var input = SafePromptForString("", "1").Trim();
         
         if (int.TryParse(input, out var choice) && choice >= 1 && choice <= currentPageLogs.Count)
         {
@@ -2259,7 +2269,7 @@ public static class Program
                 Console.WriteLine("q. Quit application");
                 
                 Console.Write("\nEnter your choice (1-7, b, q): ");
-                var input = Console.ReadLine()?.ToLower();
+                var input = SafePromptForString("", "b").ToLower();
                 
                 switch (input)
                 {
@@ -2334,7 +2344,7 @@ public static class Program
                 Console.WriteLine("q. Quit application");
                 
                 Console.Write("\nEnter your choice (1-6, b, q): ");
-                var input = Console.ReadLine()?.ToLower();
+                var input = SafePromptForString("", "b").ToLower();
                 
                 switch (input)
                 {
@@ -2431,7 +2441,7 @@ public static class Program
         Console.WriteLine("The database file will remain but will be empty.");
         Console.Write("\nAre you sure you want to continue? (y/N): ");
         
-        var confirmation = Console.ReadLine()?.ToLower();
+        var confirmation = SafePromptForString("", "n").ToLower();
         if (confirmation == "y" || confirmation == "yes")
         {
             try
@@ -2470,7 +2480,7 @@ public static class Program
         
         Console.Write("\nAre you sure you want to continue? (y/N): ");
         
-        var confirmation = Console.ReadLine()?.ToLower();
+        var confirmation = SafePromptForString("", "n").ToLower();
         if (confirmation == "y" || confirmation == "yes")
         {
             try
@@ -2539,7 +2549,7 @@ private static Task<bool> ConfirmReindex()
     Console.WriteLine("All existing document chunks will be replaced.");
     Console.Write("\nAre you sure you want to continue? (y/N): ");
         
-    var confirmation = Console.ReadLine()?.ToLower();
+    var confirmation = SafePromptForString("", "n").ToLower();
     return Task.FromResult(confirmation == "y" || confirmation == "yes");
 }
 
@@ -2903,7 +2913,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write("\nSelect extractor (1-" + extractorList.Count + "): ");
-        var extractorChoice = Console.ReadLine();
+        var extractorChoice = SafePromptForString("", "1");
         
         if (!int.TryParse(extractorChoice, out int extractorIndex) || 
             extractorIndex < 1 || extractorIndex > extractorList.Count)
@@ -2917,7 +2927,7 @@ private static Task WaitForKeyPress()
         var selectedExtractor = extractorList[extractorIndex - 1];
         
         Console.Write("Enter file extension(s) to add (e.g., '.docx' or 'docx,rtf'): ");
-        var extensionsInput = Console.ReadLine();
+        var extensionsInput = SafePromptForString("", "");
         
         if (string.IsNullOrWhiteSpace(extensionsInput))
         {
@@ -2965,7 +2975,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write("\nSelect extractor (1-" + extractorList.Count + "): ");
-        var extractorChoice = Console.ReadLine();
+        var extractorChoice = SafePromptForString("", "1");
         
         if (!int.TryParse(extractorChoice, out int extractorIndex) || 
             extractorIndex < 1 || extractorIndex > extractorList.Count)
@@ -2987,7 +2997,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write("Enter file extension(s) to remove (e.g., '.docx' or 'docx,rtf'): ");
-        var extensionsInput = Console.ReadLine();
+        var extensionsInput = SafePromptForString("", "");
         
         if (string.IsNullOrWhiteSpace(extensionsInput))
         {
@@ -3025,7 +3035,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("=======================");
         
         Console.Write("Enter file path to test: ");
-        var filePath = Console.ReadLine();
+        var filePath = SafePromptForString("", "");
         
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -3094,7 +3104,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write("\nSelect extractor to reset (1-" + extractorList.Count + "): ");
-        var extractorChoice = Console.ReadLine();
+        var extractorChoice = SafePromptForString("", "1");
         
         if (!int.TryParse(extractorChoice, out int extractorIndex) || 
             extractorIndex < 1 || extractorIndex > extractorList.Count)
@@ -3111,8 +3121,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine($"Current extensions: {string.Join(", ", selectedExtractor.Value.CustomExtensions)}");
         Console.WriteLine($"Default extensions: {string.Join(", ", selectedExtractor.Value.DefaultExtensions)}");
         
-        Console.Write("Are you sure? (y/N): ");
-        var confirmation = Console.ReadLine()?.ToLower();
+        var confirmation = SafePromptForString("Are you sure? (y/N): ", "n").ToLower();
         
         if (confirmation == "y" || confirmation == "yes")
         {
@@ -3277,7 +3286,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine();
         
         Console.Write("Enter new document directory path (or 'cancel' to abort): ");
-        var newPath = Console.ReadLine()?.Trim();
+        var newPath = SafePromptForString("", "").Trim();
         
         if (string.IsNullOrEmpty(newPath) || newPath.Equals("cancel", StringComparison.CurrentCultureIgnoreCase))
         {
@@ -3588,7 +3597,7 @@ private static Task WaitForKeyPress()
             Console.WriteLine();
             
             Console.Write("Select option (1-10, b): ");
-            var input = Console.ReadLine()?.ToLower().Trim();
+            var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
             {
@@ -3647,7 +3656,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("==============================");
         
         Console.Write($"Enter {providerName} URL (press Enter to keep current): ");
-        var url = Console.ReadLine()?.Trim();
+        var url = SafePromptForString("", "http://localhost:3000").Trim();
         
         if (!string.IsNullOrEmpty(url))
         {
@@ -3668,7 +3677,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("========================================");
         
         Console.Write($"Enter {providerName} default model (press Enter to keep current): ");
-        var model = Console.ReadLine()?.Trim();
+        var model = SafePromptForString("", "llama3.2").Trim();
         
         if (!string.IsNullOrEmpty(model))
         {
@@ -3697,7 +3706,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write($"Select provider (1-{providers.Count}): ");
-        var input = Console.ReadLine()?.Trim();
+        var input = SafePromptForString("", "b").Trim();
         
         if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
         {
