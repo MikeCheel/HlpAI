@@ -186,6 +186,7 @@ public class ChmExtractionVerificationTests
         // Test configuration service hh.exe path management
         var originalConfig = ConfigurationService.LoadConfiguration(_logger);
         var originalPath = originalConfig.HhExePath;
+        var originalAutoDetect = originalConfig.AutoDetectHhExe;
         
         try
         {
@@ -198,7 +199,8 @@ public class ChmExtractionVerificationTests
             var updatedConfig = ConfigurationService.LoadConfiguration(_logger);
             await Assert.That(updatedConfig.HhExePath).IsEqualTo(testPath);
             
-            // Test clearing path
+            // Test clearing path - also disable auto-detection to prevent automatic re-detection
+            ConfigurationService.UpdateAutoDetectHhExe(false, _logger);
             var clearResult = ConfigurationService.UpdateHhExePath(null, _logger);
             await Assert.That(clearResult).IsTrue();
             
@@ -210,6 +212,7 @@ public class ChmExtractionVerificationTests
         {
             // Restore original configuration
             ConfigurationService.UpdateHhExePath(originalPath, _logger);
+            ConfigurationService.UpdateAutoDetectHhExe(originalAutoDetect, _logger);
         }
     }
 

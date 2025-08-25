@@ -71,6 +71,16 @@ public class SqliteVectorStoreTests
     }
 
     [Test]
+    public async Task Constructor_MarksVectorDatabaseAsHidden_Successfully()
+    {
+        // Assert - Database file should be marked as hidden
+        await Assert.That(File.Exists(_testDbPath)).IsTrue();
+        
+        var attributes = File.GetAttributes(_testDbPath);
+        await Assert.That(attributes.HasFlag(FileAttributes.Hidden)).IsTrue();
+    }
+
+    [Test]
     public async Task IndexDocumentAsync_WithValidContent_StoresInDatabase()
     {
         // Arrange

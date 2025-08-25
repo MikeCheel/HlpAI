@@ -27,6 +27,24 @@ namespace HlpAI.VectorStores
             _connection.Open();
 
             InitializeDatabase();
+            
+            // Mark the database file as hidden to prevent accidental visibility
+            try
+            {
+                if (File.Exists(dbPath))
+                {
+                    var attributes = File.GetAttributes(dbPath);
+                    if (!attributes.HasFlag(FileAttributes.Hidden))
+                    {
+                        File.SetAttributes(dbPath, attributes | FileAttributes.Hidden);
+                        _logger?.LogDebug("Marked vector database file as hidden: {DbPath}", dbPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to mark vector database file as hidden: {DbPath}", dbPath);
+            }
         }
 
         private void InitializeDatabase()
