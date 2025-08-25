@@ -1,5 +1,4 @@
 using HlpAI.Models;
-using TUnit.Assertions;
 
 namespace HlpAI.Tests.Models;
 

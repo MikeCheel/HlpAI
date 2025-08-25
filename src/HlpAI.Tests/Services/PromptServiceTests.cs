@@ -1,8 +1,6 @@
 using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 
@@ -153,13 +151,13 @@ public class PromptServiceTests
     [Test]
     public async Task ConfigurationPersistence_AcrossServiceInstances_WorksCorrectly()
     {
-        // Arrange & Act
-        using (var service1 = new PromptService(_logger))
+        // Arrange & Act - Use shared config service to ensure persistence
+        using (var service1 = new PromptService(_configService, _logger))
         {
             await service1.SetDefaultPromptBehaviorAsync(true);
         }
 
-        using var service2 = new PromptService(_logger);
+        using var service2 = new PromptService(_configService, _logger);
         var result = await service2.GetDefaultPromptBehaviorAsync();
 
         // Assert
@@ -187,15 +185,37 @@ public class PromptServiceTests
     [Test]
     public async Task Service_WithNullLogger_WorksCorrectly()
     {
-        // Arrange & Act
-        using var service = new PromptService(null);
+        // Arrange - Use test-specific database to avoid conflicts
+        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_prompt_service_{Guid.NewGuid()}.db");
         
-        var setResult = await service.SetDefaultPromptBehaviorAsync(true);
-        var getResult = await service.GetDefaultPromptBehaviorAsync();
+        try
+        {
+            using var configService = new SqliteConfigurationService(testDbPath, null);
+            using var service = new PromptService(configService, null);
+            
+            // Act
+            var setResult = await service.SetDefaultPromptBehaviorAsync(true);
+            var getResult = await service.GetDefaultPromptBehaviorAsync();
 
-        // Assert
-        await Assert.That(setResult).IsTrue();
-        await Assert.That(getResult).IsTrue();
+            // Assert
+            await Assert.That(setResult).IsTrue();
+            await Assert.That(getResult).IsTrue();
+        }
+        finally
+        {
+            // Cleanup - ensure file is deleted after services are disposed
+            if (File.Exists(testDbPath))
+            {
+                try
+                {
+                    File.Delete(testDbPath);
+                }
+                catch (IOException)
+                {
+                    // Ignore cleanup errors in tests
+                }
+            }
+        }
     }
 
     [Test]

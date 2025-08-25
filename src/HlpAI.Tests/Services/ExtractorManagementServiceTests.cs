@@ -1,8 +1,5 @@
 using Microsoft.Extensions.Logging;
-using TUnit.Core;
-using TUnit.Assertions;
 using HlpAI.Services;
-using System.Text.Json;
 
 namespace HlpAI.Tests.Services;
 

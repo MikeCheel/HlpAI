@@ -2,9 +2,6 @@ using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.Net;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 

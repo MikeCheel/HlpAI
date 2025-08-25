@@ -1,9 +1,6 @@
-using System.Text;
 using HlpAI.FileExtractors;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.FileExtractors;
 

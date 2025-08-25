@@ -295,8 +295,11 @@ public static class Program
         }
     }
 
-    private static OperationMode ParseOperationMode(string modeString)
+    internal static OperationMode ParseOperationMode(string modeString)
     {
+        if (string.IsNullOrEmpty(modeString))
+            return OperationMode.Hybrid;
+            
         return modeString.ToLower() switch
         {
             "mcp" => OperationMode.MCP,
@@ -2855,7 +2858,7 @@ public static class Program
         }
     }
 
-    private static void ShowMenu()
+    internal static void ShowMenu()
     {
         Console.WriteLine("\n📚 HlpAI - Available Commands:");
         Console.WriteLine("📁 File Operations:");
@@ -2883,14 +2886,37 @@ public static class Program
         Console.WriteLine("  q - Quit");
     }
 
-    private static void ClearScreen()
+    internal static void ClearScreen()
     {
-        Console.Clear();
+        try
+        {
+            // Only clear console if not in test environment
+            if (!IsTestEnvironment())
+            {
+                Console.Clear();
+            }
+        }
+        catch
+        {
+            // Ignore console clear errors in test environments
+        }
+        
         Console.WriteLine("🎯 HlpAI");
         Console.WriteLine("========================");
     }
+    
+    /// <summary>
+    /// Determines if running in a test environment to avoid console blocking
+    /// </summary>
+    private static bool IsTestEnvironment()
+    {
+        return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
+               System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("dotnet") ||
+               Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true);
+    }
 
-    private static void ShowUsage()
+    internal static void ShowUsage()
     {
         Console.WriteLine("🎯 MCP RAG Extended Demo");
         Console.WriteLine("========================");

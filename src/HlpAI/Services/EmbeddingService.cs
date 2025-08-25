@@ -41,6 +41,9 @@ namespace HlpAI.Services
 
         public async Task<float[]> GetEmbeddingAsync(string text)
         {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(EmbeddingService));
+                
             try
             {
                 // First check if the embedding model is available

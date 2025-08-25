@@ -13,10 +13,10 @@ public class CleanupService : IDisposable
     private readonly SqliteConfigurationService _configService;
     private bool _disposed = false;
 
-    public CleanupService(ILogger? logger = null)
+    public CleanupService(ILogger? logger = null, SqliteConfigurationService? configService = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
+        _configService = configService ?? new SqliteConfigurationService(logger);
     }
 
     /// <summary>
@@ -534,7 +534,10 @@ public class CleanupService : IDisposable
             {
                 try
                 {
-                    var result = JsonSerializer.Deserialize<CleanupResult>(log.Value ?? string.Empty);
+                    var result = JsonSerializer.Deserialize<CleanupResult>(log.Value ?? string.Empty, new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    });
                     if (result != null)
                     {
                         results.Add(result);

@@ -2,9 +2,6 @@ using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.Net;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 
@@ -327,24 +324,13 @@ public class EmbeddingServiceTests
     }
 
     [Test]
-    public async Task GetEmbeddingAsync_AfterDispose_StillWorks()
+    public async Task GetEmbeddingAsync_AfterDispose_ThrowsObjectDisposedException()
     {
         // Arrange
-        var mockEmbedding = new float[384];
-        for (int i = 0; i < 384; i++)
-        {
-            mockEmbedding[i] = 0.1f;
-        }
-        
-        var embeddingJson = "[" + string.Join(",", mockEmbedding) + "]";
-        _mockHandler.SetupResponse("/api/embeddings", 
-            "{\"embedding\":" + embeddingJson + "}");
-        
         _embeddingService.Dispose();
 
-        // Act & Assert - This should still work as it falls back to simple embedding
-        var result = await _embeddingService.GetEmbeddingAsync("test");
-        await Assert.That(result).IsNotNull();
-        await Assert.That(result.Length).IsEqualTo(384);
+        // Act & Assert - Should throw ObjectDisposedException
+        await Assert.That(async () => await _embeddingService.GetEmbeddingAsync("test"))
+            .Throws<ObjectDisposedException>();
     }
 }

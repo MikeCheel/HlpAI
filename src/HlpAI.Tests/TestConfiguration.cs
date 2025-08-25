@@ -1,5 +1,3 @@
-using TUnit.Core;
-
 namespace HlpAI.Tests;
 
 public static class TestConfiguration
