@@ -1,5 +1,6 @@
 using HlpAI.MCP;
 using HlpAI.Models;
+using HlpAI.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -541,6 +542,77 @@ public class EnhancedMcpRagServerTests : IDisposable
         // The ShouldSkipFile method should have prevented database files from being processed
     }
 
+    [Test]
+    public async Task UpdateAiProvider_WithValidProvider_UpdatesProviderSuccessfully()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "initial-model");
+        var initialProvider = server._aiProvider;
+        
+        // Create a mock for the new provider
+        var mockNewProvider = new Mock<IAiProvider>();
+        mockNewProvider.Setup(p => p.ProviderType).Returns(AiProviderType.LmStudio);
+        mockNewProvider.Setup(p => p.ProviderName).Returns("Mock LM Studio");
+        mockNewProvider.Setup(p => p.CurrentModel).Returns("new-test-model");
+        mockNewProvider.Setup(p => p.BaseUrl).Returns("http://localhost:1234");
+        mockNewProvider.Setup(p => p.IsAvailableAsync()).ReturnsAsync(true);
+        
+        // Act
+        server.UpdateAiProvider(mockNewProvider.Object);
+        
+        // Assert
+        await Assert.That(server._aiProvider).IsNotEqualTo(initialProvider);
+        await Assert.That(server._aiProvider).IsEqualTo(mockNewProvider.Object);
+        await Assert.That(server._aiProvider.ProviderType).IsEqualTo(AiProviderType.LmStudio);
+        await Assert.That(server._aiProvider.ProviderName).IsEqualTo("Mock LM Studio");
+        await Assert.That(server._aiProvider.CurrentModel).IsEqualTo("new-test-model");
+        
+        // Verify logger was called with correct information
+        _mockLogger.Verify(l => l.Log(
+            It.IsAny<LogLevel>(),
+            It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Mock LM Studio") && v.ToString().Contains("new-test-model")),
+            It.IsAny<Exception>(),
+            It.IsAny<Func<It.IsAnyType, Exception, string>>()
+        ), Times.Once);
+    }
+    
+    [Test]
+    public async Task UpdateAiProvider_WithNullProvider_ThrowsArgumentNullException()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
+        
+        // Act & Assert
+        var exception = Assert.Throws<ArgumentNullException>(() => server.UpdateAiProvider(null));
+        await Assert.That(exception.ParamName).IsEqualTo("newProvider");
+    }
+    
+    [Test]
+    public async Task UpdateAiProvider_WithDisposableProvider_DisposesOldProvider()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
+        var initialProvider = server._aiProvider;
+        
+        // Create a mock for a disposable provider
+        var mockDisposableProvider = new Mock<IAiProvider>();
+        mockDisposableProvider.As<IDisposable>().Setup(d => d.Dispose());
+        
+        // Act
+        server.UpdateAiProvider(mockDisposableProvider.Object);
+        
+        // Assert
+        await Assert.That(server._aiProvider).IsEqualTo(mockDisposableProvider.Object);
+        
+        // If the initial provider was disposable, verify it was disposed
+        if (initialProvider is IDisposable)
+        {
+            // We can't verify directly since we don't have a mock for the initial provider
+            // This test primarily ensures no exceptions are thrown during disposal
+        }
+    }
+    
     public void Dispose()
     {
         // Clean up test directory

@@ -128,7 +128,8 @@ public static class Program
             }
         }
 
-        var server = new EnhancedMcpRagServer(logger, rootPath, ollamaModel, mode);
+        currentServer = new EnhancedMcpRagServer(logger, rootPath, ollamaModel, mode);
+        var server = currentServer;
         
         // Initialize error logging service for main interactive mode
         using var mainErrorLoggingService = new ErrorLoggingService(logger);
@@ -934,6 +935,9 @@ public static class Program
         DisplayResponse(response, "Reindexing Results");
     }
 
+    // Track the current server instance for provider switching
+    private static EnhancedMcpRagServer currentServer = null;
+    
     private static async Task DemoShowModels(EnhancedMcpRagServer server)
     {
         if (await server._aiProvider.IsAvailableAsync())
@@ -944,6 +948,35 @@ public static class Program
         else
         {
             Console.WriteLine($"\n{server._aiProvider.ProviderName} is not available. Cannot retrieve models.");
+        }
+    }
+    
+    private static async Task<bool> UpdateActiveProviderAsync(EnhancedMcpRagServer server, AppConfiguration config)
+    {
+        try
+        {
+            // Create a new provider instance based on current configuration
+            var providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
+            var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
+            var newProvider = AiProviderFactory.CreateProvider(
+                config.LastProvider, 
+                config.LastModel ?? "default", 
+                providerUrl, 
+                logger);
+            
+            // Check if the new provider is available
+            if (await newProvider.IsAvailableAsync())
+            {
+                // Update the server's AI provider
+                server.UpdateAiProvider(newProvider);
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating active provider: {ex.Message}");
+            return false;
         }
     }
 
@@ -3371,6 +3404,9 @@ private static Task WaitForKeyPress()
             // Create new server with the new directory
             var newServer = new EnhancedMcpRagServer(logger, newPath, ollamaModel, mode);
             
+            // Update the current server reference
+            currentServer = newServer;
+            
             Console.WriteLine("Checking AI provider connection...");
             if (await newServer._aiProvider.IsAvailableAsync())
             {
@@ -3414,7 +3450,10 @@ private static Task WaitForKeyPress()
 
     public static void ShowMenu()
     {
+        var config = ConfigurationService.LoadConfiguration();
+        
         Console.WriteLine("\n📚 HlpAI - Available Commands:");
+        Console.WriteLine($"🤖 Current AI Provider: {config.LastProvider} | Model: {config.LastModel ?? "Not set"}");
         Console.WriteLine("📁 File Operations:");
         Console.WriteLine("  1 - List all available files");
         Console.WriteLine("  2 - Read specific file content");
@@ -3427,7 +3466,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("  7 - RAG-enhanced AI questioning");
         Console.WriteLine("  8 - Reindex documents");
         Console.WriteLine("\n🛠️ System:");
-        Console.WriteLine("  9 - Show available Ollama models");
+        Console.WriteLine("  9 - Show available models");
         Console.WriteLine("  10 - Display system status");
         Console.WriteLine("  11 - Show comprehensive indexing report");
         Console.WriteLine("  12 - Run as MCP server (for integration)");
@@ -3710,7 +3749,7 @@ private static Task WaitForKeyPress()
         return Task.CompletedTask;
     }
 
-    static Task SelectAiProviderAsync(AppConfiguration config)
+    static async Task SelectAiProviderAsync(AppConfiguration config)
     {
         Console.WriteLine("\n🤖 Select AI Provider");
         Console.WriteLine("=====================");
@@ -3729,6 +3768,7 @@ private static Task WaitForKeyPress()
         if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
         {
             var selectedProvider = providers[selection - 1];
+            var previousProvider = config.LastProvider;
             config.LastProvider = selectedProvider;
             
             // Set appropriate default model based on provider
@@ -3742,16 +3782,37 @@ private static Task WaitForKeyPress()
             
             Console.WriteLine($"✅ Selected provider: {selectedProvider}");
             Console.WriteLine($"✅ Default model set to: {config.LastModel}");
+            
+            // Save configuration immediately
+            ConfigurationService.SaveConfiguration(config);
+            
+            // Test the new provider connection
+            Console.WriteLine("\nTesting connection to the new provider...");
+            var success = await TestProviderConnectionAsync(config, false);
+            
+            if (success)
+            {
+                Console.WriteLine("\n✅ Provider switched successfully. All AI operations will now use the new provider.");
+                
+                // Update the active provider in any running server instances
+                if (currentServer != null)
+                {
+                    await UpdateActiveProviderAsync(currentServer, config);
+                }
+            }
+            else
+            {
+                Console.WriteLine("\n⚠️ Warning: Could not connect to the selected provider.");
+                Console.WriteLine("The configuration has been saved, but AI operations may fail.");
+            }
         }
         else
         {
             Console.WriteLine("❌ Invalid selection.");
         }
-        
-        return Task.CompletedTask;
     }
 
-    static async Task TestProviderConnectionAsync(AppConfiguration config)
+    static async Task<bool> TestProviderConnectionAsync(AppConfiguration config, bool showModels = true)
     {
         Console.WriteLine("\n🔌 Test Provider Connection");
         Console.WriteLine("============================");
@@ -3771,14 +3832,17 @@ private static Task WaitForKeyPress()
             {
                 Console.WriteLine($"✅ {provider.ProviderName} is available at {provider.BaseUrl}");
                 
-                var models = await provider.GetModelsAsync();
-                if (models.Count > 0)
+                if (showModels)
                 {
-                    Console.WriteLine($"Available models: {string.Join(", ", models)}");
-                }
-                else
-                {
-                    Console.WriteLine("⚠️ No models found (provider may be running but no models loaded)");
+                    var models = await provider.GetModelsAsync();
+                    if (models.Count > 0)
+                    {
+                        Console.WriteLine($"Available models: {string.Join(", ", models)}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("⚠️ No models found (provider may be running but no models loaded)");
+                    }
                 }
             }
             else
@@ -3788,10 +3852,12 @@ private static Task WaitForKeyPress()
             }
             
             provider.Dispose();
+            return isAvailable;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error testing provider: {ex.Message}");
+            return false;
         }
     }
 

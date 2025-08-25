@@ -19,7 +19,7 @@ namespace HlpAI.MCP
     private readonly ILogger<EnhancedMcpRagServer> _logger;
     private readonly List<IFileExtractor> _extractors;
     private readonly string _rootPath;
-    public readonly IAiProvider _aiProvider;
+    public IAiProvider _aiProvider;
     private readonly EmbeddingService _embeddingService;
     public readonly IVectorStore _vectorStore;
     public readonly OperationMode _operationMode;
@@ -57,6 +57,28 @@ namespace HlpAI.MCP
                 new ChmFileExtractor(logger),
                 new HhcFileExtractor()
             ];
+        }
+        
+        /// <summary>
+        /// Updates the AI provider instance for real-time provider switching
+        /// </summary>
+        /// <param name="newProvider">The new AI provider instance</param>
+        public void UpdateAiProvider(IAiProvider newProvider)
+        {
+            if (newProvider == null)
+            {
+                throw new ArgumentNullException(nameof(newProvider));
+            }
+            
+            // Dispose the old provider if it implements IDisposable
+            if (_aiProvider is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+            
+            _aiProvider = newProvider;
+            _logger?.LogInformation("AI provider switched to {ProviderName} using model {Model}", 
+                newProvider.ProviderName, newProvider.CurrentModel);
         }
 
         private static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
