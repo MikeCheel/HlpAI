@@ -1,0 +1,15 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=test.chm
+Contents file=toc.hhc
+Default Window=main
+Default topic=index.html
+Display compile progress=No
+Language=0x409 English (United States)
+Title=Test CHM for Extraction
+
+[WINDOWS]
+main="Test CHM for Extraction","toc.hhc",,"index.html","index.html",,,,,0x23520,,0x387e,,,,,,,,0
+
+[FILES]
+index.html
