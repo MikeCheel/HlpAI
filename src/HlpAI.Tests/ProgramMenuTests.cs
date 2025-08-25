@@ -287,5 +287,123 @@ public class ProgramMenuTests
         await Assert.That(output).DoesNotContain("Press any key to continue..."); // No output in test environment
     }
     
+    [Test]
+    public async Task MenuNavigation_ClearScreenBeforeCommands_EnsuresConsistentDisplay()
+    {
+        // This test verifies that screen clearing functionality works correctly
+        // by checking that ClearScreen produces expected output
+        
+        // Act
+        Program.ClearScreen();
+        var output = _stringWriter.ToString();
+        
+        // Assert
+        await Assert.That(output).Contains("🎯 HlpAI", StringComparison.Ordinal);
+        await Assert.That(output).Contains(new string('=', 24), StringComparison.Ordinal);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_ShowMenuAfterCommands_DisplaysMainMenu()
+    {
+        // This test verifies that ShowMenu displays the main menu correctly
+        // which is called after command execution
+        
+        // Act
+        Program.ShowMenu();
+        var output = _stringWriter.ToString();
+        
+        // Assert - Check for key menu elements
+        await Assert.That(output).Contains("📚 HlpAI - Available Commands:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("📁 File Operations:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🤖 AI Features:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🔍 RAG Features:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🛠️ System:", StringComparison.Ordinal);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_ClearScreenWithBreadcrumb_ShowsNavigationPath()
+    {
+        // This test verifies breadcrumb navigation functionality
+        
+        // Arrange
+        var header = "🔧 Configuration Menu";
+        var breadcrumb = "Main Menu > Configuration";
+        
+        // Act
+        Program.ClearScreenWithHeader(header, breadcrumb);
+        var output = _stringWriter.ToString();
+        
+        // Assert
+        await Assert.That(output).Contains(header, StringComparison.Ordinal);
+        await Assert.That(output).Contains($"📍 {breadcrumb}", StringComparison.Ordinal);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_MultipleScreenClears_MaintainConsistency()
+    {
+        // This test verifies that multiple screen clears work consistently
+        
+        // Act - Clear screen multiple times
+        Program.ClearScreen();
+        var firstOutput = _stringWriter.ToString();
+        
+        _stringWriter.GetStringBuilder().Clear(); // Reset for second test
+        Program.ClearScreen();
+        var secondOutput = _stringWriter.ToString();
+        
+        // Assert - Both outputs should be identical
+        await Assert.That(firstOutput).IsEqualTo(secondOutput);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_HeaderWithSpecialCharacters_DisplaysCorrectly()
+    {
+        // This test verifies that headers with emojis and special characters display correctly
+        
+        // Arrange
+        var headerWithEmojis = "🤖 AI Provider 🔧 Configuration 📊 Status";
+        
+        // Act
+        Program.ClearScreenWithHeader(headerWithEmojis);
+        var output = _stringWriter.ToString();
+        
+        // Assert
+        await Assert.That(output).Contains(headerWithEmojis, StringComparison.Ordinal);
+        await Assert.That(output).Contains(new string('=', headerWithEmojis.Length), StringComparison.Ordinal);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_BreadcrumbWithMultipleLevels_DisplaysFullPath()
+    {
+        // This test verifies that complex breadcrumb paths display correctly
+        
+        // Arrange
+        var header = "🔍 Vector Database Settings";
+        var complexBreadcrumb = "Main Menu > System > Vector Database Management > Settings";
+        
+        // Act
+        Program.ClearScreenWithHeader(header, complexBreadcrumb);
+        var output = _stringWriter.ToString();
+        
+        // Assert
+        await Assert.That(output).Contains(header, StringComparison.Ordinal);
+        await Assert.That(output).Contains($"📍 {complexBreadcrumb}", StringComparison.Ordinal);
+    }
+    
+    [Test]
+    public async Task MenuNavigation_EmptyHeader_HandlesGracefully()
+    {
+        // This test verifies that empty headers are handled gracefully
+        
+        // Arrange
+        var emptyHeader = "";
+        
+        // Act
+        Program.ClearScreenWithHeader(emptyHeader);
+        var output = _stringWriter.ToString();
+        
+        // Assert - Should still show minimum separator length
+        await Assert.That(output).Contains(new string('=', 24), StringComparison.Ordinal);
+    }
 
 }

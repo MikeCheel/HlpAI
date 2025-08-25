@@ -175,6 +175,7 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                                 await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - list files");
                             }
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "2":
                             ClearScreen();
@@ -186,6 +187,7 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                                 await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - read file");
                             }
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "3":
                             ClearScreen();
@@ -193,6 +195,7 @@ public static class Program
                                 await DemoSearchFiles(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "4":
                             ClearScreen();
@@ -200,6 +203,7 @@ public static class Program
                                 await DemoAskAI(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "5":
                             ClearScreen();
@@ -207,6 +211,7 @@ public static class Program
                                 await DemoAnalyzeFile(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "6":
                             ClearScreen();
@@ -214,6 +219,7 @@ public static class Program
                                 await DemoRagSearch(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "7":
                             ClearScreen();
@@ -221,6 +227,7 @@ public static class Program
                                 await DemoRagAsk(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "8":
                             ClearScreen();
@@ -228,6 +235,7 @@ public static class Program
                                 await DemoReindex(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "9":
                             ClearScreen();
@@ -235,6 +243,7 @@ public static class Program
                                 await DemoShowModels(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "10":
                             ClearScreen();
@@ -242,6 +251,7 @@ public static class Program
                                 await DemoShowStatus(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "11":
                             ClearScreen();
@@ -249,6 +259,7 @@ public static class Program
                                 await DemoIndexingReport(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "12":
                         case "server":
@@ -257,6 +268,7 @@ public static class Program
                                 await RunServerMode(server);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
+                            ShowMenu(); // Restore main menu after command
                             break;
                         case "13":
                         case "dir":
@@ -267,29 +279,35 @@ public static class Program
                                 server = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
                                 if (server == null)
                                     running = false;
+                                else
+                                    ShowMenu(); // Restore main menu after command
                             }
                             break;
                         case "14":
                         case "config":
                         case "configuration":
+                            ClearScreen();
                             await ShowConfigurationMenuAsync();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "15":
                         case "logs":
                         case "errorlogs":
+                            ClearScreen();
                             await ShowLogViewerAsync();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "16":
                         case "extractors":
                         case "extractor-management":
+                            ClearScreen();
                             await ShowExtractorManagementMenuAsync();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "17":
                         case "ai":
                         case "ai-provider":
+                            ClearScreen();
                             await ShowAiProviderMenuAsync();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
@@ -297,6 +315,7 @@ public static class Program
                         case "vector":
                         case "vector-db":
                         case "vector-database":
+                            ClearScreen();
                             await ShowVectorDatabaseManagementMenuAsync();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
@@ -2424,8 +2443,7 @@ public static class Program
 
     private static async Task ShowVectorDatabaseStatusAsync(SqliteVectorStore vectorStore)
     {
-        Console.WriteLine("\n📊 Vector Database Status");
-        Console.WriteLine("==========================");
+        ClearScreenWithHeader("📊 Vector Database Status", "Main Menu > Vector Database Management > Database Status");
         
         try
         {
@@ -2467,8 +2485,7 @@ public static class Program
 
     private static async Task ClearVectorIndexAsync(SqliteVectorStore vectorStore)
     {
-        Console.WriteLine("\n🗑️ Clear Vector Index");
-        Console.WriteLine("=====================");
+        ClearScreenWithHeader("🗑️ Clear Vector Index", "Main Menu > Vector Database Management > Clear Index");
         
         Console.WriteLine("This will remove all document chunks from the vector database.");
         Console.WriteLine("The database file will remain but will be empty.");
@@ -2498,8 +2515,7 @@ public static class Program
 
     private static async Task DeleteVectorDatabaseAsync(CleanupService cleanupService, bool createBackup)
     {
-        Console.WriteLine($"\n🗑️ Delete Vector Database {(createBackup ? "(with backup)" : "(no backup)")}");
-        Console.WriteLine("======================================");
+        ClearScreenWithHeader($"🗑️ Delete Vector Database {(createBackup ? "(with backup)" : "(no backup)")}", "Main Menu > Vector Database Management > Delete Database");
         
         Console.WriteLine("This will completely remove the vector database file.");
         if (createBackup)
@@ -2554,8 +2570,7 @@ public static class Program
 
 private static async Task ReindexDocumentsAsync()
 {
-    Console.WriteLine("\n🔄 Reindex Documents");
-    Console.WriteLine("====================");
+    ClearScreenWithHeader("🔄 Reindex Documents", "Main Menu > Vector Database Management > Reindex Documents");
 
     if (!await ConfirmReindex())
     {
@@ -2824,8 +2839,7 @@ private static Task WaitForKeyPress()
 
     static async Task ShowVectorDatabaseStatsAsync(SqliteVectorStore vectorStore)
     {
-        Console.WriteLine("\n📊 Vector Database Statistics");
-        Console.WriteLine("=============================");
+        ClearScreenWithHeader("📊 Vector Database Statistics", "Main Menu > Vector Database Management > Database Statistics");
         
         try
         {
@@ -2872,8 +2886,7 @@ private static Task WaitForKeyPress()
 
     static async Task ShowExtractorListAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n📦 Available File Extractors:");
-        Console.WriteLine("=============================");
+        ClearScreenWithHeader("📦 Available File Extractors", "Main Menu > Extractor Management > List Extractors");
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -2903,8 +2916,7 @@ private static Task WaitForKeyPress()
 
     static async Task ShowExtractorStatsAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n📊 Extractor Statistics:");
-        Console.WriteLine("========================");
+        ClearScreenWithHeader("📊 Extractor Statistics", "Main Menu > Extractor Management > Statistics");
         
         var stats = await service.GetExtractionStatisticsAsync();
         
@@ -2932,8 +2944,7 @@ private static Task WaitForKeyPress()
 
     static async Task AddFileExtensionAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n➕ Add File Extension to Extractor");
-        Console.WriteLine("===================================");
+        ClearScreenWithHeader("➕ Add File Extension to Extractor", "Main Menu > Extractor Management > Add Extension");
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -2994,8 +3005,7 @@ private static Task WaitForKeyPress()
 
     static async Task RemoveFileExtensionAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n➖ Remove File Extension from Extractor");
-        Console.WriteLine("=======================================");
+        ClearScreenWithHeader("➖ Remove File Extension from Extractor", "Main Menu > Extractor Management > Remove Extension");
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -3064,8 +3074,7 @@ private static Task WaitForKeyPress()
 
     static async Task TestFileExtractionAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n🧪 Test File Extraction");
-        Console.WriteLine("=======================");
+        ClearScreenWithHeader("🧪 Test File Extraction", "Main Menu > Extractor Management > Test Extraction");
         
         Console.Write("Enter file path to test: ");
         var filePath = SafePromptForString("", "");
@@ -3121,8 +3130,7 @@ private static Task WaitForKeyPress()
 
     static async Task ResetExtractorAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n🔄 Reset Extractor to Default Configuration");
-        Console.WriteLine("==========================================");
+        ClearScreenWithHeader("🔄 Reset Extractor to Default Configuration", "Main Menu > Extractor Management > Reset Extractor");
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -3179,8 +3187,7 @@ private static Task WaitForKeyPress()
 
     static async Task ShowConfigurationAuditAsync(ExtractorManagementService service)
     {
-        Console.WriteLine("\n🔍 Extractor Configuration Audit");
-        Console.WriteLine("================================");
+        ClearScreenWithHeader("🔍 Extractor Configuration Audit", "Main Menu > Extractor Management > Configuration Audit");
         
         var extractors = await service.GetExtractorsAsync();
         var stats = await service.GetExtractionStatisticsAsync();
@@ -3988,8 +3995,7 @@ private static Task WaitForKeyPress()
 
     static async Task DisplayCurrentProviderStatusAsync(AppConfiguration config)
     {
-        Console.WriteLine("📍 Current Active Provider:");
-        Console.WriteLine("---------------------------");
+        ClearScreenWithHeader("📍 Current Active Provider", "Main Menu > AI Provider Management > Current Provider Status");
         
         try
         {
@@ -4023,8 +4029,7 @@ private static Task WaitForKeyPress()
 
     static async Task DisplayAllProvidersStatusAsync(AppConfiguration config)
     {
-        Console.WriteLine("🌐 All Providers Status:");
-        Console.WriteLine("------------------------");
+        ClearScreenWithHeader("🌐 All Providers Status", "Main Menu > AI Provider Management > All Providers Status");
         
         try
         {
