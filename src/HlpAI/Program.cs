@@ -1022,13 +1022,12 @@ public static class Program
         
         while (configRunning)
         {
-            ClearScreen();
+            ClearScreenWithHeader("⚙️ Configuration Settings", "Main Menu > Configuration");
             // Get current hh.exe configuration from SQLite
             var configuredHhPath = await hhExeService.GetConfiguredHhExePathAsync();
             var isAutoDetected = await hhExeService.IsHhExePathAutoDetectedAsync();
             
-            Console.WriteLine("\n⚙️ Configuration Settings");
-            Console.WriteLine("==========================");
+
             Console.WriteLine($"1. Remember last directory: {(config.RememberLastDirectory ? "✅ Enabled" : "❌ Disabled")}");
             if (!string.IsNullOrEmpty(config.LastDirectory))
             {
@@ -1185,17 +1184,16 @@ public static class Program
                     break;
             }
             
-            if (configRunning)
+            if (configRunning && input != "b" && input != "back")
             {
-                await Task.Delay(1500); // Brief pause to let user see the result
+                await ShowBriefPauseAsync();
             }
         }
     }
 
     private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig)
     {
-        Console.WriteLine("\n🤖 Change AI Model");
-        Console.WriteLine("==================");
+        ClearScreenWithHeader("🤖 Change AI Model", "Main Menu > Configuration > AI Model");
         
         var config = ConfigurationService.LoadConfiguration();
         
@@ -1248,14 +1246,13 @@ public static class Program
         
         if (choice != "b" && choice != "back")
         {
-            await Task.Delay(2000); // Brief pause to let user see the result
+            await ShowBriefPauseAsync(null, 2000);
         }
     }
 
     private static async Task ListAvailableModelsAsync(AppConfiguration config)
     {
-        Console.WriteLine("\n📋 Available Models");
-        Console.WriteLine("==================");
+        ClearScreenWithHeader("📋 Available Models", "Main Menu > Configuration > AI Model > List Models");
         
         try
         {
@@ -1302,8 +1299,7 @@ public static class Program
 
     private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config)
     {
-        Console.WriteLine("\n🎯 Select Model");
-        Console.WriteLine("===============");
+        ClearScreenWithHeader("🎯 Select Model", "Main Menu > Configuration > AI Model > Select Model");
         
         try
         {
@@ -1707,7 +1703,7 @@ public static class Program
                 
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
-                await Task.Delay(1000);
+                await ShowBriefPauseAsync("Invalid option", 1000);
                 await ConfigurePromptDefaultsAsync();
                 return;
         }
@@ -1789,7 +1785,7 @@ public static class Program
                 
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
-                await Task.Delay(1000);
+                await ShowBriefPauseAsync("Invalid option", 1000);
                 await ConfigureErrorLoggingAsync();
                 return;
         }
@@ -1977,9 +1973,7 @@ public static class Program
         
         if (totalLogs == 0)
         {
-            ClearScreen();
-            Console.WriteLine("📊 Error Log Viewer");
-            Console.WriteLine("===================");
+            ClearScreenWithHeader("📊 Error Log Viewer", "Main Menu > Logs");
             Console.WriteLine("No error logs found.");
             Console.WriteLine("\nPress any key to continue...");
             Console.ReadKey(true);
@@ -1994,9 +1988,7 @@ public static class Program
         
         while (running)
         {
-            ClearScreen();
-            Console.WriteLine("📊 Error Log Viewer");
-            Console.WriteLine("===================");
+            ClearScreenWithHeader("📊 Error Log Viewer", "Main Menu > Logs");
             
             // Display current filter and pagination info
             var filterText = string.IsNullOrEmpty(filterLevel) ? "All levels" : $"Level: {filterLevel}";
@@ -2113,7 +2105,7 @@ public static class Program
             
             if (input != "s" && input != "stats" && input != "d" && input != "detail" && !string.IsNullOrEmpty(input) && input != "q" && input != "quit" && input != "back")
             {
-                await Task.Delay(500); // Brief pause for user feedback
+                await ShowBriefPauseAsync("Processing command", 500);
             }
         }
     }
@@ -2298,9 +2290,7 @@ public static class Program
     {
         using var extractorService = new ExtractorManagementService();
         
-        ClearScreen();
-        Console.WriteLine("\n🔧 File Extractor Management");
-        Console.WriteLine("============================");
+        ClearScreenWithHeader("🔧 File Extractor Management", "Main Menu > Extractor Management");
         
         var running = true;
         
@@ -2355,7 +2345,7 @@ public static class Program
                         break;
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
-                        await Task.Delay(1000);
+                        await ShowBriefPauseAsync("Invalid choice", 1000);
                         break;
                 }
             }
@@ -2374,9 +2364,7 @@ public static class Program
         using var embeddingService = new EmbeddingService();
         using var vectorStore = new SqliteVectorStore(embeddingService);
         
-        ClearScreen();
-        Console.WriteLine("\n🗄️ Vector Database Management");
-        Console.WriteLine("==============================");
+        ClearScreenWithHeader("🗄️ Vector Database Management", "Main Menu > Vector Database Management");
         
         var running = true;
         
@@ -2427,7 +2415,7 @@ public static class Program
                         break;
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
-                        await Task.Delay(1000);
+                        await ShowBriefPauseAsync("Invalid choice", 1000);
                         break;
                 }
             }
@@ -3486,6 +3474,14 @@ private static Task WaitForKeyPress()
 
     public static void ClearScreen()
     {
+        ClearScreenWithHeader("🎯 HlpAI");
+    }
+    
+    /// <summary>
+    /// Clear screen with custom header and optional breadcrumb navigation
+    /// </summary>
+    public static void ClearScreenWithHeader(string header, string breadcrumb = null)
+    {
         try
         {
             // Only clear console if not in test environment
@@ -3499,8 +3495,42 @@ private static Task WaitForKeyPress()
             // Ignore console clear errors in test environments
         }
         
-        Console.WriteLine("🎯 HlpAI");
-        Console.WriteLine("========================");
+        Console.WriteLine(header);
+        Console.WriteLine(new string('=', Math.Max(header.Length, 24)));
+        
+        if (!string.IsNullOrEmpty(breadcrumb))
+        {
+            Console.WriteLine($"📍 {breadcrumb}");
+            Console.WriteLine();
+        }
+    }
+    
+    /// <summary>
+    /// Show a brief pause with optional message before continuing
+    /// </summary>
+    public static async Task ShowBriefPauseAsync(string message = null, int delayMs = 1500)
+    {
+        if (!string.IsNullOrEmpty(message))
+        {
+            Console.WriteLine(message);
+        }
+        
+        if (!IsTestEnvironment())
+        {
+            await Task.Delay(delayMs);
+        }
+    }
+    
+    /// <summary>
+    /// Wait for user input with optional prompt
+    /// </summary>
+    public static void WaitForUserInput(string prompt = "Press any key to continue...")
+    {
+        if (!IsTestEnvironment())
+        {
+            Console.WriteLine(prompt);
+            Console.ReadKey(true);
+        }
     }
     
     /// <summary>
@@ -3632,9 +3662,7 @@ private static Task WaitForKeyPress()
         
         while (running)
         {
-            ClearScreen();
-            Console.WriteLine("\n🤖 AI Provider Configuration");
-            Console.WriteLine("============================");
+            ClearScreenWithHeader("🤖 AI Provider Configuration", "Main Menu > AI Provider Management");
             
             // Show current active provider with status
             await DisplayCurrentProviderStatusAsync(config);
@@ -3712,7 +3740,7 @@ private static Task WaitForKeyPress()
             
             if (running)
             {
-                await Task.Delay(1000); // Brief pause to let user see the result
+                await ShowBriefPauseAsync("Processing", 1000);
             }
         }
         
@@ -3764,8 +3792,7 @@ private static Task WaitForKeyPress()
 
     static async Task SelectAiProviderAsync(AppConfiguration config)
     {
-        Console.WriteLine("\n🤖 Select AI Provider");
-        Console.WriteLine("=====================");
+        ClearScreenWithHeader("🤖 Select AI Provider", "Main Menu > AI Provider > Select Provider");
         
         var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
         var providers = providerDescriptions.Keys.ToList();
