@@ -255,7 +255,18 @@ public class SqliteVectorStoreTests
     [Test]
     public async Task SearchAsync_WithFileFilters_FiltersCorrectly()
     {
-        // Arrange
+        // Arrange - Override mock to return consistent embeddings for similar content
+        _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
+            .ReturnsAsync((string text) =>
+            {
+                // Return similar embeddings for content containing "content"
+                if (text.ToLower().Contains("content"))
+                {
+                    return _sampleEmbedding;
+                }
+                return _differentEmbedding;
+            });
+        
         await _vectorStore.IndexDocumentAsync("file1.txt", "Content for file one");
         await _vectorStore.IndexDocumentAsync("file2.txt", "Content for file two");
         await _vectorStore.IndexDocumentAsync("other.txt", "Content for other file");
@@ -337,7 +348,27 @@ public class SqliteVectorStoreTests
     [Test]
     public async Task SearchAsync_OrdersBySimilarity_ReturnsHighestFirst()
     {
-        // Arrange
+        // Arrange - Override mock to return different embeddings for different similarity levels
+        _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
+            .ReturnsAsync((string text) =>
+            {
+                // Return high similarity for exact match content
+                if (text.Contains("exactly what") || text.Contains("looking"))
+                {
+                    return _sampleEmbedding;
+                }
+                // Return medium similarity for somewhat related content
+                else if (text.Contains("somewhat") || text.Contains("related"))
+                {
+                    return [0.1f, 0.2f, 0.3f, 0.3f, 0.4f]; // Similar but different
+                }
+                // Return low similarity for different content
+                else
+                {
+                    return _differentEmbedding;
+                }
+            });
+        
         await _vectorStore.IndexDocumentAsync("file1.txt", "This is exactly what we're looking for");
         await _vectorStore.IndexDocumentAsync("file2.txt", "This is somewhat related content");
         await _vectorStore.IndexDocumentAsync("file3.txt", "Completely different topic altogether");
