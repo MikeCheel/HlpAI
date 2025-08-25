@@ -154,7 +154,19 @@ public static class Program
                 await server.InitializeAsync();
             }
 
-            ShowMenu();
+            // Initialize menu state manager
+            var menuStateManager = new MenuStateManager(logger);
+            
+            // Restore menu context if enabled
+            var startupContext = menuStateManager.GetStartupMenuContext();
+            if (startupContext != MenuContext.MainMenu)
+            {
+                await RestoreMenuContextAsync(startupContext, server, menuStateManager);
+            }
+            else
+            {
+                ShowMenu();
+            }
 
             bool running = true;
             while (running)
@@ -286,37 +298,42 @@ public static class Program
                         case "14":
                         case "config":
                         case "configuration":
-                            ClearScreen();
-                            await ShowConfigurationMenuAsync();
+                            menuStateManager.NavigateToMenu(MenuContext.Configuration);
+                            await ShowConfigurationMenuAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "15":
                         case "logs":
                         case "errorlogs":
-                            ClearScreen();
-                            await ShowLogViewerAsync();
+                            menuStateManager.NavigateToMenu(MenuContext.LogViewer);
+                            await ShowLogViewerAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "16":
                         case "extractors":
                         case "extractor-management":
-                            ClearScreen();
-                            await ShowExtractorManagementMenuAsync();
+                            menuStateManager.NavigateToMenu(MenuContext.ExtractorManagement);
+                            await ShowExtractorManagementMenuAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "17":
                         case "ai":
                         case "ai-provider":
-                            ClearScreen();
-                            await ShowAiProviderMenuAsync();
+                            menuStateManager.NavigateToMenu(MenuContext.AiProviderManagement);
+                            await ShowAiProviderMenuAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "18":
                         case "vector":
                         case "vector-db":
                         case "vector-database":
-                            ClearScreen();
-                            await ShowVectorDatabaseManagementMenuAsync();
+                            menuStateManager.NavigateToMenu(MenuContext.VectorDatabaseManagement);
+                            await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "c":
@@ -348,6 +365,31 @@ public static class Program
         finally
         {
             server?.Dispose();
+        }
+    }
+
+    private static async Task RestoreMenuContextAsync(MenuContext context, EnhancedMcpRagServer? server, MenuStateManager menuStateManager)
+    {
+        switch (context)
+        {
+            case MenuContext.Configuration:
+                await ShowConfigurationMenuAsync(menuStateManager);
+                break;
+            case MenuContext.LogViewer:
+                await ShowLogViewerAsync(menuStateManager);
+                break;
+            case MenuContext.ExtractorManagement:
+                await ShowExtractorManagementMenuAsync(menuStateManager);
+                break;
+            case MenuContext.AiProviderManagement:
+                await ShowAiProviderMenuAsync(menuStateManager);
+                break;
+            case MenuContext.VectorDatabaseManagement:
+                await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
+                break;
+            default:
+                ShowMenu();
+                break;
         }
     }
 
@@ -1026,7 +1068,7 @@ public static class Program
         DisplayResponse(response, "Indexing Report");
     }
 
-    private static async Task ShowConfigurationMenuAsync()
+    private static async Task ShowConfigurationMenuAsync(MenuStateManager? menuStateManager = null)
     {
         using var sqliteConfig = new SqliteConfigurationService();
         using var hhExeService = new HhExeDetectionService();
@@ -1035,7 +1077,8 @@ public static class Program
         
         while (configRunning)
         {
-            ClearScreenWithHeader("⚙️ Configuration Settings", "Main Menu > Configuration");
+            var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Configuration";
+            ClearScreenWithHeader("⚙️ Configuration Settings", breadcrumb);
             // Get current hh.exe configuration from SQLite
             var configuredHhPath = await hhExeService.GetConfiguredHhExePathAsync();
             var isAutoDetected = await hhExeService.IsHhExePathAutoDetectedAsync();
@@ -1053,6 +1096,11 @@ public static class Program
             }
             Console.WriteLine($"3. Remember last operation mode: {(config.RememberLastOperationMode ? "✅ Enabled" : "❌ Disabled")}");
             Console.WriteLine($"   Last operation mode: {config.LastOperationMode}");
+            Console.WriteLine($"4. Remember menu context: {(config.RememberMenuContext ? "✅ Enabled" : "❌ Disabled")}");
+            if (config.RememberMenuContext)
+            {
+                Console.WriteLine($"   Current context: {MenuStateManager.GetMenuDisplayName(config.CurrentMenuContext)}");
+            }
             Console.WriteLine();
             Console.WriteLine("🔧 hh.exe Configuration (SQLite Database):");
             if (!string.IsNullOrEmpty(configuredHhPath))
@@ -1066,18 +1114,18 @@ public static class Program
             {
                 Console.WriteLine($"   Current path: ❌ Not configured");
             }
-            Console.WriteLine("4. Configure hh.exe path");
-            Console.WriteLine("5. Configure prompt defaults");
-            Console.WriteLine("6. Configure error logging");
+            Console.WriteLine("5. Configure hh.exe path");
+            Console.WriteLine("6. Configure prompt defaults");
+            Console.WriteLine("7. Configure error logging");
             Console.WriteLine();
-            Console.WriteLine("7. View configuration database details");
-            Console.WriteLine("8. Reset all settings to defaults");
-            Console.WriteLine("9. Delete configuration database");
-            Console.WriteLine("10. Change AI model");
+            Console.WriteLine("8. View configuration database details");
+            Console.WriteLine("9. Reset all settings to defaults");
+            Console.WriteLine("10. Delete configuration database");
+            Console.WriteLine("11. Change AI model");
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-10, b): ");
+            Console.Write("Select option (1-11, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -1101,22 +1149,37 @@ public static class Program
                     break;
                     
                 case "4":
-                    await ConfigureHhExePathAsync(hhExeService);
+                    if (menuStateManager != null)
+                    {
+                        menuStateManager.ToggleRememberMenuContext();
+                        config = ConfigurationService.LoadConfiguration(); // Reload to get updated config
+                        Console.WriteLine($"✅ Remember menu context: {(config.RememberMenuContext ? "Enabled" : "Disabled")}");
+                    }
+                    else
+                    {
+                        config.RememberMenuContext = !config.RememberMenuContext;
+                        ConfigurationService.SaveConfiguration(config);
+                        Console.WriteLine($"✅ Remember menu context: {(config.RememberMenuContext ? "Enabled" : "Disabled")}");
+                    }
                     break;
                     
                 case "5":
-                    await ConfigurePromptDefaultsAsync();
+                    await ConfigureHhExePathAsync(hhExeService);
                     break;
                     
                 case "6":
-                    await ConfigureErrorLoggingAsync();
+                    await ConfigurePromptDefaultsAsync();
                     break;
                     
                 case "7":
-                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    await ConfigureErrorLoggingAsync();
                     break;
                     
                 case "8":
+                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    break;
+                    
+                case "9":
                     {
                         Console.WriteLine("\n🔄 Reset Settings");
                         Console.WriteLine("==================");
@@ -1143,7 +1206,7 @@ public static class Program
                         break;
                     }
                     
-                case "9":
+                case "10":
                     {
                         Console.WriteLine("\n🗑️ Delete Configuration Database");
                         Console.WriteLine("=================================");
@@ -1183,8 +1246,8 @@ public static class Program
                         break;
                     }
                     
-                case "10":
-                    await ChangeAiModelAsync(sqliteConfig);
+                case "11":
+                    await ChangeAiModelAsync(sqliteConfig, menuStateManager);
                     break;
                     
                 case "b":
@@ -1204,9 +1267,10 @@ public static class Program
         }
     }
 
-    private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig)
+    private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🤖 Change AI Model", "Main Menu > Configuration > AI Model");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > AI Model" ?? "Main Menu > Configuration > AI Model";
+        ClearScreenWithHeader("🤖 Change AI Model", breadcrumb);
         
         var config = ConfigurationService.LoadConfiguration();
         
@@ -1237,11 +1301,11 @@ public static class Program
         switch (choice)
         {
             case "1":
-                await ListAvailableModelsAsync(config);
+                await ListAvailableModelsAsync(config, menuStateManager);
                 break;
                 
             case "2":
-                await SelectModelFromConfigMenuAsync(config);
+                await SelectModelFromConfigMenuAsync(config, menuStateManager);
                 break;
                 
             case "3":
@@ -1263,9 +1327,10 @@ public static class Program
         }
     }
 
-    private static async Task ListAvailableModelsAsync(AppConfiguration config)
+    private static async Task ListAvailableModelsAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📋 Available Models", "Main Menu > Configuration > AI Model > List Models");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > List Models" ?? "Main Menu > Configuration > AI Model > List Models";
+        ClearScreenWithHeader("📋 Available Models", breadcrumb);
         
         try
         {
@@ -1310,9 +1375,10 @@ public static class Program
         }
     }
 
-    private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config)
+    private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🎯 Select Model", "Main Menu > Configuration > AI Model > Select Model");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Select Model" ?? "Main Menu > Configuration > AI Model > Select Model";
+        ClearScreenWithHeader("🎯 Select Model", breadcrumb);
         
         try
         {
@@ -1976,7 +2042,7 @@ public static class Program
         Console.WriteLine("You can view them using the 'View recent error logs' option.");
     }
 
-    private static async Task ShowLogViewerAsync()
+    private static async Task ShowLogViewerAsync(MenuStateManager? menuStateManager = null)
     {
         using var errorLoggingService = new ErrorLoggingService();
         
@@ -1986,7 +2052,8 @@ public static class Program
         
         if (totalLogs == 0)
         {
-            ClearScreenWithHeader("📊 Error Log Viewer", "Main Menu > Logs");
+            var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Logs";
+            ClearScreenWithHeader("📊 Error Log Viewer", breadcrumb);
             Console.WriteLine("No error logs found.");
             Console.WriteLine("\nPress any key to continue...");
             Console.ReadKey(true);
@@ -2001,7 +2068,8 @@ public static class Program
         
         while (running)
         {
-            ClearScreenWithHeader("📊 Error Log Viewer", "Main Menu > Logs");
+            var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Logs";
+            ClearScreenWithHeader("📊 Error Log Viewer", breadcrumb);
             
             // Display current filter and pagination info
             var filterText = string.IsNullOrEmpty(filterLevel) ? "All levels" : $"Level: {filterLevel}";
@@ -2299,11 +2367,12 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static async Task ShowExtractorManagementMenuAsync()
+    private static async Task ShowExtractorManagementMenuAsync(MenuStateManager? menuStateManager = null)
     {
         using var extractorService = new ExtractorManagementService();
         
-        ClearScreenWithHeader("🔧 File Extractor Management", "Main Menu > Extractor Management");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Extractor Management";
+        ClearScreenWithHeader("🔧 File Extractor Management", breadcrumb);
         
         var running = true;
         
@@ -2328,25 +2397,25 @@ public static class Program
                 switch (input)
                 {
                     case "1":
-                        await ShowExtractorListAsync(extractorService);
+                        await ShowExtractorListAsync(extractorService, menuStateManager);
                         break;
                     case "2":
-                        await ShowExtractorStatsAsync(extractorService);
+                        await ShowExtractorStatsAsync(extractorService, menuStateManager);
                         break;
                     case "3":
-                        await AddFileExtensionAsync(extractorService);
+                        await AddFileExtensionAsync(extractorService, menuStateManager);
                         break;
                     case "4":
-                        await RemoveFileExtensionAsync(extractorService);
+                        await RemoveFileExtensionAsync(extractorService, menuStateManager);
                         break;
                     case "5":
-                        await TestFileExtractionAsync(extractorService);
+                        await TestFileExtractionAsync(extractorService, menuStateManager);
                         break;
                     case "6":
-                        await ResetExtractorAsync(extractorService);
+                        await ResetExtractorAsync(extractorService, menuStateManager);
                         break;
                     case "7":
-                        await ShowConfigurationAuditAsync(extractorService);
+                        await ShowConfigurationAuditAsync(extractorService, menuStateManager);
                         break;
                     case "b":
                     case "back":
@@ -2371,13 +2440,13 @@ public static class Program
         }
     }
 
-    private static async Task ShowVectorDatabaseManagementMenuAsync()
+    private static async Task ShowVectorDatabaseManagementMenuAsync(MenuStateManager? menuStateManager = null)
     {
         using var cleanupService = new CleanupService();
         using var embeddingService = new EmbeddingService();
         using var vectorStore = new SqliteVectorStore(embeddingService);
         
-        ClearScreenWithHeader("🗄️ Vector Database Management", "Main Menu > Vector Database Management");
+        ClearScreenWithHeader("🗄️ Vector Database Management", menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Vector Database Management");
         
         var running = true;
         
@@ -2401,22 +2470,22 @@ public static class Program
                 switch (input)
                 {
                     case "1":
-                        await ShowVectorDatabaseStatusAsync(vectorStore);
+                        await ShowVectorDatabaseStatusAsync(vectorStore, menuStateManager);
                         break;
                     case "2":
-                        await ClearVectorIndexAsync(vectorStore);
+                        await ClearVectorIndexAsync(vectorStore, menuStateManager);
                         break;
                     case "3":
-                        await DeleteVectorDatabaseAsync(cleanupService, true);
+                        await DeleteVectorDatabaseAsync(cleanupService, true, menuStateManager);
                         break;
                     case "4":
-                        await DeleteVectorDatabaseAsync(cleanupService, false);
+                        await DeleteVectorDatabaseAsync(cleanupService, false, menuStateManager);
                         break;
                     case "5":
-                        await ReindexDocumentsAsync();
+                        await ReindexDocumentsAsync(menuStateManager);
                         break;
                     case "6":
-                        await ShowVectorDatabaseStatsAsync(vectorStore);
+                        await ShowVectorDatabaseStatsAsync(vectorStore, menuStateManager);
                         break;
                     case "b":
                     case "back":
@@ -2441,9 +2510,10 @@ public static class Program
         }
     }
 
-    private static async Task ShowVectorDatabaseStatusAsync(SqliteVectorStore vectorStore)
+    private static async Task ShowVectorDatabaseStatusAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📊 Vector Database Status", "Main Menu > Vector Database Management > Database Status");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Database Status" ?? "Main Menu > Vector Database Management > Database Status";
+        ClearScreenWithHeader("📊 Vector Database Status", breadcrumb);
         
         try
         {
@@ -2483,9 +2553,10 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ClearVectorIndexAsync(SqliteVectorStore vectorStore)
+    private static async Task ClearVectorIndexAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🗑️ Clear Vector Index", "Main Menu > Vector Database Management > Clear Index");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Clear Index" ?? "Main Menu > Vector Database Management > Clear Index";
+        ClearScreenWithHeader("🗑️ Clear Vector Index", breadcrumb);
         
         Console.WriteLine("This will remove all document chunks from the vector database.");
         Console.WriteLine("The database file will remain but will be empty.");
@@ -2513,9 +2584,10 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task DeleteVectorDatabaseAsync(CleanupService cleanupService, bool createBackup)
+    private static async Task DeleteVectorDatabaseAsync(CleanupService cleanupService, bool createBackup, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader($"🗑️ Delete Vector Database {(createBackup ? "(with backup)" : "(no backup)")}", "Main Menu > Vector Database Management > Delete Database");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Delete Database" ?? "Main Menu > Vector Database Management > Delete Database";
+        ClearScreenWithHeader($"🗑️ Delete Vector Database {(createBackup ? "(with backup)" : "(no backup)")}", breadcrumb);
         
         Console.WriteLine("This will completely remove the vector database file.");
         if (createBackup)
@@ -2568,9 +2640,10 @@ public static class Program
         Console.ReadKey(true);
     }
 
-private static async Task ReindexDocumentsAsync()
+private static async Task ReindexDocumentsAsync(MenuStateManager? menuStateManager = null)
 {
-    ClearScreenWithHeader("🔄 Reindex Documents", "Main Menu > Vector Database Management > Reindex Documents");
+    var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Reindex Documents" ?? "Main Menu > Vector Database Management > Reindex Documents";
+    ClearScreenWithHeader("🔄 Reindex Documents", breadcrumb);
 
     if (!await ConfirmReindex())
     {
@@ -2837,9 +2910,10 @@ private static Task WaitForKeyPress()
         return "Unknown reason";
     }
 
-    static async Task ShowVectorDatabaseStatsAsync(SqliteVectorStore vectorStore)
+    static async Task ShowVectorDatabaseStatsAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📊 Vector Database Statistics", "Main Menu > Vector Database Management > Database Statistics");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Database Statistics" ?? "Main Menu > Vector Database Management > Database Statistics";
+        ClearScreenWithHeader("📊 Vector Database Statistics", breadcrumb);
         
         try
         {
@@ -2884,9 +2958,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task ShowExtractorListAsync(ExtractorManagementService service)
+    static async Task ShowExtractorListAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📦 Available File Extractors", "Main Menu > Extractor Management > List Extractors");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > List Extractors" ?? "Main Menu > Extractor Management > List Extractors";
+        ClearScreenWithHeader("📦 Available File Extractors", breadcrumb);
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -2914,9 +2989,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task ShowExtractorStatsAsync(ExtractorManagementService service)
+    static async Task ShowExtractorStatsAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📊 Extractor Statistics", "Main Menu > Extractor Management > Statistics");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Statistics" ?? "Main Menu > Extractor Management > Statistics";
+        ClearScreenWithHeader("📊 Extractor Statistics", breadcrumb);
         
         var stats = await service.GetExtractionStatisticsAsync();
         
@@ -2942,9 +3018,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task AddFileExtensionAsync(ExtractorManagementService service)
+    static async Task AddFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("➕ Add File Extension to Extractor", "Main Menu > Extractor Management > Add Extension");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Add Extension" ?? "Main Menu > Extractor Management > Add Extension";
+        ClearScreenWithHeader("➕ Add File Extension to Extractor", breadcrumb);
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -3003,9 +3080,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task RemoveFileExtensionAsync(ExtractorManagementService service)
+    static async Task RemoveFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("➖ Remove File Extension from Extractor", "Main Menu > Extractor Management > Remove Extension");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Remove Extension" ?? "Main Menu > Extractor Management > Remove Extension";
+        ClearScreenWithHeader("➖ Remove File Extension from Extractor", breadcrumb);
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -3072,9 +3150,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task TestFileExtractionAsync(ExtractorManagementService service)
+    static async Task TestFileExtractionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🧪 Test File Extraction", "Main Menu > Extractor Management > Test Extraction");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Test Extraction" ?? "Main Menu > Extractor Management > Test Extraction";
+        ClearScreenWithHeader("🧪 Test File Extraction", breadcrumb);
         
         Console.Write("Enter file path to test: ");
         var filePath = SafePromptForString("", "");
@@ -3128,9 +3207,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task ResetExtractorAsync(ExtractorManagementService service)
+    static async Task ResetExtractorAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🔄 Reset Extractor to Default Configuration", "Main Menu > Extractor Management > Reset Extractor");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Reset Extractor" ?? "Main Menu > Extractor Management > Reset Extractor";
+        ClearScreenWithHeader("🔄 Reset Extractor to Default Configuration", breadcrumb);
         
         var extractors = await service.GetExtractorsAsync();
         
@@ -3185,9 +3265,10 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task ShowConfigurationAuditAsync(ExtractorManagementService service)
+    static async Task ShowConfigurationAuditAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🔍 Extractor Configuration Audit", "Main Menu > Extractor Management > Configuration Audit");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Configuration Audit" ?? "Main Menu > Extractor Management > Configuration Audit";
+        ClearScreenWithHeader("🔍 Extractor Configuration Audit", breadcrumb);
         
         var extractors = await service.GetExtractorsAsync();
         var stats = await service.GetExtractionStatisticsAsync();
@@ -3653,21 +3734,21 @@ private static Task WaitForKeyPress()
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
-    static async Task ShowAiProviderMenuAsync()
+    static async Task ShowAiProviderMenuAsync(MenuStateManager? menuStateManager = null)
     {
         var config = ConfigurationService.LoadConfiguration();
         bool running = true;
         
         while (running)
         {
-            ClearScreenWithHeader("🤖 AI Provider Configuration", "Main Menu > AI Provider Management");
+            ClearScreenWithHeader("🤖 AI Provider Configuration", menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > AI Provider Management");
             
             // Show current active provider with status
-            await DisplayCurrentProviderStatusAsync(config);
+            await DisplayCurrentProviderStatusAsync(config, menuStateManager);
             Console.WriteLine();
             
             // Show all providers with availability status
-            await DisplayAllProvidersStatusAsync(config);
+            await DisplayAllProvidersStatusAsync(config, menuStateManager);
             Console.WriteLine();
             
             Console.WriteLine("Provider Settings:");
@@ -3713,13 +3794,13 @@ private static Task WaitForKeyPress()
                     await ConfigureDefaultModelAsync("Open Web UI", model => config.OpenWebUiDefaultModel = model);
                     break;
                 case "7":
-                    await SelectAiProviderAsync(config);
+                    await SelectAiProviderAsync(config, menuStateManager);
                     break;
                 case "8":
                     await TestProviderConnectionAsync(config);
                     break;
                 case "9":
-                    await ListAvailableModelsAsync(config);
+                    await ListAvailableModelsAsync(config, menuStateManager);
                     break;
                 case "10":
                     await DetectAvailableProvidersAsync();
@@ -3788,9 +3869,10 @@ private static Task WaitForKeyPress()
         return Task.CompletedTask;
     }
 
-    static async Task SelectAiProviderAsync(AppConfiguration config)
+    static async Task SelectAiProviderAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🤖 Select AI Provider", "Main Menu > AI Provider > Select Provider");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Select Provider" ?? "Main Menu > AI Provider > Select Provider";
+        ClearScreenWithHeader("🤖 Select AI Provider", breadcrumb);
         
         var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
         var providers = providerDescriptions.Keys.ToList();
@@ -3993,9 +4075,10 @@ private static Task WaitForKeyPress()
         }
     }
 
-    static async Task DisplayCurrentProviderStatusAsync(AppConfiguration config)
+    static async Task DisplayCurrentProviderStatusAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("📍 Current Active Provider", "Main Menu > AI Provider Management > Current Provider Status");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Current Provider Status" ?? "Main Menu > AI Provider Management > Current Provider Status";
+        ClearScreenWithHeader("📍 Current Active Provider", breadcrumb);
         
         try
         {
@@ -4027,9 +4110,10 @@ private static Task WaitForKeyPress()
         }
     }
 
-    static async Task DisplayAllProvidersStatusAsync(AppConfiguration config)
+    static async Task DisplayAllProvidersStatusAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
-        ClearScreenWithHeader("🌐 All Providers Status", "Main Menu > AI Provider Management > All Providers Status");
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > All Providers Status" ?? "Main Menu > AI Provider Management > All Providers Status";
+        ClearScreenWithHeader("🌐 All Providers Status", breadcrumb);
         
         try
         {

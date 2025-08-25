@@ -99,4 +99,33 @@ public class AppConfiguration
     /// Version of the configuration format (for future migrations)
     /// </summary>
     public int ConfigVersion { get; set; } = 1;
+
+    /// <summary>
+    /// The current menu context for state management
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public MenuContext CurrentMenuContext { get; set; } = MenuContext.MainMenu;
+
+    /// <summary>
+    /// Whether to remember and restore the last menu context on startup
+    /// </summary>
+    public bool RememberMenuContext { get; set; } = false;
+
+    /// <summary>
+    /// Stack of menu contexts for proper navigation history
+    /// </summary>
+    public List<MenuContext> MenuHistory { get; set; } = new();
+}
+
+/// <summary>
+/// Enumeration of available menu contexts for state management
+/// </summary>
+public enum MenuContext
+{
+    MainMenu,
+    Configuration,
+    LogViewer,
+    ExtractorManagement,
+    AiProviderManagement,
+    VectorDatabaseManagement
 }
