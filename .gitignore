@@ -11,6 +11,9 @@
 *.sln.docstates
 *.env
 
+# Vibe documentation folder (AI assistant working files)
+vibe-docs/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

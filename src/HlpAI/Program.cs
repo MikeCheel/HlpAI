@@ -3453,7 +3453,10 @@ private static Task WaitForKeyPress()
         var config = ConfigurationService.LoadConfiguration();
         
         Console.WriteLine("\n📚 HlpAI - Available Commands:");
-        Console.WriteLine($"🤖 Current AI Provider: {config.LastProvider} | Model: {config.LastModel ?? "Not set"}");
+        
+        // Display enhanced AI provider status
+        var providerStatus = GetProviderStatusDisplay(config);
+        Console.WriteLine($"🤖 AI Provider: {providerStatus}");
         Console.WriteLine("📁 File Operations:");
         Console.WriteLine("  1 - List all available files");
         Console.WriteLine("  2 - Read specific file content");
@@ -3632,9 +3635,15 @@ private static Task WaitForKeyPress()
             ClearScreen();
             Console.WriteLine("\n🤖 AI Provider Configuration");
             Console.WriteLine("============================");
-            Console.WriteLine($"Current Provider: {config.LastProvider}");
-            Console.WriteLine($"Current Model: {config.LastModel ?? "Not set"}");
+            
+            // Show current active provider with status
+            await DisplayCurrentProviderStatusAsync(config);
             Console.WriteLine();
+            
+            // Show all providers with availability status
+            await DisplayAllProvidersStatusAsync(config);
+            Console.WriteLine();
+            
             Console.WriteLine("Provider Settings:");
             Console.WriteLine($"1. Ollama URL: {config.OllamaUrl}");
             Console.WriteLine($"2. LM Studio URL: {config.LmStudioUrl}");
@@ -3650,10 +3659,11 @@ private static Task WaitForKeyPress()
             Console.WriteLine("8. Test Provider Connection");
             Console.WriteLine("9. List Available Models");
             Console.WriteLine("10. Detect Available Providers");
+            Console.WriteLine("11. Quick Switch to Available Provider");
             Console.WriteLine("b. Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-10, b): ");
+            Console.Write("Select option (1-11, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -3687,6 +3697,9 @@ private static Task WaitForKeyPress()
                     break;
                 case "10":
                     await DetectAvailableProvidersAsync();
+                    break;
+                case "11":
+                    await QuickSwitchToAvailableProviderAsync(config);
                     break;
                 case "b":
                 case "back":
@@ -3757,21 +3770,46 @@ private static Task WaitForKeyPress()
         var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
         var providers = providerDescriptions.Keys.ToList();
         
+        // Show current provider status
+        Console.WriteLine($"Current provider: {config.LastProvider} | Model: {config.LastModel ?? "Not set"}");
+        Console.WriteLine();
+        
         for (int i = 0; i < providers.Count; i++)
         {
-            Console.WriteLine($"{i + 1}. {providerDescriptions[providers[i]]}");
+            var provider = providers[i];
+            var currentIndicator = (provider == config.LastProvider) ? " (current)" : "";
+            Console.WriteLine($"{i + 1}. {providerDescriptions[provider]}{currentIndicator}");
         }
         
-        Console.Write($"Select provider (1-{providers.Count}): ");
+        Console.Write($"\nSelect provider (1-{providers.Count}): ");
         var input = SafePromptForString("", "b").Trim();
         
         if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
         {
             var selectedProvider = providers[selection - 1];
-            var previousProvider = config.LastProvider;
-            config.LastProvider = selectedProvider;
             
-            // Set appropriate default model based on provider
+            if (selectedProvider == config.LastProvider)
+            {
+                Console.WriteLine("✅ That's already your current provider.");
+                return;
+            }
+            
+            // Enhanced pre-switch validation
+            Console.WriteLine($"\n🔍 Validating {selectedProvider} configuration...");
+            var validationResult = await ValidateProviderConfigurationAsync(selectedProvider, config);
+            
+            if (!validationResult.IsValid)
+            {
+                Console.WriteLine($"❌ Validation failed: {validationResult.ErrorMessage}");
+                Console.WriteLine("Please fix the configuration before switching providers.");
+                return;
+            }
+            
+            var previousProvider = config.LastProvider;
+            var previousModel = config.LastModel;
+            
+            // Temporarily update configuration for testing
+            config.LastProvider = selectedProvider;
             config.LastModel = selectedProvider switch
             {
                 AiProviderType.Ollama => config.OllamaDefaultModel,
@@ -3780,30 +3818,45 @@ private static Task WaitForKeyPress()
                 _ => "default"
             };
             
-            Console.WriteLine($"✅ Selected provider: {selectedProvider}");
-            Console.WriteLine($"✅ Default model set to: {config.LastModel}");
-            
-            // Save configuration immediately
-            ConfigurationService.SaveConfiguration(config);
-            
-            // Test the new provider connection
-            Console.WriteLine("\nTesting connection to the new provider...");
+            Console.WriteLine($"\n🔌 Testing connection to {selectedProvider}...");
             var success = await TestProviderConnectionAsync(config, false);
             
             if (success)
             {
-                Console.WriteLine("\n✅ Provider switched successfully. All AI operations will now use the new provider.");
+                Console.WriteLine($"\n✅ Successfully switched from {previousProvider} to {selectedProvider}");
+                Console.WriteLine($"✅ Default model set to: {config.LastModel}");
+                
+                // Save configuration after successful validation
+                ConfigurationService.SaveConfiguration(config);
                 
                 // Update the active provider in any running server instances
                 if (currentServer != null)
                 {
-                    await UpdateActiveProviderAsync(currentServer, config);
+                    Console.WriteLine("\nUpdating running server instance...");
+                    var updateSuccess = await UpdateActiveProviderAsync(currentServer, config);
+                    if (updateSuccess)
+                    {
+                        Console.WriteLine("✅ Server updated successfully. All AI operations will now use the new provider.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("⚠️ Warning: Could not update the running server. You may need to restart the server.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("✅ Configuration saved. The new provider will be used when the server starts.");
                 }
             }
             else
             {
-                Console.WriteLine("\n⚠️ Warning: Could not connect to the selected provider.");
-                Console.WriteLine("The configuration has been saved, but AI operations may fail.");
+                // Rollback configuration on failure
+                config.LastProvider = previousProvider;
+                config.LastModel = previousModel;
+                
+                Console.WriteLine($"\n❌ Failed to connect to {selectedProvider}.");
+                Console.WriteLine($"Configuration rolled back to {previousProvider}.");
+                Console.WriteLine("Please ensure the provider is running and properly configured before switching.");
             }
         }
         else
@@ -3819,25 +3872,43 @@ private static Task WaitForKeyPress()
         
         try
         {
+            // Enhanced validation before creating provider
+            var validationResult = await ValidateProviderConfigurationAsync(config.LastProvider, config);
+            if (!validationResult.IsValid)
+            {
+                Console.WriteLine($"❌ Configuration validation failed: {validationResult.ErrorMessage}");
+                return false;
+            }
+            
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider)
             );
             
-            Console.WriteLine($"Testing connection to {provider.ProviderName}...");
+            Console.WriteLine($"Testing connection to {provider.ProviderName} at {provider.BaseUrl}...");
             
-            var isAvailable = await provider.IsAvailableAsync();
-            if (isAvailable)
+            // Test with timeout and retry logic
+            var connectivityResult = await TestProviderConnectivityAsync(provider);
+            
+            if (connectivityResult.IsAvailable)
             {
-                Console.WriteLine($"✅ {provider.ProviderName} is available at {provider.BaseUrl}");
+                Console.WriteLine($"✅ {provider.ProviderName} is available (Response time: {connectivityResult.ResponseTime}ms)");
                 
                 if (showModels)
                 {
+                    Console.WriteLine("Fetching available models...");
                     var models = await provider.GetModelsAsync();
                     if (models.Count > 0)
                     {
-                        Console.WriteLine($"Available models: {string.Join(", ", models)}");
+                        Console.WriteLine($"Available models ({models.Count}): {string.Join(", ", models.Take(5))}{(models.Count > 5 ? "..." : "")}");
+                        
+                        // Validate current model is available
+                        if (!string.IsNullOrEmpty(config.LastModel) && !models.Contains(config.LastModel))
+                        {
+                            Console.WriteLine($"⚠️ Warning: Configured model '{config.LastModel}' is not available on this provider");
+                            Console.WriteLine($"Consider switching to one of the available models.");
+                        }
                     }
                     else
                     {
@@ -3848,15 +3919,24 @@ private static Task WaitForKeyPress()
             else
             {
                 Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
-                Console.WriteLine("Make sure the provider is running and accessible.");
+                Console.WriteLine($"Error: {connectivityResult.ErrorMessage}");
+                Console.WriteLine("Troubleshooting tips:");
+                Console.WriteLine("  • Ensure the provider service is running");
+                Console.WriteLine("  • Check the URL configuration");
+                Console.WriteLine("  • Verify network connectivity");
+                Console.WriteLine("  • Check firewall settings");
             }
             
             provider.Dispose();
-            return isAvailable;
+            return connectivityResult.IsAvailable;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error testing provider: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"   Inner exception: {ex.InnerException.Message}");
+            }
             return false;
         }
     }
@@ -3888,6 +3968,202 @@ private static Task WaitForKeyPress()
         }
     }
 
+    static async Task DisplayCurrentProviderStatusAsync(AppConfiguration config)
+    {
+        Console.WriteLine("📍 Current Active Provider:");
+        Console.WriteLine("---------------------------");
+        
+        try
+        {
+            var providerUrl = GetProviderUrl(config, config.LastProvider);
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                providerUrl
+            );
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            var statusIcon = isAvailable ? "✅" : "❌";
+            var statusText = isAvailable ? "Available" : "Not Available";
+            
+            Console.WriteLine($"{statusIcon} {provider.ProviderName} - {statusText}");
+            Console.WriteLine($"   URL: {provider.BaseUrl}");
+            Console.WriteLine($"   Model: {config.LastModel ?? "Not set"}");
+            
+            if (currentServer != null)
+            {
+                Console.WriteLine($"   Server Status: ✅ Running with this provider");
+            }
+            
+            provider.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error checking current provider: {ex.Message}");
+        }
+    }
+
+    static async Task DisplayAllProvidersStatusAsync(AppConfiguration config)
+    {
+        Console.WriteLine("🌐 All Providers Status:");
+        Console.WriteLine("------------------------");
+        
+        try
+        {
+            var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
+            
+            foreach (var (providerType, isAvailable) in availableProviders)
+            {
+                var info = AiProviderFactory.GetProviderInfo(providerType);
+                var statusIcon = isAvailable ? "✅" : "❌";
+                var statusText = isAvailable ? "Available" : "Not Available";
+                var currentIndicator = (providerType == config.LastProvider) ? " ← CURRENT" : "";
+                
+                Console.WriteLine($"{statusIcon} {info.Name}: {statusText}{currentIndicator}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error checking provider status: {ex.Message}");
+        }
+    }
+
+    static async Task QuickSwitchToAvailableProviderAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n⚡ Quick Switch to Available Provider");
+        Console.WriteLine("=====================================");
+        
+        try
+        {
+            Console.WriteLine("🔍 Scanning for available providers...");
+            var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
+            var availableList = availableProviders.Where(p => p.Value).ToList();
+            
+            if (!availableList.Any())
+            {
+                Console.WriteLine("❌ No providers are currently available.");
+                Console.WriteLine("\nTroubleshooting:");
+                Console.WriteLine("  • Ensure at least one AI provider service is running");
+                Console.WriteLine("  • Check your network connectivity");
+                Console.WriteLine("  • Verify provider URLs in configuration");
+                return;
+            }
+            
+            if (availableList.Count == 1 && availableList[0].Key == config.LastProvider)
+            {
+                Console.WriteLine("✅ You're already using the only available provider.");
+                
+                // Still validate current provider health
+                Console.WriteLine("\n🔌 Validating current provider health...");
+                await TestProviderConnectionAsync(config, false);
+                return;
+            }
+            
+            Console.WriteLine($"\nFound {availableList.Count} available provider(s):");
+            var providersList = availableList.ToList();
+            
+            for (int i = 0; i < providersList.Count; i++)
+            {
+                var (providerType, _) = providersList[i];
+                var info = AiProviderFactory.GetProviderInfo(providerType);
+                var currentIndicator = (providerType == config.LastProvider) ? " (current)" : "";
+                var url = GetProviderUrl(config, providerType);
+                Console.WriteLine($"{i + 1}. {info.Name}{currentIndicator} - {url}");
+            }
+            
+            Console.Write($"\nSelect provider to switch to (1-{providersList.Count}): ");
+            var input = SafePromptForString("", "b").Trim();
+            
+            if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providersList.Count)
+            {
+                var selectedProvider = providersList[selection - 1].Key;
+                
+                if (selectedProvider == config.LastProvider)
+                {
+                    Console.WriteLine("✅ That's already your current provider.");
+                    return;
+                }
+                
+                var previousProvider = config.LastProvider;
+                var previousModel = config.LastModel;
+                
+                // Enhanced validation before switching
+                Console.WriteLine($"\n🔍 Performing comprehensive validation for {selectedProvider}...");
+                var validationResult = await ValidateProviderConfigurationAsync(selectedProvider, config);
+                
+                if (!validationResult.IsValid)
+                {
+                    Console.WriteLine($"❌ Validation failed: {validationResult.ErrorMessage}");
+                    return;
+                }
+                
+                // Temporarily update configuration for testing
+                config.LastProvider = selectedProvider;
+                config.LastModel = selectedProvider switch
+                {
+                    AiProviderType.Ollama => config.OllamaDefaultModel,
+                    AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                    AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                    _ => "default"
+                };
+                
+                // Double-check connectivity with enhanced testing
+                Console.WriteLine($"🔌 Verifying connectivity to {selectedProvider}...");
+                var connectivityTest = await TestProviderConnectionAsync(config, false);
+                
+                if (connectivityTest)
+                {
+                    Console.WriteLine($"\n✅ Successfully switched from {previousProvider} to {selectedProvider}");
+                    Console.WriteLine($"✅ Default model set to: {config.LastModel}");
+                    
+                    // Save configuration after successful validation
+                    ConfigurationService.SaveConfiguration(config);
+                    
+                    // Update the active provider in any running server instances
+                    if (currentServer != null)
+                    {
+                        Console.WriteLine("\nUpdating running server instance...");
+                        var updateSuccess = await UpdateActiveProviderAsync(currentServer, config);
+                        if (updateSuccess)
+                        {
+                            Console.WriteLine("✅ Server updated successfully. All AI operations will now use the new provider.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("⚠️ Warning: Could not update the running server. You may need to restart the server.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("✅ Configuration saved. The new provider will be used when the server starts.");
+                    }
+                }
+                else
+                {
+                    // Rollback configuration on failure
+                    config.LastProvider = previousProvider;
+                    config.LastModel = previousModel;
+                    
+                    Console.WriteLine($"\n❌ Failed to verify connectivity to {selectedProvider}.");
+                    Console.WriteLine($"Configuration rolled back to {previousProvider}.");
+                    Console.WriteLine("The provider may have become unavailable since detection.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid selection.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error during quick switch: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"   Inner exception: {ex.InnerException.Message}");
+            }
+        }
+    }
+
     static string? GetProviderUrl(AppConfiguration config, AiProviderType providerType)
     {
         return providerType switch
@@ -3898,4 +4174,131 @@ private static Task WaitForKeyPress()
             _ => null
         };
     }
+
+    static string GetProviderStatusDisplay(AppConfiguration config)
+    {
+        try
+        {
+            var providerUrl = GetProviderUrl(config, config.LastProvider);
+            var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                providerUrl
+            );
+
+            // Quick availability check (non-async for menu display)
+            var isAvailable = provider.IsAvailableAsync().GetAwaiter().GetResult();
+            var statusIcon = isAvailable ? "✅" : "❌";
+            var serverStatus = currentServer != null ? " (Server Running)" : "";
+            
+            var result = $"{config.LastProvider} {statusIcon} | Model: {config.LastModel ?? "Not set"}{serverStatus}";
+            provider.Dispose();
+            return result;
+        }
+        catch
+        {
+            return $"{config.LastProvider} ❓ | Model: {config.LastModel ?? "Not set"}";
+        }
+    }
+
+    /// <summary>
+    /// Validates provider configuration before switching
+    /// </summary>
+    static async Task<ValidationResult> ValidateProviderConfigurationAsync(AiProviderType providerType, AppConfiguration config)
+    {
+        try
+        {
+            var url = GetProviderUrl(config, providerType);
+            
+            // Check if URL is configured
+            if (string.IsNullOrEmpty(url))
+            {
+                return new ValidationResult(false, $"No URL configured for {providerType}. Please configure the provider URL first.");
+            }
+            
+            // Validate URL format
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return new ValidationResult(false, $"Invalid URL format for {providerType}: {url}");
+            }
+            
+            // Check if URL is reachable (basic network test)
+            if (!uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && 
+                !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ValidationResult(false, $"Unsupported URL scheme for {providerType}. Only HTTP and HTTPS are supported.");
+            }
+            
+            // Validate default model is configured
+            var defaultModel = providerType switch
+            {
+                AiProviderType.Ollama => config.OllamaDefaultModel,
+                AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                _ => null
+            };
+            
+            if (string.IsNullOrEmpty(defaultModel))
+            {
+                return new ValidationResult(false, $"No default model configured for {providerType}. Please configure a default model first.");
+            }
+            
+            return new ValidationResult(true, "Configuration is valid");
+        }
+        catch (Exception ex)
+        {
+            return new ValidationResult(false, $"Validation error: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Tests provider connectivity with enhanced error reporting and timing
+    /// </summary>
+    static async Task<ConnectivityResult> TestProviderConnectivityAsync(IAiProvider provider)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        try
+        {
+            // Test with timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            stopwatch.Stop();
+            
+            if (isAvailable)
+            {
+                return new ConnectivityResult(true, stopwatch.ElapsedMilliseconds, "Provider is available");
+            }
+            else
+            {
+                return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, "Provider is not responding or not available");
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, "Connection timeout (10 seconds)");
+        }
+        catch (HttpRequestException ex)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, $"Network error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, $"Unexpected error: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Result of configuration validation
+    /// </summary>
+    public record ValidationResult(bool IsValid, string ErrorMessage);
+    
+    /// <summary>
+    /// Result of connectivity testing
+    /// </summary>
+    public record ConnectivityResult(bool IsAvailable, long ResponseTime, string ErrorMessage);
 }
