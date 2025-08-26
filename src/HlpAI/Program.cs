@@ -1168,14 +1168,15 @@ public static class Program
             Console.WriteLine();
             Console.WriteLine("8. Configure timeout and token limits");
             Console.WriteLine("9. Configure file size limits");
-            Console.WriteLine("10. View configuration database details");
-            Console.WriteLine("11. Reset all settings to defaults");
-            Console.WriteLine("12. Delete configuration database");
-            Console.WriteLine("13. Change AI model");
+            Console.WriteLine("10. Configure cleanup retention periods");
+            Console.WriteLine("11. View configuration database details");
+            Console.WriteLine("12. Reset all settings to defaults");
+            Console.WriteLine("13. Delete configuration database");
+            Console.WriteLine("14. Change AI model");
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-13, b): ");
+            Console.Write("Select option (1-14, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -1234,10 +1235,14 @@ public static class Program
                     break;
                     
                 case "10":
-                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    await ConfigureCleanupRetentionPeriodsAsync();
                     break;
                     
                 case "11":
+                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    break;
+                    
+                case "12":
                     {
                         Console.WriteLine("\n🔄 Reset Settings");
                         Console.WriteLine("==================");
@@ -1254,6 +1259,7 @@ public static class Program
                             await sqliteConfig.ClearCategoryAsync("application");
                             await sqliteConfig.ClearCategoryAsync("logging");
                             await sqliteConfig.ClearCategoryAsync("error_logs");
+                            await sqliteConfig.ClearCategoryAsync("cleanup");
                             
                             Console.WriteLine("✅ All settings have been reset to defaults.");
                         }
@@ -1264,7 +1270,7 @@ public static class Program
                         break;
                     }
                     
-                case "12":
+                case "13":
                     {
                         Console.WriteLine("\n🗑️ Delete Configuration Database");
                         Console.WriteLine("=================================");
@@ -1304,7 +1310,7 @@ public static class Program
                         break;
                     }
                     
-                case "13":
+                case "14":
                     await ChangeAiModelAsync(sqliteConfig, menuStateManager);
                     break;
                     
@@ -2387,6 +2393,261 @@ public static class Program
         
         Console.WriteLine("✅ Test log entries created successfully.");
         Console.WriteLine("You can view them using the 'View recent error logs' option.");
+    }
+
+    private static async Task ConfigureCleanupRetentionPeriodsAsync()
+    {
+        using var cleanupService = new CleanupService();
+        using var errorLoggingService = new ErrorLoggingService();
+        using var sqliteConfig = new SqliteConfigurationService();
+        
+        Console.WriteLine("\n🧹 Configure Cleanup Retention Periods");
+        Console.WriteLine("======================================");
+        
+        // Display current configuration
+        var errorLogRetention = await errorLoggingService.GetLogRetentionDaysAsync();
+        var exportLogRetention = await sqliteConfig.GetConfigurationAsync("export_log_retention_days", "cleanup") ?? "90";
+        var tempFileRetention = await sqliteConfig.GetConfigurationAsync("temp_file_retention_hours", "cleanup") ?? "24";
+        var cacheRetention = await sqliteConfig.GetConfigurationAsync("cache_retention_days", "cleanup") ?? "7";
+        
+        Console.WriteLine("Current Retention Periods:");
+        Console.WriteLine($"  Error logs: {errorLogRetention} days");
+        Console.WriteLine($"  Export logs: {exportLogRetention} days");
+        Console.WriteLine($"  Temporary files: {tempFileRetention} hours");
+        Console.WriteLine($"  Cache files: {cacheRetention} days");
+        Console.WriteLine();
+        
+        Console.WriteLine("Configuration Options:");
+        Console.WriteLine("1. Set error log retention period");
+        Console.WriteLine("2. Set export log retention period");
+        Console.WriteLine("3. Set temporary file retention period");
+        Console.WriteLine("4. Set cache retention period");
+        Console.WriteLine("5. Reset to defaults");
+        Console.WriteLine("6. Test cleanup with current settings");
+        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine();
+        
+        var choice = SafePromptForString("Select option (1-6, b): ", "b").ToLower().Trim();
+        
+        switch (choice)
+        {
+            case "1":
+                await ConfigureErrorLogRetentionAsync(errorLoggingService);
+                break;
+                
+            case "2":
+                await ConfigureExportLogRetentionAsync(sqliteConfig);
+                break;
+                
+            case "3":
+                await ConfigureTempFileRetentionAsync(sqliteConfig);
+                break;
+                
+            case "4":
+                await ConfigureCacheRetentionAsync(sqliteConfig);
+                break;
+                
+            case "5":
+                await ResetCleanupRetentionDefaultsAsync(errorLoggingService, sqliteConfig);
+                break;
+                
+            case "6":
+                await TestCleanupAsync(cleanupService);
+                break;
+                
+            case "b":
+            case "back":
+                return;
+                
+            default:
+                Console.WriteLine("❌ Invalid option. Please try again.");
+                await ShowBriefPauseAsync("Invalid option", 1000);
+                await ConfigureCleanupRetentionPeriodsAsync();
+                return;
+        }
+        
+        Console.WriteLine("\nPress any key to continue...");
+        Console.ReadKey(true);
+    }
+
+    private static async Task ConfigureErrorLogRetentionAsync(ErrorLoggingService errorLoggingService)
+    {
+        Console.WriteLine("\n📊 Set Error Log Retention Period");
+        Console.WriteLine("===================================");
+        Console.WriteLine("How many days should error logs be kept?");
+        Console.WriteLine("(Older logs will be automatically deleted during cleanup)");
+        Console.WriteLine();
+        
+        var currentRetention = await errorLoggingService.GetLogRetentionDaysAsync();
+        Console.Write($"Enter retention days (current: {currentRetention}, recommended: 30): ");
+        var input = SafePromptForString("", currentRetention.ToString()).Trim();
+        
+        if (int.TryParse(input, out var days) && days > 0)
+        {
+            await errorLoggingService.SetLogRetentionDaysAsync(days);
+            Console.WriteLine($"✅ Error log retention set to {days} days.");
+        }
+        else
+        {
+            Console.WriteLine("❌ Invalid input. Please enter a positive number.");
+        }
+    }
+
+    private static async Task ConfigureExportLogRetentionAsync(SqliteConfigurationService sqliteConfig)
+    {
+        Console.WriteLine("\n📤 Set Export Log Retention Period");
+        Console.WriteLine("===================================");
+        Console.WriteLine("How many days should export logs be kept?");
+        Console.WriteLine("(Older export logs will be automatically deleted during cleanup)");
+        Console.WriteLine();
+        
+        var currentRetention = await sqliteConfig.GetConfigurationAsync("export_log_retention_days", "cleanup") ?? "90";
+        Console.Write($"Enter retention days (current: {currentRetention}, recommended: 90): ");
+        var input = SafePromptForString("", currentRetention).Trim();
+        
+        if (int.TryParse(input, out var days) && days > 0)
+        {
+            await sqliteConfig.SetConfigurationAsync("export_log_retention_days", days.ToString(), "cleanup");
+            Console.WriteLine($"✅ Export log retention set to {days} days.");
+        }
+        else
+        {
+            Console.WriteLine("❌ Invalid input. Please enter a positive number.");
+        }
+    }
+
+    private static async Task ConfigureTempFileRetentionAsync(SqliteConfigurationService sqliteConfig)
+    {
+        Console.WriteLine("\n🗂️ Set Temporary File Retention Period");
+        Console.WriteLine("=======================================");
+        Console.WriteLine("How many hours should temporary files be kept?");
+        Console.WriteLine("(Older temporary files will be automatically deleted during cleanup)");
+        Console.WriteLine();
+        
+        var currentRetention = await sqliteConfig.GetConfigurationAsync("temp_file_retention_hours", "cleanup") ?? "24";
+        Console.Write($"Enter retention hours (current: {currentRetention}, recommended: 24): ");
+        var input = SafePromptForString("", currentRetention).Trim();
+        
+        if (int.TryParse(input, out var hours) && hours > 0)
+        {
+            await sqliteConfig.SetConfigurationAsync("temp_file_retention_hours", hours.ToString(), "cleanup");
+            Console.WriteLine($"✅ Temporary file retention set to {hours} hours.");
+        }
+        else
+        {
+            Console.WriteLine("❌ Invalid input. Please enter a positive number.");
+        }
+    }
+
+    private static async Task ConfigureCacheRetentionAsync(SqliteConfigurationService sqliteConfig)
+    {
+        Console.WriteLine("\n💾 Set Cache Retention Period");
+        Console.WriteLine("=============================");
+        Console.WriteLine("How many days should cache files be kept?");
+        Console.WriteLine("(Older cache files will be automatically deleted during cleanup)");
+        Console.WriteLine();
+        
+        var currentRetention = await sqliteConfig.GetConfigurationAsync("cache_retention_days", "cleanup") ?? "7";
+        Console.Write($"Enter retention days (current: {currentRetention}, recommended: 7): ");
+        var input = SafePromptForString("", currentRetention).Trim();
+        
+        if (int.TryParse(input, out var days) && days > 0)
+        {
+            await sqliteConfig.SetConfigurationAsync("cache_retention_days", days.ToString(), "cleanup");
+            Console.WriteLine($"✅ Cache retention set to {days} days.");
+        }
+        else
+        {
+            Console.WriteLine("❌ Invalid input. Please enter a positive number.");
+        }
+    }
+
+    private static async Task ResetCleanupRetentionDefaultsAsync(ErrorLoggingService errorLoggingService, SqliteConfigurationService sqliteConfig)
+    {
+        Console.WriteLine("\n🔄 Reset Cleanup Retention to Defaults");
+        Console.WriteLine("=======================================");
+        Console.WriteLine("This will reset all cleanup retention periods to their default values:");
+        Console.WriteLine("  • Error logs: 30 days");
+        Console.WriteLine("  • Export logs: 90 days");
+        Console.WriteLine("  • Temporary files: 24 hours");
+        Console.WriteLine("  • Cache files: 7 days");
+        Console.WriteLine();
+        
+        Console.Write("Are you sure you want to reset to defaults? (y/n): ");
+        var input = SafePromptForString("", "n").ToLower().Trim();
+        
+        if (input == "y" || input == "yes")
+        {
+            await errorLoggingService.SetLogRetentionDaysAsync(30);
+            await sqliteConfig.SetConfigurationAsync("export_log_retention_days", "90", "cleanup");
+            await sqliteConfig.SetConfigurationAsync("temp_file_retention_hours", "24", "cleanup");
+            await sqliteConfig.SetConfigurationAsync("cache_retention_days", "7", "cleanup");
+            
+            Console.WriteLine("✅ All cleanup retention periods reset to defaults.");
+        }
+        else
+        {
+            Console.WriteLine("✅ Reset cancelled. Settings unchanged.");
+        }
+    }
+
+    private static async Task TestCleanupAsync(CleanupService cleanupService)
+    {
+        Console.WriteLine("\n🧪 Test Cleanup with Current Settings");
+        Console.WriteLine("=====================================");
+        Console.WriteLine("This will perform a test cleanup using current retention settings.");
+        Console.WriteLine("This will show what would be cleaned without actually deleting files.");
+        Console.WriteLine();
+        
+        Console.Write("Proceed with test cleanup? (y/n): ");
+        var input = SafePromptForString("", "n").ToLower().Trim();
+        
+        if (input == "y" || input == "yes")
+        {
+            try
+            {
+                // Get configured cleanup options
+                var options = await cleanupService.GetConfiguredCleanupOptionsAsync();
+                
+                // Display current settings
+                Console.WriteLine("\n📋 Current Retention Settings:");
+                Console.WriteLine($"  Error logs: {options.ErrorLogRetentionDays} days");
+                Console.WriteLine($"  Export logs: {options.ExportLogRetentionDays} days");
+                Console.WriteLine($"  Temp files: {options.TempFileAgeHours} hours");
+                Console.WriteLine($"  Cache files: {options.CacheRetentionDays} days");
+                
+                Console.WriteLine("\nRunning test cleanup...");
+                var result = await cleanupService.PerformCleanupAsync(options);
+                
+                Console.WriteLine("\n📊 Test Cleanup Results:");
+                Console.WriteLine($"  Success: {(result.Success ? "✅" : "❌")}");
+                Console.WriteLine($"  Error logs cleaned: {(result.ErrorLogsCleaned ? "✅" : "⏭️")} ({result.ErrorLogsRemoved} items)");
+                Console.WriteLine($"  Export logs cleaned: {(result.ExportLogsCleaned ? "✅" : "⏭️")} ({result.ExportLogsRemoved} items)");
+                Console.WriteLine($"  Temp files cleaned: {(result.TempFilesCleaned ? "✅" : "⏭️")} ({result.TempFilesRemoved} items, {result.TempFilesSize / (1024 * 1024):F2} MB)");
+                Console.WriteLine($"  Cache cleaned: {(result.CacheCleaned ? "✅" : "⏭️")} ({result.CacheEntriesRemoved} entries)");
+                Console.WriteLine($"  Database optimized: {(result.DatabaseOptimized ? "✅" : "⏭️")}");
+                Console.WriteLine($"  Duration: {result.Duration.TotalSeconds:F2} seconds");
+                
+                if (result.Details.Count > 0)
+                {
+                    Console.WriteLine("\n📝 Details:");
+                    foreach (var detail in result.Details)
+                    {
+                        Console.WriteLine($"  {detail.Key}: {detail.Value}");
+                    }
+                }
+                
+                Console.WriteLine("\n✅ Test cleanup completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Test cleanup failed: {ex.Message}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("✅ Test cleanup cancelled.");
+        }
     }
 
     private static async Task ShowLogViewerAsync(MenuStateManager? menuStateManager = null)

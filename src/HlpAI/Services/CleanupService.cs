@@ -19,6 +19,33 @@ public class CleanupService : IDisposable
     }
 
     /// <summary>
+    /// Get cleanup options with configured retention periods
+    /// </summary>
+    public async Task<CleanupOptions> GetConfiguredCleanupOptionsAsync()
+    {
+        var options = new CleanupOptions();
+        
+        // Load configured retention periods, falling back to defaults if not set
+        var errorRetention = await _configService.GetConfigurationAsync("error_log_retention_days", "cleanup");
+        if (int.TryParse(errorRetention, out var errorDays))
+            options.ErrorLogRetentionDays = errorDays;
+            
+        var exportRetention = await _configService.GetConfigurationAsync("export_log_retention_days", "cleanup");
+        if (int.TryParse(exportRetention, out var exportDays))
+            options.ExportLogRetentionDays = exportDays;
+            
+        var tempFileAge = await _configService.GetConfigurationAsync("temp_file_age_hours", "cleanup");
+        if (int.TryParse(tempFileAge, out var tempHours))
+            options.TempFileAgeHours = tempHours;
+            
+        var cacheRetention = await _configService.GetConfigurationAsync("cache_retention_days", "cleanup");
+        if (int.TryParse(cacheRetention, out var cacheDays))
+            options.CacheRetentionDays = cacheDays;
+            
+        return options;
+    }
+
+    /// <summary>
     /// Perform comprehensive system cleanup
     /// </summary>
     public async Task<CleanupResult> PerformCleanupAsync(CleanupOptions options)

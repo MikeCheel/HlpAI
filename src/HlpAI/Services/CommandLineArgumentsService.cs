@@ -496,7 +496,8 @@ public class CommandLineArgumentsService
         // Check for --cleanup or --cleanup-all
         if (HasArgument("cleanup") || HasArgument("cleanup-all"))
         {
-            var options = new CleanupOptions();
+            // Get configured cleanup options with fallback to defaults
+            var options = await cleanupService.GetConfiguredCleanupOptionsAsync();
             
             if (HasArgument("cleanup-all"))
             {
@@ -519,11 +520,15 @@ public class CommandLineArgumentsService
                 options.OptimizeDatabase = GetBooleanArgument("cleanup-optimize", true);
             }
 
-            // Override retention periods if specified
-            options.ErrorLogRetentionDays = GetIntegerArgument("error-retention-days", 30);
-            options.ExportLogRetentionDays = GetIntegerArgument("export-retention-days", 90);
-            options.TempFileAgeHours = GetIntegerArgument("temp-file-age-hours", 24);
-            options.CacheRetentionDays = GetIntegerArgument("cache-retention-days", 7);
+            // Override retention periods if specified via command line
+            if (HasArgument("error-retention-days"))
+                options.ErrorLogRetentionDays = GetIntegerArgument("error-retention-days", options.ErrorLogRetentionDays);
+            if (HasArgument("export-retention-days"))
+                options.ExportLogRetentionDays = GetIntegerArgument("export-retention-days", options.ExportLogRetentionDays);
+            if (HasArgument("temp-file-age-hours"))
+                options.TempFileAgeHours = GetIntegerArgument("temp-file-age-hours", options.TempFileAgeHours);
+            if (HasArgument("cache-retention-days"))
+                options.CacheRetentionDays = GetIntegerArgument("cache-retention-days", options.CacheRetentionDays);
 
             Console.WriteLine("\n🧹 Starting System Cleanup");
             Console.WriteLine("===========================");
