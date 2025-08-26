@@ -40,9 +40,30 @@ public class OpenAiProvider : ICloudAiProvider
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
 
+    // Constructor for testing with custom HttpClient
+    public OpenAiProvider(string apiKey, string model, string? baseUrl, ILogger? logger, HttpClient httpClient)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
+        
+        if (string.IsNullOrWhiteSpace(model))
+            throw new ArgumentException("Model cannot be null or empty", nameof(model));
+
+        _apiKey = apiKey;
+        _currentModel = model;
+        _baseUrl = baseUrl ?? "https://api.openai.com";
+        _logger = logger;
+        _httpClient = httpClient;
+        
+        _httpClient.BaseAddress = new Uri(_baseUrl);
+        _httpClient.Timeout = TimeSpan.FromMinutes(5);
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
+    }
+
     public AiProviderType ProviderType => AiProviderType.OpenAI;
     public string ProviderName => "OpenAI";
-    public string DefaultModel => "gpt-3.5-turbo";
+    public string DefaultModel => "gpt-4o-mini";
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _currentModel;
     public string ApiKey => _apiKey;
@@ -195,11 +216,27 @@ public class OpenAiProvider : ICloudAiProvider
                 if (int.TryParse(limitValues.FirstOrDefault(), out var limit) &&
                     int.TryParse(remainingValues.FirstOrDefault(), out var remaining))
                 {
+                    // Parse token limits if available
+                    var tokensPerMinute = 0;
+                    var tokensRemaining = 0;
+                    
+                    if (response.Headers.TryGetValues("x-ratelimit-limit-tokens", out var tokenLimitValues) &&
+                        int.TryParse(tokenLimitValues.FirstOrDefault(), out var tokenLimit))
+                    {
+                        tokensPerMinute = tokenLimit;
+                    }
+                    
+                    if (response.Headers.TryGetValues("x-ratelimit-remaining-tokens", out var tokenRemainingValues) &&
+                        int.TryParse(tokenRemainingValues.FirstOrDefault(), out var tokenRemainingValue))
+                    {
+                        tokensRemaining = tokenRemainingValue;
+                    }
+                    
                     return new RateLimitInfo(
                         RequestsPerMinute: limit,
                         RequestsRemaining: remaining,
-                        TokensPerMinute: 0, // Not provided in headers
-                        TokensRemaining: 0, // Not provided in headers
+                        TokensPerMinute: tokensPerMinute,
+                        TokensRemaining: tokensRemaining,
                         ResetTime: DateTime.UtcNow.AddMinutes(1) // Approximate
                     );
                 }

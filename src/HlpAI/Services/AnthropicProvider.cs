@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -38,12 +39,33 @@ public class AnthropicProvider : ICloudAiProvider
         
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+    }
+
+    /// <summary>
+    /// Constructor for testing with custom HttpClient
+    /// </summary>
+    public AnthropicProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
+        
+        if (string.IsNullOrWhiteSpace(model))
+            throw new ArgumentException("Model cannot be null or empty", nameof(model));
+
+        _apiKey = apiKey;
+        _currentModel = model;
+        _baseUrl = httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://api.anthropic.com";
+        _logger = logger;
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        
+        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
 
     public AiProviderType ProviderType => AiProviderType.Anthropic;
     public string ProviderName => "Anthropic";
-    public string DefaultModel => "claude-3-haiku-20240307";
+    public string DefaultModel => "claude-3-5-haiku-20241022";
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _currentModel;
     public string ApiKey => _apiKey;
@@ -54,23 +76,35 @@ public class AnthropicProvider : ICloudAiProvider
         {
             var messages = new List<object>();
             
-            // Anthropic uses a different message format
-            var userMessage = !string.IsNullOrEmpty(context) 
-                ? $"{context}\n\n{prompt}"
-                : prompt;
-            
-            messages.Add(new { role = "user", content = userMessage });
+            // Add user message
+            messages.Add(new { role = "user", content = prompt });
 
-            var requestBody = new
+            // Build request body with optional system parameter
+            object requestBody;
+            if (!string.IsNullOrEmpty(context))
             {
-                model = _currentModel,
-                max_tokens = 4000,
-                temperature = Math.Max(0.0, Math.Min(1.0, temperature)),
-                messages = messages
-            };
+                requestBody = new
+                {
+                    model = _currentModel,
+                    max_tokens = 4000,
+                    temperature = Math.Max(0.0, Math.Min(1.0, temperature)),
+                    system = context,
+                    messages = messages
+                };
+            }
+            else
+            {
+                requestBody = new
+                {
+                    model = _currentModel,
+                    max_tokens = 4000,
+                    temperature = Math.Max(0.0, Math.Min(1.0, temperature)),
+                    messages = messages
+                };
+            }
 
             var json = JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
 
             _logger?.LogDebug("Sending request to Anthropic API with model {Model}", _currentModel);
             
@@ -81,7 +115,7 @@ public class AnthropicProvider : ICloudAiProvider
             {
                 _logger?.LogError("Anthropic API request failed with status {StatusCode}: {Content}", 
                     response.StatusCode, responseContent);
-                throw new HttpRequestException($"Anthropic API request failed: {response.StatusCode} - {responseContent}");
+                return $"Error: Anthropic API returned {response.StatusCode}";
             }
 
             var responseJson = JsonDocument.Parse(responseContent);
@@ -95,10 +129,15 @@ public class AnthropicProvider : ICloudAiProvider
             var text = content_array[0].GetProperty("text").GetString();
             return text ?? string.Empty;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger?.LogError(ex, "HTTP error generating response from Anthropic");
+            return "Could not connect to Anthropic. Please check your internet connection and try again.";
+        }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error generating response from Anthropic");
-            throw;
+            return $"Error: {ex.Message}";
         }
     }
 
@@ -208,11 +247,27 @@ public class AnthropicProvider : ICloudAiProvider
                 if (int.TryParse(limitValues.FirstOrDefault(), out var limit) &&
                     int.TryParse(remainingValues.FirstOrDefault(), out var remaining))
                 {
+                    // Try to get token limits as well
+                    var tokensPerMinute = 0;
+                    var tokensRemaining = 0;
+                    
+                    if (response.Headers.TryGetValues("anthropic-ratelimit-tokens-limit", out var tokenLimitValues) &&
+                        int.TryParse(tokenLimitValues.FirstOrDefault(), out var tokenLimit))
+                    {
+                        tokensPerMinute = tokenLimit;
+                    }
+                    
+                    if (response.Headers.TryGetValues("anthropic-ratelimit-tokens-remaining", out var tokenRemainingValues) &&
+                        int.TryParse(tokenRemainingValues.FirstOrDefault(), out var tokenRemainingValue))
+                    {
+                        tokensRemaining = tokenRemainingValue;
+                    }
+                    
                     return new RateLimitInfo(
                         RequestsPerMinute: limit,
                         RequestsRemaining: remaining,
-                        TokensPerMinute: 0, // Not typically provided
-                        TokensRemaining: 0, // Not typically provided
+                        TokensPerMinute: tokensPerMinute,
+                        TokensRemaining: tokensRemaining,
                         ResetTime: DateTime.UtcNow.AddMinutes(1) // Approximate
                     );
                 }

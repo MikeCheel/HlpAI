@@ -40,6 +40,27 @@ public class DeepSeekProvider : ICloudAiProvider
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
 
+    /// <summary>
+    /// Constructor for testing with custom HttpClient
+    /// </summary>
+    public DeepSeekProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
+        
+        if (string.IsNullOrWhiteSpace(model))
+            throw new ArgumentException("Model cannot be null or empty", nameof(model));
+
+        _apiKey = apiKey;
+        _currentModel = model;
+        _baseUrl = httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://api.deepseek.com";
+        _logger = logger;
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
+    }
+
     public AiProviderType ProviderType => AiProviderType.DeepSeek;
     public string ProviderName => "DeepSeek";
     public string DefaultModel => "deepseek-chat";
@@ -81,7 +102,7 @@ public class DeepSeekProvider : ICloudAiProvider
             {
                 _logger?.LogError("DeepSeek API request failed with status {StatusCode}: {Content}", 
                     response.StatusCode, responseContent);
-                throw new HttpRequestException($"DeepSeek API request failed: {response.StatusCode} - {responseContent}");
+                return $"Error: DeepSeek API returned {response.StatusCode} - {responseContent}";
             }
 
             var responseJson = JsonDocument.Parse(responseContent);
@@ -95,10 +116,15 @@ public class DeepSeekProvider : ICloudAiProvider
             var message = choices[0].GetProperty("message").GetProperty("content").GetString();
             return message ?? string.Empty;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger?.LogError(ex, "HTTP error generating response from DeepSeek");
+            return $"Error: Could not connect to DeepSeek - {ex.Message}";
+        }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error generating response from DeepSeek");
-            throw;
+            return $"Error: {ex.Message}";
         }
     }
 
@@ -193,11 +219,27 @@ public class DeepSeekProvider : ICloudAiProvider
                 if (int.TryParse(limitValues.FirstOrDefault(), out var limit) &&
                     int.TryParse(remainingValues.FirstOrDefault(), out var remaining))
                 {
+                    // Parse token limits if available
+                    var tokensPerMinute = 0;
+                    var tokensRemaining = 0;
+                    
+                    if (response.Headers.TryGetValues("x-ratelimit-limit-tokens", out var tokenLimitValues) &&
+                        int.TryParse(tokenLimitValues.FirstOrDefault(), out var tokenLimit))
+                    {
+                        tokensPerMinute = tokenLimit;
+                    }
+                    
+                    if (response.Headers.TryGetValues("x-ratelimit-remaining-tokens", out var tokenRemainingValues) &&
+                        int.TryParse(tokenRemainingValues.FirstOrDefault(), out var tokenRemainingValue))
+                    {
+                        tokensRemaining = tokenRemainingValue;
+                    }
+                    
                     return new RateLimitInfo(
                         RequestsPerMinute: limit,
                         RequestsRemaining: remaining,
-                        TokensPerMinute: 0, // Not provided in headers
-                        TokensRemaining: 0, // Not provided in headers
+                        TokensPerMinute: tokensPerMinute,
+                        TokensRemaining: tokensRemaining,
                         ResetTime: DateTime.UtcNow.AddMinutes(1) // Approximate
                     );
                 }
