@@ -46,9 +46,11 @@ namespace HlpAI.MCP
         
         _embeddingService = new EmbeddingService(logger: logger);
 
-            // Use SQLite-backed vector store
+            // Use optimized SQLite-backed vector store with MD5 checksum optimization
             var dbPath = Path.Combine(_rootPath, "vectors.db");
-            _vectorStore = new SqliteVectorStore(_embeddingService, dbPath, logger);
+            var connectionString = $"Data Source={dbPath}";
+            var changeDetectionService = new FileChangeDetectionService(null);
+            _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, null);
 
             _extractors = [
                 new TextFileExtractor(),
@@ -1095,35 +1097,43 @@ namespace HlpAI.MCP
 
         private async Task<McpResponse> ReindexDocumentsAsync(McpRequest request, JsonElement toolCall)
         {
-            if (_operationMode == OperationMode.MCP)
+            try
             {
-                return CreateErrorResponse(request.Id, "Document indexing is not available in MCP-only mode");
-            }
-
-            if (!toolCall.TryGetProperty("arguments", out JsonElement arguments))
-            {
-                return CreateErrorResponse(request.Id, "Missing arguments");
-            }
-
-            // Always force reindexing by default to prevent system conflicts
-            await _vectorStore.ClearIndexAsync();
-            var result = await IndexAllDocumentsAsync();
-
-            return new McpResponse
-            {
-                Id = request.Id,
-                Result = new TextContentResponse
+                if (_operationMode == OperationMode.MCP)
                 {
-                    Content = new List<TextContent>
+                    return CreateErrorResponse(request.Id, "Document indexing is not available in MCP-only mode");
+                }
+
+                if (!toolCall.TryGetProperty("arguments", out JsonElement arguments))
+                {
+                    return CreateErrorResponse(request.Id, "Missing arguments");
+                }
+
+                // Always force reindexing by default to prevent system conflicts
+                await _vectorStore.ClearIndexAsync();
+                var result = await IndexAllDocumentsAsync();
+
+                return new McpResponse
+                {
+                    Id = request.Id,
+                    Result = new TextContentResponse
                     {
-                        new TextContent
+                        Content = new List<TextContent>
                         {
-                            Type = "text",
-                            Text = $"Successfully reindexed {await _vectorStore.GetChunkCountAsync()} chunks from {result.IndexedFiles.Count} files in {result.Duration}."
+                            new TextContent
+                            {
+                                Type = "text",
+                                Text = $"Successfully reindexed {await _vectorStore.GetChunkCountAsync()} chunks from {result.IndexedFiles.Count} files in {result.Duration}."
+                            }
                         }
                     }
-                }
-            };
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error during document reindexing");
+                return CreateErrorResponse(request.Id, $"Reindexing failed: {ex.Message}");
+            }
         }
 
         private static int CountOccurrences(string text, string search)

@@ -2772,7 +2772,9 @@ public static class Program
     {
         using var cleanupService = new CleanupService();
         using var embeddingService = new EmbeddingService();
-        using var vectorStore = new SqliteVectorStore(embeddingService);
+        using var changeDetectionService = new FileChangeDetectionService();
+        var connectionString = "Data Source=vectors.db";
+        using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
         
         ClearScreenWithHeader("🗄️ Vector Database Management", menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Vector Database Management");
         
@@ -2838,7 +2840,7 @@ public static class Program
         }
     }
 
-    private static async Task ShowVectorDatabaseStatusAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
+    private static async Task ShowVectorDatabaseStatusAsync(OptimizedSqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Database Status" ?? "Main Menu > Vector Database Management > Database Status";
         ClearScreenWithHeader("📊 Vector Database Status", breadcrumb);
@@ -2881,7 +2883,7 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ClearVectorIndexAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
+    private static async Task ClearVectorIndexAsync(OptimizedSqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Clear Index" ?? "Main Menu > Vector Database Management > Clear Index";
         ClearScreenWithHeader("🗑️ Clear Vector Index", breadcrumb);
@@ -3010,7 +3012,9 @@ private static async Task ExecuteReindex()
     var currentDirectory = GetCurrentDirectory(config);
     
     using var embeddingService = new EmbeddingService();
-    using var vectorStore = new SqliteVectorStore(embeddingService);
+    using var changeDetectionService = new FileChangeDetectionService();
+    var connectionString = "Data Source=vectors.db";
+    using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
     
     var result = await IndexDocumentsAsync(currentDirectory, vectorStore);
     
@@ -3079,7 +3083,7 @@ private static Task WaitForKeyPress()
     return Task.CompletedTask;
 }
 
-    static async Task<IndexingResult> IndexDocumentsAsync(string rootPath, SqliteVectorStore vectorStore)
+    static async Task<IndexingResult> IndexDocumentsAsync(string rootPath, OptimizedSqliteVectorStore vectorStore)
     {
         var result = new IndexingResult
         {
@@ -3238,7 +3242,7 @@ private static Task WaitForKeyPress()
         return "Unknown reason";
     }
 
-    static async Task ShowVectorDatabaseStatsAsync(SqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
+    static async Task ShowVectorDatabaseStatsAsync(OptimizedSqliteVectorStore vectorStore, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Database Statistics" ?? "Main Menu > Vector Database Management > Database Statistics";
         ClearScreenWithHeader("📊 Vector Database Statistics", breadcrumb);

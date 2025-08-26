@@ -105,6 +105,7 @@ public class EnhancedMcpRagServerTests : IDisposable
 
         // Assert
         await Assert.That(response).IsNotNull();
+        
         await Assert.That(response.Error).IsNull();
         await Assert.That(response.Result).IsNotNull();
         
@@ -187,6 +188,7 @@ public class EnhancedMcpRagServerTests : IDisposable
 
         // Assert
         await Assert.That(response).IsNotNull();
+        
         await Assert.That(response.Error).IsNull();
         await Assert.That(response.Result).IsNotNull();
     }
@@ -391,6 +393,7 @@ public class EnhancedMcpRagServerTests : IDisposable
 
         // Assert
         await Assert.That(response).IsNotNull();
+        
         await Assert.That(response.Error).IsNull();
         await Assert.That(response.Result).IsNotNull();
         
