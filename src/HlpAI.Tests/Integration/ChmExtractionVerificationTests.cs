@@ -183,36 +183,48 @@ public class ChmExtractionVerificationTests
     [Test]
     public async Task VerifyConfigurationService_HhExePathManagement()
     {
-        // Test configuration service hh.exe path management
-        var originalConfig = ConfigurationService.LoadConfiguration(_logger);
-        var originalPath = originalConfig.HhExePath;
-        var originalAutoDetect = originalConfig.AutoDetectHhExe;
+        // Set up test-specific configuration file path
+        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
+        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
         
         try
         {
-            // Test updating path
-            var testPath = @"C:\Test\hh.exe";
-            var updateResult = ConfigurationService.UpdateHhExePath(testPath, _logger);
-            await Assert.That(updateResult).IsTrue();
+            // Test configuration service hh.exe path management
+            var originalConfig = ConfigurationService.LoadConfiguration(_logger);
+            var originalPath = originalConfig.HhExePath;
+            var originalAutoDetect = originalConfig.AutoDetectHhExe;
             
-            // Verify path was saved
-            var updatedConfig = ConfigurationService.LoadConfiguration(_logger);
-            await Assert.That(updatedConfig.HhExePath).IsEqualTo(testPath);
-            
-            // Test clearing path - also disable auto-detection to prevent automatic re-detection
-            ConfigurationService.UpdateAutoDetectHhExe(false, _logger);
-            var clearResult = ConfigurationService.UpdateHhExePath(null, _logger);
-            await Assert.That(clearResult).IsTrue();
-            
-            // Verify path was cleared
-            var clearedConfig = ConfigurationService.LoadConfiguration(_logger);
-            await Assert.That(clearedConfig.HhExePath).IsNull();
+            try
+            {
+                // Test updating path
+                var testPath = @"C:\Test\hh.exe";
+                var updateResult = ConfigurationService.UpdateHhExePath(testPath, _logger);
+                await Assert.That(updateResult).IsTrue();
+                
+                // Verify path was saved
+                var updatedConfig = ConfigurationService.LoadConfiguration(_logger);
+                await Assert.That(updatedConfig.HhExePath).IsEqualTo(testPath);
+                
+                // Test clearing path - also disable auto-detection to prevent automatic re-detection
+                ConfigurationService.UpdateAutoDetectHhExe(false, _logger);
+                var clearResult = ConfigurationService.UpdateHhExePath(null, _logger);
+                await Assert.That(clearResult).IsTrue();
+                
+                // Verify path was cleared
+                var clearedConfig = ConfigurationService.LoadConfiguration(_logger);
+                await Assert.That(clearedConfig.HhExePath).IsNull();
+            }
+            finally
+            {
+                // Restore original configuration
+                ConfigurationService.UpdateHhExePath(originalPath, _logger);
+                ConfigurationService.UpdateAutoDetectHhExe(originalAutoDetect, _logger);
+            }
         }
         finally
         {
-            // Restore original configuration
-            ConfigurationService.UpdateHhExePath(originalPath, _logger);
-            ConfigurationService.UpdateAutoDetectHhExe(originalAutoDetect, _logger);
+            // Reset configuration file path to default
+            ConfigurationService.SetConfigFilePathForTesting(null);
         }
     }
 

@@ -77,7 +77,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithOllamaType_ReturnsOllamaClient()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://localhost:11434", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://localhost:11434", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -91,7 +91,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithLmStudioType_ReturnsLmStudioProvider()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.LmStudio, "test-model", "http://localhost:1234", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.LmStudio, "test-model", "http://localhost:1234", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -105,7 +105,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithOpenWebUiType_ReturnsOpenWebUiProvider()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.OpenWebUi, "test-model", "http://localhost:3000", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.OpenWebUi, "test-model", "http://localhost:3000", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -119,7 +119,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithNullUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", null, logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", null, logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -130,7 +130,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithEmptyUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -141,7 +141,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithWhitespaceUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "   ", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "   ", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -152,7 +152,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithCustomUrl_UsesCustomUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://custom:8080", logger: null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://custom:8080", logger: null, config: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -199,7 +199,8 @@ public class AiProviderFactoryTests
             AiProviderType.Ollama, 
             "test-model", 
             "http://localhost:11434",
-            logger
+            logger,
+            config: null
         );
 
         // Assert
@@ -215,7 +216,8 @@ public class AiProviderFactoryTests
             AiProviderType.Ollama, 
             "test-model", 
             "http://localhost:11434",
-            null
+            null,
+            config: null
         );
 
         // Assert
