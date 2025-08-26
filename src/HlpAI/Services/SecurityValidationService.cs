@@ -17,13 +17,22 @@ public class SecurityValidationService
     private static readonly Regex UrlPattern = new(@"^https?:\/\/[a-zA-Z0-9.-]+(?::[0-9]+)?(?:\/[^\s]*)?$", RegexOptions.Compiled);
     private static readonly Regex ModelNamePattern = new(@"^[a-zA-Z0-9._-]{1,100}$", RegexOptions.Compiled);
     private static readonly Regex ProviderNamePattern = new(@"^[a-zA-Z0-9_-]{1,50}$", RegexOptions.Compiled);
-    private static readonly Regex FilePathPattern = new(@"^[a-zA-Z0-9\\\/._ -]{1,260}$", RegexOptions.Compiled);
+    private static readonly Regex FilePathPattern = new(@"^[a-zA-Z0-9\\/:._-]{1,260}$", RegexOptions.Compiled);
     
     // Dangerous characters and patterns
-    private static readonly char[] DangerousChars = { '<', '>', '"', '\'', '&', '\0', '\r', '\n' };
+    private static readonly char[] DangerousChars = { '<', '>', '"', '&', '\0', '\r', '\n' };
     private static readonly string[] SqlInjectionPatterns = 
     {
         "'", "--", "/*", "*/", "xp_", "sp_", "exec", "execute", "select", "insert", "update", "delete", "drop", "create", "alter", "union"
+    };
+    
+    // Sensitive system files and directories
+    private static readonly string[] SensitiveSystemPaths = 
+    {
+        "/etc/passwd", "/etc/shadow", "/etc/hosts", "/etc/sudoers", "/etc/ssh/",
+        "/root/", "/var/log/", "/proc/", "/sys/", "/dev/",
+        "C:\\Windows\\System32\\", "C:\\Windows\\SysWOW64\\", "C:\\Users\\Administrator\\",
+        "C:\\ProgramData\\", "C:\\Program Files\\", "C:\\Program Files (x86)\\"
     };
     
     public SecurityValidationService(ILogger<SecurityValidationService>? logger = null)
@@ -214,6 +223,19 @@ public class SecurityValidationService
             return new ValidationResult(false, "File path contains path traversal patterns");
         }
         
+        // Check for sensitive system files
+        var normalizedPath = filePath.Replace('\\', '/').ToLowerInvariant();
+        foreach (var sensitivePath in SensitiveSystemPaths)
+        {
+            var normalizedSensitivePath = sensitivePath.Replace('\\', '/').ToLowerInvariant();
+            if (normalizedPath.StartsWith(normalizedSensitivePath, StringComparison.OrdinalIgnoreCase) ||
+                normalizedPath.Equals(normalizedSensitivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger?.LogWarning("Access to sensitive system file attempted: {FilePath}", filePath);
+                return new ValidationResult(false, "Access to sensitive system files is not allowed");
+            }
+        }
+        
         return new ValidationResult(true, "Valid file path", filePath);
     }
     
@@ -233,6 +255,10 @@ public class SecurityValidationService
         {
             input = input[..maxLength];
         }
+        
+        // Remove HTML tags using regex
+        var htmlTagPattern = new Regex(@"<[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        input = htmlTagPattern.Replace(input, string.Empty);
         
         // Remove dangerous characters
         var sanitized = new StringBuilder(input.Length);
@@ -266,17 +292,54 @@ public class SecurityValidationService
     /// </summary>
     public ValidationResult ValidateMaxTokens(int maxTokens)
     {
-        if (maxTokens < 1 || maxTokens > 100000)
+        if (maxTokens < 1 || maxTokens >= 100000)
         {
             _logger?.LogWarning("Invalid max tokens value: {MaxTokens}", maxTokens);
-            return new ValidationResult(false, "Max tokens must be between 1 and 100,000");
+            return new ValidationResult(false, "Max tokens must be between 1 and 99,999");
         }
         
         return new ValidationResult(true, "Valid max tokens");
     }
     
     /// <summary>
+    /// Checks if input contains dangerous characters or XSS patterns
+    /// </summary>
+    public bool ContainsDangerousCharacters(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return false;
+        }
+        
+        // Check for dangerous characters
+        if (input.IndexOfAny(DangerousChars) >= 0)
+        {
+            return true;
+        }
+        
+        // Check for XSS patterns
+        var lowerInput = input.ToLowerInvariant();
+        var xssPatterns = new[] { "<script", "javascript:", "onerror=", "onload=", "onclick=" };
+        
+        return xssPatterns.Any(pattern => lowerInput.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    /// <summary>
     /// Checks if input contains SQL injection patterns
+    /// </summary>
+    public static bool ContainsSqlInjection(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return false;
+        }
+        
+        var lowerInput = input.ToLowerInvariant();
+        return SqlInjectionPatterns.Any(pattern => lowerInput.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    /// <summary>
+    /// Checks if input contains SQL injection patterns (internal method)
     /// </summary>
     private static bool ContainsSqlInjectionPatterns(string input)
     {

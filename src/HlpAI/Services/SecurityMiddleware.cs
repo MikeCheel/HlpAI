@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
 using System.Text;
 using HlpAI.Attributes;
 
@@ -12,13 +11,35 @@ public class SecurityMiddleware
 {
     private readonly ILogger<SecurityMiddleware>? _logger;
     private readonly SecurityValidationService _validationService;
+    private readonly SecurityAuditService _auditService;
     private readonly SecurityConfiguration _config;
+    private readonly ICrossPlatformDataProtection _dataProtection;
     
     public SecurityMiddleware(ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
     {
         _logger = logger;
         _validationService = new SecurityValidationService();
+        _auditService = new SecurityAuditService(logger as ILogger<SecurityAuditService>);
         _config = config ?? new SecurityConfiguration();
+        _dataProtection = new CrossPlatformDataProtection(logger);
+    }
+    
+    public SecurityMiddleware(SecurityValidationService validationService, ILogger<SecurityMiddleware>? logger = null)
+    {
+        _logger = logger;
+        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+        _auditService = new SecurityAuditService(logger as ILogger<SecurityAuditService>);
+        _config = new SecurityConfiguration();
+        _dataProtection = new CrossPlatformDataProtection(logger);
+    }
+    
+    public SecurityMiddleware(SecurityValidationService validationService, SecurityAuditService auditService, ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
+    {
+        _logger = logger;
+        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+        _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
+        _config = config ?? new SecurityConfiguration();
+        _dataProtection = new CrossPlatformDataProtection(logger);
     }
     
     /// <summary>
@@ -35,6 +56,9 @@ public class SecurityMiddleware
             {
                 violations.Add($"Request size ({request.ContentLength}) exceeds maximum allowed ({_config.MaxRequestSize})");
                 _logger?.LogWarning("Request size violation: {Size} > {MaxSize}", request.ContentLength, _config.MaxRequestSize);
+                _auditService.LogSecurityViolation("RequestSizeExceeded", 
+                    $"Request size {request.ContentLength} exceeds maximum {_config.MaxRequestSize}",
+                    new { Endpoint = request.Endpoint, ClientId = request.ClientId, Size = request.ContentLength });
             }
             
             // Validate headers
@@ -72,6 +96,17 @@ public class SecurityMiddleware
             {
                 _logger?.LogWarning("Security validation failed for request to {Endpoint}: {Violations}", 
                     request.Endpoint, string.Join(", ", violations));
+                _auditService.LogSecurityEvent(SecurityEventType.SecurityViolation, 
+                    "Security validation failed", 
+                    new { Endpoint = request.Endpoint, ClientId = request.ClientId, Violations = violations },
+                    SecurityLevel.High);
+            }
+            else
+            {
+                _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, 
+                    "Security validation passed", 
+                    new { Endpoint = request.Endpoint, ClientId = request.ClientId },
+                    SecurityLevel.Low);
             }
             
             return result;
@@ -80,6 +115,10 @@ public class SecurityMiddleware
         {
             _logger?.LogError(ex, "Error during security validation for request to {Endpoint}", request.Endpoint);
             violations.Add("Internal security validation error");
+            _auditService.LogSecurityEvent(SecurityEventType.SecurityViolation, 
+                "Security validation error", 
+                new { Endpoint = request.Endpoint, ClientId = request.ClientId, Error = ex.Message },
+                SecurityLevel.Critical);
             return new SecurityValidationResult(false, violations, GenerateSecurityHeaders());
         }
     }
@@ -133,8 +172,13 @@ public class SecurityMiddleware
         
         options ??= new SanitizationOptions();
         
-        // Basic sanitization
-        var sanitized = _validationService.SanitizeText(input, options.MaxLength);
+        var sanitized = input;
+        
+        // Apply length limit first
+        if (sanitized.Length > options.MaxLength)
+        {
+            sanitized = sanitized[..options.MaxLength];
+        }
         
         // Additional sanitization based on options
         if (options.RemoveHtml)
@@ -145,6 +189,11 @@ public class SecurityMiddleware
         if (options.EscapeSpecialChars)
         {
             sanitized = EscapeSpecialCharacters(sanitized);
+        }
+        else if (!options.RemoveHtml)
+        {
+            // Only use basic sanitization if we're not removing HTML or escaping special chars
+            sanitized = _validationService.SanitizeText(sanitized, options.MaxLength);
         }
         
         return sanitized;
@@ -160,12 +209,22 @@ public class SecurityMiddleware
             var dataBytes = Encoding.UTF8.GetBytes(data);
             var entropy = Encoding.UTF8.GetBytes($"HlpAI-Security-{context}");
             
-            var encryptedBytes = ProtectedData.Protect(dataBytes, entropy, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(encryptedBytes);
+            var result = _dataProtection.Protect(dataBytes, entropy);
+            
+            _auditService.LogSecurityEvent(SecurityEventType.DataAccess, 
+                "Sensitive data encrypted", 
+                new { Context = context, DataLength = data.Length },
+                SecurityLevel.Standard);
+            
+            return result;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to encrypt sensitive data for context {Context}", context);
+            _auditService.LogSecurityEvent(SecurityEventType.SecurityViolation, 
+                "Failed to encrypt sensitive data", 
+                new { Context = context, Error = ex.Message },
+                SecurityLevel.Critical);
             throw new SecurityException($"Failed to encrypt sensitive data: {ex.Message}", ex);
         }
     }
@@ -177,15 +236,25 @@ public class SecurityMiddleware
     {
         try
         {
-            var encryptedBytes = Convert.FromBase64String(encryptedData);
             var entropy = Encoding.UTF8.GetBytes($"HlpAI-Security-{context}");
             
-            var decryptedBytes = ProtectedData.Unprotect(encryptedBytes, entropy, DataProtectionScope.CurrentUser);
-            return Encoding.UTF8.GetString(decryptedBytes);
+            var decryptedBytes = _dataProtection.Unprotect(encryptedData, entropy);
+            var result = Encoding.UTF8.GetString(decryptedBytes);
+            
+            _auditService.LogSecurityEvent(SecurityEventType.DataAccess, 
+                "Sensitive data decrypted", 
+                new { Context = context, EncryptedDataLength = encryptedData.Length },
+                SecurityLevel.Standard);
+            
+            return result;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to decrypt sensitive data for context {Context}", context);
+            _auditService.LogSecurityEvent(SecurityEventType.SecurityViolation, 
+                "Failed to decrypt sensitive data", 
+                new { Context = context, Error = ex.Message },
+                SecurityLevel.Critical);
             throw new SecurityException($"Failed to decrypt sensitive data: {ex.Message}", ex);
         }
     }
@@ -232,6 +301,9 @@ public class SecurityMiddleware
             content.Contains("javascript:", StringComparison.OrdinalIgnoreCase))
         {
             violations.Add("Potential script injection detected");
+            _auditService.LogSecurityViolation("ScriptInjectionAttempt", 
+                "Potential script injection detected in request content",
+                new { ContentLength = content.Length, SuspiciousContent = content.Substring(0, Math.Min(100, content.Length)) });
         }
         
         // Check for SQL injection patterns
@@ -243,6 +315,9 @@ public class SecurityMiddleware
             if (lowerContent.Contains(pattern))
             {
                 violations.Add($"Potential SQL injection pattern detected: {pattern}");
+                _auditService.LogSecurityViolation("SqlInjectionAttempt", 
+                    $"Potential SQL injection pattern detected: {pattern}",
+                    new { Pattern = pattern, ContentLength = content.Length, SuspiciousContent = content.Substring(0, Math.Min(100, content.Length)) });
                 break;
             }
         }
@@ -251,6 +326,9 @@ public class SecurityMiddleware
         if (content.Length > _config.MaxContentLength)
         {
             violations.Add($"Content length ({content.Length}) exceeds maximum allowed ({_config.MaxContentLength})");
+            _auditService.LogSecurityViolation("ExcessiveContentLength", 
+                $"Content length {content.Length} exceeds maximum {_config.MaxContentLength}",
+                new { ContentLength = content.Length, MaxAllowed = _config.MaxContentLength });
         }
     }
     
@@ -281,6 +359,9 @@ public class SecurityMiddleware
                 if (sanitizedValue != param.Value)
                 {
                     violations.Add($"Parameter '{param.Key}' contains potentially dangerous characters");
+                    _auditService.LogSecurityViolation("SuspiciousParameterValue", 
+                        $"Parameter '{param.Key}' contains potentially dangerous characters",
+                        new { ParameterName = param.Key, OriginalValue = param.Value.Substring(0, Math.Min(50, param.Value.Length)), SanitizedValue = sanitizedValue.Substring(0, Math.Min(50, sanitizedValue.Length)) });
                 }
             }
         }
@@ -296,10 +377,18 @@ public class SecurityMiddleware
         
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(endpoint))
         {
+            _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, 
+                "Rate limit check skipped - missing client ID or endpoint", 
+                new { ClientId = clientId, Endpoint = endpoint },
+                SecurityLevel.Low);
             return new RateLimitResult(true, "No rate limiting applied");
         }
         
         // For now, always allow (implement proper rate limiting as needed)
+        _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, 
+            "Rate limit check passed", 
+            new { ClientId = clientId, Endpoint = endpoint },
+            SecurityLevel.Low);
         return new RateLimitResult(true, "Rate limit check passed");
     }
     

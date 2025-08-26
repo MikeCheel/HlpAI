@@ -738,10 +738,12 @@ public class CommandLineArgumentsService
     /// <summary>
     /// Apply extractor management configuration from command line arguments
     /// </summary>
-    public async Task<ExtractorManagementConfiguration> ApplyExtractorManagementConfigurationAsync()
+    public async Task<ExtractorManagementConfiguration> ApplyExtractorManagementConfigurationAsync(SqliteConfigurationService? configService = null)
     {
         var config = new ExtractorManagementConfiguration();
-        var extractorService = new ExtractorManagementService(_logger);
+        var extractorService = configService != null 
+            ? new ExtractorManagementService(configService, _logger)
+            : new ExtractorManagementService(_logger);
 
         // Check for --list-extractors
         if (HasArgument("list-extractors"))

@@ -458,7 +458,7 @@ public static class Program
         
         while (directory == null)
         {
-            var input = SafePromptForString("Enter the path to your documents directory", "").Trim();
+            var input = _promptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, "", "directory path").Trim();
             
             if (string.IsNullOrEmpty(input))
             {
@@ -690,7 +690,12 @@ public static class Program
                 }
                 else if (selection == availableModels.Count + 1)
                 {
-                    var customModel = SafePromptForString("Enter custom model name: ", "").Trim();
+                    using var promptService = new PromptService();
+                    var customModel = promptService.PromptForValidatedString(
+                        "Enter custom model name: ", 
+                        InputValidationType.ModelName, 
+                        "", 
+                        "model name");
                     if (!string.IsNullOrEmpty(customModel))
                     {
                         Console.WriteLine($"✅ Selected custom model: {customModel}");
@@ -799,7 +804,12 @@ public static class Program
 
     private static async Task DemoReadFile(EnhancedMcpRagServer server)
     {
-        var uri = SafePromptForString("Enter file URI (e.g., file:///example.txt)", "");
+        using var promptService = new PromptService();
+        var uri = promptService.PromptForValidatedString(
+            "Enter file URI (e.g., file:///example.txt)", 
+            InputValidationType.Url, 
+            "", 
+            "file URI");
 
         if (string.IsNullOrEmpty(uri))
         {
@@ -820,7 +830,12 @@ public static class Program
 
     private static async Task DemoSearchFiles(EnhancedMcpRagServer server)
     {
-        var query = SafePromptForString("Enter search query", "");
+        using var promptService = new PromptService();
+        var query = promptService.PromptForValidatedString(
+            "Enter search query", 
+            InputValidationType.General, 
+            "", 
+            "search query");
 
         if (string.IsNullOrEmpty(query))
         {
@@ -841,8 +856,12 @@ public static class Program
 
     private static async Task DemoAskAI(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter your question: ");
-        var question = SafePromptForString("", "What is this document about?");
+        using var promptService = new PromptService();
+        var question = promptService.PromptForValidatedString(
+            "Enter your question", 
+            InputValidationType.General, 
+            "What is this document about?", 
+            "question");
 
         if (string.IsNullOrEmpty(question))
         {
@@ -853,15 +872,14 @@ public static class Program
         Console.Write("Enter additional context (optional, press Enter to skip): ");
         var context = SafePromptForString("", "");
 
-        Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = SafePromptForString("", "0.7");
+        Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
+        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
-            temperature = Math.Max(0.0, Math.Min(1.0, temp));
+            temperature = temp;
         }
 
-        using var promptService = new PromptService();
         var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement?");
 
         var arguments = new { question, context, useRag, temperature };
@@ -878,8 +896,12 @@ public static class Program
 
     private static async Task DemoAnalyzeFile(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter file URI (e.g., file:///example.txt): ");
-        var uri = SafePromptForString("", "");
+        using var promptService = new PromptService();
+        var uri = promptService.PromptForValidatedString(
+            "Enter file URI (e.g., file:///example.txt)", 
+            InputValidationType.Url, 
+            "", 
+            "file URI");
 
         if (string.IsNullOrEmpty(uri))
         {
@@ -896,15 +918,14 @@ public static class Program
             analysisType = "summary";
         }
 
-        Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = SafePromptForString("", "0.7");
+        Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
+        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
-            temperature = Math.Max(0.0, Math.Min(1.0, temp));
+            temperature = temp;
         }
 
-        using var promptService = new PromptService();
         var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement?");
 
         var request = new McpRequest
@@ -920,8 +941,12 @@ public static class Program
 
     private static async Task DemoRagSearch(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter semantic search query: ");
-        var query = SafePromptForString("", "search query");
+        using var promptService = new PromptService();
+        var query = promptService.PromptForValidatedString(
+            "Enter search query", 
+            InputValidationType.General, 
+            "", 
+            "search query");
 
         if (string.IsNullOrEmpty(query))
         {
@@ -942,8 +967,12 @@ public static class Program
 
     private static async Task DemoRagAsk(EnhancedMcpRagServer server)
     {
-        Console.Write("Enter your question for RAG-enhanced AI: ");
-        var question = SafePromptForString("", "What is the main topic?");
+        using var promptService = new PromptService();
+        var question = promptService.PromptForValidatedString(
+            "Enter your question for RAG-enhanced AI", 
+            InputValidationType.General, 
+            "What is the main topic?", 
+            "question");
 
         if (string.IsNullOrEmpty(question))
         {
@@ -951,12 +980,12 @@ public static class Program
             return;
         }
 
-        Console.Write("Enter temperature (0.0-1.0, default 0.7): ");
-        var tempInput = SafePromptForString("", "0.7");
+        Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
+        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
-            temperature = Math.Max(0.0, Math.Min(1.0, temp));
+            temperature = temp;
         }
 
         Console.Write("Number of context chunks to retrieve (default 5): ");
@@ -1411,8 +1440,12 @@ public static class Program
             if (models.Count == 0)
             {
                 Console.WriteLine("⚠️ No models found. You can still enter a model name manually.");
-                Console.Write("Enter model name: ");
-                var manualModel = SafePromptForString("", "").Trim();
+                using var promptService = new PromptService();
+                var manualModel = promptService.PromptForValidatedString(
+                    "Enter model name: ", 
+                    InputValidationType.ModelName, 
+                    "", 
+                    "model name");
                 if (!string.IsNullOrEmpty(manualModel))
                 {
                     UpdateModelConfiguration(config, manualModel);
@@ -1443,8 +1476,12 @@ public static class Program
                 }
                 else if (selection == models.Count + 1)
                 {
-                    Console.Write("Enter custom model name: ");
-                    var customModel = SafePromptForString("", "").Trim();
+                    using var promptService = new PromptService();
+                    var customModel = promptService.PromptForValidatedString(
+                        "Enter custom model name: ", 
+                        InputValidationType.ModelName, 
+                        "", 
+                        "model name");
                     if (!string.IsNullOrEmpty(customModel))
                     {
                         UpdateModelConfiguration(config, customModel);
@@ -1546,7 +1583,7 @@ public static class Program
                 Console.WriteLine("\n📝 Enter Custom Path");
                 Console.WriteLine("====================");
                 Console.Write("Enter the full path to hh.exe: ");
-                var customPath = SafePromptForString("", "").Trim();
+                var customPath = _promptService.PromptForValidatedString("", InputValidationType.FilePath, "", "hh.exe path").Trim();
                 
                 if (!string.IsNullOrEmpty(customPath))
                 {
@@ -2317,6 +2354,17 @@ public static class Program
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             Console.WriteLine("❌ No API key entered. Operation cancelled.");
+            return Task.CompletedTask;
+        }
+        
+        // Validate API key format
+        var validationService = new SecurityValidationService();
+        var validationResult = validationService.ValidateApiKey(apiKey, providerName);
+        
+        if (!validationResult.IsValid)
+        {
+            Console.WriteLine($"❌ Invalid API key format: {validationResult.Message}");
+            Console.WriteLine("Please ensure your API key follows the correct format for the provider.");
             return Task.CompletedTask;
         }
         
@@ -3327,8 +3375,12 @@ private static Task WaitForKeyPress()
         
         var selectedExtractor = extractorList[extractorIndex - 1];
         
-        Console.Write("Enter file extension(s) to add (e.g., '.docx' or 'docx,rtf'): ");
-        var extensionsInput = SafePromptForString("", "");
+        using var promptService = new PromptService();
+        var extensionsInput = promptService.PromptForValidatedString(
+            "Enter file extension(s) to add (e.g., '.docx' or 'docx,rtf')", 
+            InputValidationType.General, 
+            "", 
+            "file extensions");
         
         if (string.IsNullOrWhiteSpace(extensionsInput))
         {
@@ -3397,8 +3449,12 @@ private static Task WaitForKeyPress()
             return;
         }
         
-        Console.Write("Enter file extension(s) to remove (e.g., '.docx' or 'docx,rtf'): ");
-        var extensionsInput = SafePromptForString("", "");
+        using var promptService = new PromptService();
+        var extensionsInput = promptService.PromptForValidatedString(
+            "Enter file extension(s) to remove (e.g., '.docx' or 'docx,rtf')", 
+            InputValidationType.General, 
+            "", 
+            "file extensions");
         
         if (string.IsNullOrWhiteSpace(extensionsInput))
         {
@@ -3435,8 +3491,12 @@ private static Task WaitForKeyPress()
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Test Extraction" ?? "Main Menu > Extractor Management > Test Extraction";
         ClearScreenWithHeader("🧪 Test File Extraction", breadcrumb);
         
-        Console.Write("Enter file path to test: ");
-        var filePath = SafePromptForString("", "");
+        using var promptService = new PromptService();
+        var filePath = promptService.PromptForValidatedString(
+            "Enter file path to test", 
+            InputValidationType.FilePath, 
+            "", 
+            "file path");
         
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -3686,8 +3746,12 @@ private static Task WaitForKeyPress()
         Console.WriteLine($"Current directory: {currentServer.RootPath}");
         Console.WriteLine();
         
-        Console.Write("Enter new document directory path (or 'cancel' to abort): ");
-        var newPath = SafePromptForString("", "").Trim();
+        using var promptService = new PromptService();
+        var newPath = promptService.PromptForValidatedString(
+            "Enter new document directory path (or 'cancel' to abort)", 
+            InputValidationType.FilePath, 
+            "", 
+            "directory path").Trim();
         
         if (string.IsNullOrEmpty(newPath) || newPath.Equals("cancel", StringComparison.CurrentCultureIgnoreCase))
         {
@@ -3699,8 +3763,8 @@ private static Task WaitForKeyPress()
         if (!Directory.Exists(newPath))
         {
             Console.WriteLine($"❌ Error: Directory '{newPath}' does not exist.");
-            using var promptService = new PromptService();
-            var createResponse = await promptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
+            using var createPromptService = new PromptService();
+            var createResponse = await createPromptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
             
             if (createResponse)
             {
@@ -3733,8 +3797,8 @@ private static Task WaitForKeyPress()
         if (files.Count == 0)
         {
             Console.WriteLine("⚠️  Warning: No supported files found in the directory.");
-            using var promptService = new PromptService();
-            var continueResponse = await promptService.PromptYesNoDefaultYesAsync("Continue anyway?");
+            using var continuePromptService = new PromptService();
+            var continueResponse = await continuePromptService.PromptYesNoDefaultYesAsync("Continue anyway?");
             
             if (!continueResponse)
             {
@@ -4070,40 +4134,40 @@ private static Task WaitForKeyPress()
             switch (input)
             {
                 case "1":
-                    await ConfigureProviderUrlAsync("Ollama", url => config.OllamaUrl = url);
+                    ConfigureProviderUrl("Ollama", url => config.OllamaUrl = url);
                     break;
                 case "2":
-                    await ConfigureProviderUrlAsync("LM Studio", url => config.LmStudioUrl = url);
+                    ConfigureProviderUrl("LM Studio", url => config.LmStudioUrl = url);
                     break;
                 case "3":
-                    await ConfigureProviderUrlAsync("Open Web UI", url => config.OpenWebUiUrl = url);
+                    ConfigureProviderUrl("Open Web UI", url => config.OpenWebUiUrl = url);
                     break;
                 case "4":
-                    await ConfigureProviderUrlAsync("OpenAI", url => config.OpenAiUrl = url);
+                    ConfigureProviderUrl("OpenAI", url => config.OpenAiUrl = url);
                     break;
                 case "5":
-                    await ConfigureProviderUrlAsync("Anthropic", url => config.AnthropicUrl = url);
+                    ConfigureProviderUrl("Anthropic", url => config.AnthropicUrl = url);
                     break;
                 case "6":
-                    await ConfigureProviderUrlAsync("DeepSeek", url => config.DeepSeekUrl = url);
+                    ConfigureProviderUrl("DeepSeek", url => config.DeepSeekUrl = url);
                     break;
                 case "7":
-                    await ConfigureDefaultModelAsync("Ollama", model => config.OllamaDefaultModel = model);
+                    ConfigureDefaultModel("Ollama", model => config.OllamaDefaultModel = model);
                     break;
                 case "8":
-                    await ConfigureDefaultModelAsync("LM Studio", model => config.LmStudioDefaultModel = model);
+                    ConfigureDefaultModel("LM Studio", model => config.LmStudioDefaultModel = model);
                     break;
                 case "9":
-                    await ConfigureDefaultModelAsync("Open Web UI", model => config.OpenWebUiDefaultModel = model);
+                    ConfigureDefaultModel("Open Web UI", model => config.OpenWebUiDefaultModel = model);
                     break;
                 case "10":
-                    await ConfigureDefaultModelAsync("OpenAI", model => config.OpenAiDefaultModel = model);
+                    ConfigureDefaultModel("OpenAI", model => config.OpenAiDefaultModel = model);
                     break;
                 case "11":
-                    await ConfigureDefaultModelAsync("Anthropic", model => config.AnthropicDefaultModel = model);
+                    ConfigureDefaultModel("Anthropic", model => config.AnthropicDefaultModel = model);
                     break;
                 case "12":
-                    await ConfigureDefaultModelAsync("DeepSeek", model => config.DeepSeekDefaultModel = model);
+                    ConfigureDefaultModel("DeepSeek", model => config.DeepSeekDefaultModel = model);
                     break;
                 case "13":
                     await ConfigureApiKeysAsync(config);
@@ -4148,13 +4212,17 @@ private static Task WaitForKeyPress()
         ConfigurationService.SaveConfiguration(config);
     }
 
-    static Task ConfigureProviderUrlAsync(string providerName, Action<string> setUrlAction)
+    static void ConfigureProviderUrl(string providerName, Action<string> setUrlAction)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} URL");
         Console.WriteLine("==============================");
         
-        Console.Write($"Enter {providerName} URL (press Enter to keep current): ");
-        var url = SafePromptForString("", "http://localhost:3000").Trim();
+        using var promptService = new PromptService();
+        var url = promptService.PromptForValidatedString(
+            $"Enter {providerName} URL (press Enter to keep current)", 
+            InputValidationType.Url, 
+            "http://localhost:3000", 
+            $"{providerName} URL").Trim();
         
         if (!string.IsNullOrEmpty(url))
         {
@@ -4165,17 +4233,19 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine("✅ URL unchanged.");
         }
-        
-        return Task.CompletedTask;
     }
 
-    static Task ConfigureDefaultModelAsync(string providerName, Action<string> setModelAction)
+    static void ConfigureDefaultModel(string providerName, Action<string> setModelAction)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} Default Model");
         Console.WriteLine("========================================");
         
-        Console.Write($"Enter {providerName} default model (press Enter to keep current): ");
-        var model = SafePromptForString("", "llama3.2").Trim();
+        using var promptService = new PromptService();
+        var model = promptService.PromptForValidatedString(
+            $"Enter {providerName} default model (press Enter to keep current): ", 
+            InputValidationType.ModelName, 
+            "llama3.2", 
+            "model name");
         
         if (!string.IsNullOrEmpty(model))
         {
@@ -4186,8 +4256,6 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine("✅ Default model unchanged.");
         }
-        
-        return Task.CompletedTask;
     }
 
     static async Task SelectAiProviderAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)

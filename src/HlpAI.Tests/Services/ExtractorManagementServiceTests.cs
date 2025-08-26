@@ -445,9 +445,12 @@ public class ExtractorManagementServiceTests
     public async Task EdgeCaseTest_ShouldHandleExtensionNormalization_WithVariousFormats()
     {
         // Act & Assert - Test various extension formats
-        await Assert.That(await _service!.AddFileExtensionAsync("text", "DOCX")).IsTrue(); // Uppercase
-        await Assert.That(await _service.AddFileExtensionAsync("text", ".rtf")).IsTrue();  // With dot
-        await Assert.That(await _service.AddFileExtensionAsync("text", "TXT")).IsTrue();   // Existing but different case
+        var result1 = await _service!.AddFileExtensionAsync("text", "DOCX"); // Uppercase
+        await Assert.That(result1).IsTrue();
+        var result2 = await _service.AddFileExtensionAsync("text", ".rtf");  // With dot
+        await Assert.That(result2).IsTrue();
+        var result3 = await _service.AddFileExtensionAsync("text", "TXT");   // Existing but different case
+        await Assert.That(result3).IsTrue();
         
         var extractors = await _service.GetExtractorsAsync();
         var textExtractor = extractors["text"];

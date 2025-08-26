@@ -3,12 +3,14 @@ using Microsoft.Extensions.Logging;
 namespace HlpAI.Services;
 
 /// <summary>
-/// Service for handling user prompts with configurable defaults
+/// Service for handling user prompts with configurable defaults and input validation
 /// </summary>
 public class PromptService : IDisposable
 {
     private readonly ILogger? _logger;
     private readonly SqliteConfigurationService _configService;
+    private readonly SecurityValidationService _validationService;
+    private readonly SecurityMiddleware _securityMiddleware;
     private readonly bool _ownsConfigService;
     private bool _disposed = false;
 
@@ -16,6 +18,8 @@ public class PromptService : IDisposable
     {
         _logger = logger;
         _configService = new SqliteConfigurationService(logger);
+        _validationService = new SecurityValidationService(logger as ILogger<SecurityValidationService>);
+        _securityMiddleware = new SecurityMiddleware(_validationService, logger as ILogger<SecurityMiddleware>);
         _ownsConfigService = true;
     }
 
@@ -23,6 +27,17 @@ public class PromptService : IDisposable
     {
         _logger = logger;
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+        _validationService = new SecurityValidationService(logger as ILogger<SecurityValidationService>);
+        _securityMiddleware = new SecurityMiddleware(_validationService, logger as ILogger<SecurityMiddleware>);
+        _ownsConfigService = false;
+    }
+
+    public PromptService(SqliteConfigurationService configService, SecurityValidationService validationService, SecurityMiddleware securityMiddleware, ILogger? logger = null)
+    {
+        _logger = logger;
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+        _securityMiddleware = securityMiddleware ?? throw new ArgumentNullException(nameof(securityMiddleware));
         _ownsConfigService = false;
     }
 
@@ -144,17 +159,19 @@ public class PromptService : IDisposable
     }
 
     /// <summary>
-    /// Prompts for string input with optional default value
+    /// Prompts for string input with optional default value and input validation
     /// </summary>
     /// <param name="prompt">The prompt message to display</param>
     /// <param name="defaultValue">Default value if Enter is pressed</param>
-    /// <returns>User input or default value</returns>
-    public string PromptForString(string prompt, string? defaultValue = null)
+    /// <param name="sanitizationOptions">Options for input sanitization</param>
+    /// <param name="maxLength">Maximum allowed input length</param>
+    /// <returns>User input or default value, sanitized and validated</returns>
+    public string PromptForString(string prompt, string? defaultValue = null, SanitizationOptions? sanitizationOptions = null, int maxLength = 1000)
     {
         // In test environment, return the default to avoid hanging
         if (IsTestEnvironment())
         {
-            return defaultValue ?? string.Empty;
+            return SanitizeAndValidateInput(defaultValue ?? string.Empty, sanitizationOptions, maxLength);
         }
         
         var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
@@ -166,12 +183,148 @@ public class PromptService : IDisposable
         if (string.IsNullOrEmpty(response))
         {
             _logger?.LogDebug("User pressed Enter, using default: {Default}", defaultValue ?? "null");
-            return defaultValue ?? string.Empty;
+            return SanitizeAndValidateInput(defaultValue ?? string.Empty, sanitizationOptions, maxLength);
         }
         
-        return response;
+        return SanitizeAndValidateInput(response, sanitizationOptions, maxLength);
+    }
+    
+    /// <summary>
+    /// Prompts for string input with specific validation type
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="validationType">Type of validation to apply</param>
+    /// <param name="defaultValue">Default value if Enter is pressed</param>
+    /// <param name="context">Context for validation (e.g., provider name for API keys)</param>
+    /// <returns>Validated user input or default value</returns>
+    public string PromptForValidatedString(string prompt, InputValidationType validationType, string? defaultValue = null, string? context = null)
+    {
+        // In test environment, return the default to avoid hanging
+        if (IsTestEnvironment())
+        {
+            return ValidateSpecificInput(defaultValue ?? string.Empty, validationType, context);
+        }
+        
+        var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        
+        while (true)
+        {
+            Console.Write(fullPrompt);
+            var response = Console.ReadLine()?.Trim();
+            
+            if (string.IsNullOrEmpty(response))
+            {
+                if (!string.IsNullOrEmpty(defaultValue))
+                {
+                    _logger?.LogDebug("User pressed Enter, using default: {Default}", defaultValue);
+                    return ValidateSpecificInput(defaultValue, validationType, context);
+                }
+                Console.WriteLine("Input cannot be empty. Please try again.");
+                continue;
+            }
+            
+            var validatedInput = ValidateSpecificInput(response, validationType, context);
+            if (!string.IsNullOrEmpty(validatedInput))
+            {
+                return validatedInput;
+            }
+            
+            Console.WriteLine("Invalid input. Please try again.");
+        }
     }
 
+    /// <summary>
+    /// Sanitizes and validates general input
+    /// </summary>
+    private string SanitizeAndValidateInput(string input, SanitizationOptions? options = null, int maxLength = 1000)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+        
+        // Apply length limit first
+        if (input.Length > maxLength)
+        {
+            _logger?.LogWarning("Input truncated from {OriginalLength} to {MaxLength} characters", input.Length, maxLength);
+            input = input[..maxLength];
+        }
+        
+        // Use security middleware for sanitization
+        var sanitized = _securityMiddleware.SanitizeInput(input, options);
+        
+        // Log if input was modified during sanitization
+        if (!string.Equals(input, sanitized, StringComparison.Ordinal))
+        {
+            _logger?.LogDebug("Input sanitized: original length {OriginalLength}, sanitized length {SanitizedLength}", 
+                input.Length, sanitized.Length);
+        }
+        
+        return sanitized;
+    }
+    
+    /// <summary>
+    /// Validates input based on specific validation type
+    /// </summary>
+    private string ValidateSpecificInput(string input, InputValidationType validationType, string? context = null)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+        
+        ValidationResult result = validationType switch
+        {
+            InputValidationType.ApiKey => _validationService.ValidateApiKey(input, context ?? "unknown"),
+            InputValidationType.Url => _validationService.ValidateUrl(input, context ?? "URL"),
+            InputValidationType.ModelName => _validationService.ValidateModelName(input),
+            InputValidationType.ProviderName => _validationService.ValidateProviderName(input),
+            InputValidationType.FilePath => _validationService.ValidateFilePath(input),
+            InputValidationType.Temperature => ValidateTemperatureString(input),
+            InputValidationType.MaxTokens => ValidateMaxTokensString(input),
+            InputValidationType.General => new ValidationResult(true, "Valid", _validationService.SanitizeText(input)),
+            _ => new ValidationResult(false, "Unknown validation type")
+        };
+        
+        if (!result.IsValid)
+        {
+            _logger?.LogWarning("Input validation failed for type {ValidationType}: {Message}", validationType, result.Message);
+            Console.WriteLine($"❌ {result.Message}");
+            return string.Empty;
+        }
+        
+        return result.SanitizedValue ?? input;
+    }
+    
+    /// <summary>
+    /// Validates temperature input as string
+    /// </summary>
+    private ValidationResult ValidateTemperatureString(string input)
+    {
+        if (!double.TryParse(input, out var temperature))
+        {
+            return new ValidationResult(false, "Temperature must be a valid number");
+        }
+        
+        var result = _validationService.ValidateTemperature(temperature);
+        return result.IsValid ? new ValidationResult(true, result.Message, temperature.ToString()) : result;
+    }
+    
+    /// <summary>
+    /// Validates max tokens input as string
+    /// </summary>
+    private ValidationResult ValidateMaxTokensString(string input)
+    {
+        if (!int.TryParse(input, out var maxTokens))
+        {
+            return new ValidationResult(false, "Max tokens must be a valid integer");
+        }
+        
+        var result = _validationService.ValidateMaxTokens(maxTokens);
+        return result.IsValid ? new ValidationResult(true, result.Message, maxTokens.ToString()) : result;
+    }
+    
     /// <summary>
     /// Determines if running in a test environment to avoid console blocking
     /// </summary>
@@ -229,4 +382,50 @@ public class PromptService : IDisposable
             _disposed = true;
         }
     }
+}
+
+/// <summary>
+/// Types of input validation that can be applied
+/// </summary>
+public enum InputValidationType
+{
+    /// <summary>
+    /// General text input with basic sanitization
+    /// </summary>
+    General,
+    
+    /// <summary>
+    /// API key validation with specific format requirements
+    /// </summary>
+    ApiKey,
+    
+    /// <summary>
+    /// URL validation with protocol and format checks
+    /// </summary>
+    Url,
+    
+    /// <summary>
+    /// AI model name validation
+    /// </summary>
+    ModelName,
+    
+    /// <summary>
+    /// AI provider name validation
+    /// </summary>
+    ProviderName,
+    
+    /// <summary>
+    /// File path validation with security checks
+    /// </summary>
+    FilePath,
+    
+    /// <summary>
+    /// Temperature parameter validation (0.0 - 2.0)
+    /// </summary>
+    Temperature,
+    
+    /// <summary>
+    /// Max tokens parameter validation (1 - 100,000)
+    /// </summary>
+    MaxTokens
 }

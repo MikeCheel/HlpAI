@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Xunit;
+using TUnit.Assertions;
+using TUnit.Core;
 using HlpAI.Services;
 using HlpAI.Attributes;
 
@@ -10,10 +11,12 @@ public class SecurityAuditServiceTests : IDisposable
     private readonly SecurityAuditService _auditService;
     private readonly ILogger<SecurityAuditService> _logger;
     private readonly SecurityAuditConfiguration _config;
+    private readonly LoggerFactory _loggerFactory;
     
     public SecurityAuditServiceTests()
     {
-        _logger = new LoggerFactory().CreateLogger<SecurityAuditService>();
+        _loggerFactory = new LoggerFactory();
+        _logger = _loggerFactory.CreateLogger<SecurityAuditService>();
         _config = new SecurityAuditConfiguration
         {
             EnableBuffering = false, // Disable buffering for immediate testing
@@ -22,7 +25,7 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService = new SecurityAuditService(_logger, _config);
     }
     
-    [Fact]
+    [Test]
     public void LogSecurityEvent_WithValidEvent_ShouldLogSuccessfully()
     {
         // Arrange
@@ -31,14 +34,13 @@ public class SecurityAuditServiceTests : IDisposable
         var details = new { UserId = "test-user", Success = true };
         
         // Act
-        _auditService.LogSecurityEvent(eventType, message, details, SecurityLevel.Medium);
+        _auditService.LogSecurityEvent(eventType, message, details, SecurityLevel.Standard);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogAuthenticationEvent_WithSuccessfulLogin_ShouldLogWithLowSeverity()
     {
         // Arrange
@@ -50,11 +52,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogAuthenticationEvent(action, success, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogAuthenticationEvent_WithFailedLogin_ShouldLogWithHighSeverity()
     {
         // Arrange
@@ -66,11 +67,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogAuthenticationEvent(action, success, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogAuthorizationEvent_WithGrantedAccess_ShouldLogWithLowSeverity()
     {
         // Arrange
@@ -83,11 +83,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogAuthorizationEvent(resource, action, granted, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogAuthorizationEvent_WithDeniedAccess_ShouldLogWithMediumSeverity()
     {
         // Arrange
@@ -100,11 +99,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogAuthorizationEvent(resource, action, granted, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogDataAccessEvent_WithSuccessfulAccess_ShouldLogWithLowSeverity()
     {
         // Arrange
@@ -117,11 +115,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogDataAccessEvent(dataType, operation, success, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogDataAccessEvent_WithFailedAccess_ShouldLogWithMediumSeverity()
     {
         // Arrange
@@ -134,11 +131,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogDataAccessEvent(dataType, operation, success, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogSecurityViolation_ShouldLogWithHighSeverity()
     {
         // Arrange
@@ -150,11 +146,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogSecurityViolation(violationType, description, context);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogApiKeyUsage_WithSuccessfulUsage_ShouldLogWithLowSeverity()
     {
         // Arrange
@@ -167,11 +162,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogApiKeyUsage(provider, operation, success, keyId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogApiKeyUsage_WithFailedUsage_ShouldLogWithMediumSeverity()
     {
         // Arrange
@@ -184,11 +178,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogApiKeyUsage(provider, operation, success, keyId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogConfigurationChange_ShouldLogWithMediumSeverity()
     {
         // Arrange
@@ -201,11 +194,10 @@ public class SecurityAuditServiceTests : IDisposable
         _auditService.LogConfigurationChange(setting, oldValue, newValue, userId);
         
         // Assert
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public async Task GetSecurityEventsAsync_WithBufferedService_ShouldReturnEvents()
     {
         // Arrange
@@ -224,12 +216,12 @@ public class SecurityAuditServiceTests : IDisposable
         var events = await bufferedService.GetSecurityEventsAsync();
         
         // Assert
-        Assert.NotNull(events);
+        await Assert.That(events).IsNotNull();
         // Note: In a real implementation, this would return the actual events
         // For now, it returns events from the buffer which may be empty after flushing
     }
     
-    [Fact]
+    [Test]
     public async Task GetSecurityEventsAsync_WithTimeRange_ShouldFilterEvents()
     {
         // Arrange
@@ -240,11 +232,11 @@ public class SecurityAuditServiceTests : IDisposable
         var events = await _auditService.GetSecurityEventsAsync(startTime, endTime);
         
         // Assert
-        Assert.NotNull(events);
-        Assert.All(events, e => Assert.True(e.Timestamp >= startTime && e.Timestamp <= endTime));
+        await Assert.That(events).IsNotNull();
+        await Assert.That(events.All(e => e.Timestamp >= startTime && e.Timestamp <= endTime)).IsTrue();
     }
     
-    [Fact]
+    [Test]
     public async Task GetSecurityEventsAsync_WithEventTypeFilter_ShouldFilterEvents()
     {
         // Arrange
@@ -254,25 +246,25 @@ public class SecurityAuditServiceTests : IDisposable
         var events = await _auditService.GetSecurityEventsAsync(eventType: eventType);
         
         // Assert
-        Assert.NotNull(events);
-        Assert.All(events, e => Assert.Equal(eventType, e.EventType));
+        await Assert.That(events).IsNotNull();
+        await Assert.That(events.All(e => e.EventType == eventType)).IsTrue();
     }
     
-    [Fact]
+    [Test]
     public async Task GetSecurityEventsAsync_WithSeverityFilter_ShouldFilterEvents()
     {
         // Arrange
-        var minSeverity = SecurityLevel.Medium;
+        var minSeverity = SecurityLevel.Standard;
         
         // Act
         var events = await _auditService.GetSecurityEventsAsync(minSeverity: minSeverity);
         
         // Assert
-        Assert.NotNull(events);
-        Assert.All(events, e => Assert.True(e.Severity >= minSeverity));
+        await Assert.That(events).IsNotNull();
+        await Assert.That(events.All(e => e.Severity >= minSeverity)).IsTrue();
     }
     
-    [Fact]
+    [Test]
     public async Task GenerateAuditReportAsync_ShouldReturnValidReport()
     {
         // Arrange
@@ -287,17 +279,17 @@ public class SecurityAuditServiceTests : IDisposable
         var report = await _auditService.GenerateAuditReportAsync(startTime, endTime);
         
         // Assert
-        Assert.NotNull(report);
-        Assert.Equal(startTime, report.StartTime);
-        Assert.Equal(endTime, report.EndTime);
-        Assert.True(report.GeneratedAt <= DateTime.UtcNow);
-        Assert.NotNull(report.EventsByType);
-        Assert.NotNull(report.EventsBySeverity);
-        Assert.NotNull(report.HighSeverityEvents);
-        Assert.NotNull(report.TopViolations);
+        await Assert.That(report).IsNotNull();
+        await Assert.That(report.StartTime).IsEqualTo(startTime);
+        await Assert.That(report.EndTime).IsEqualTo(endTime);
+        await Assert.That(report.GeneratedAt <= DateTime.UtcNow).IsTrue();
+        await Assert.That(report.EventsByType).IsNotNull();
+        await Assert.That(report.EventsBySeverity).IsNotNull();
+        await Assert.That(report.HighSeverityEvents).IsNotNull();
+        await Assert.That(report.TopViolations).IsNotNull();
     }
     
-    [Fact]
+    [Test]
     public void FlushEvents_ShouldNotThrowException()
     {
         // Arrange
@@ -312,30 +304,27 @@ public class SecurityAuditServiceTests : IDisposable
         bufferedService.LogSecurityEvent(SecurityEventType.Authentication, "Test event");
         
         // Act & Assert
-        bufferedService.FlushEvents(null);
-        // No exception should be thrown
-        Assert.True(true);
+        bufferedService.FlushEvents(null);// Assert
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogSecurityEvent_WithNullDetails_ShouldHandleGracefully()
     {
         // Act & Assert
         _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, "Test message", null);
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogAuthenticationEvent_WithNullUserId_ShouldHandleGracefully()
     {
         // Act & Assert
         _auditService.LogAuthenticationEvent("login", true, null);
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
+    [Test]
     public void LogConfigurationChange_WithSensitiveValues_ShouldSanitize()
     {
         // Arrange
@@ -348,40 +337,41 @@ public class SecurityAuditServiceTests : IDisposable
         
         // Assert
         // Values should be sanitized in the log (not directly testable without log inspection)
-        Assert.True(true);
+        // Test passes if no exception is thrown
     }
     
-    [Theory]
-    [InlineData(SecurityLevel.Low)]
-    [InlineData(SecurityLevel.Medium)]
-    [InlineData(SecurityLevel.High)]
-    [InlineData(SecurityLevel.Critical)]
+    [Test]
+    [Arguments(SecurityLevel.Low)]
+    [Arguments(SecurityLevel.Standard)]
+    [Arguments(SecurityLevel.High)]
+    [Arguments(SecurityLevel.Critical)]
     public void LogSecurityEvent_WithDifferentSeverities_ShouldLogAppropriately(SecurityLevel severity)
     {
         // Act & Assert
         _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, $"Test {severity} event", null, severity);
-        // No exception should be thrown
-        Assert.True(true);
+        // No exception should be thrown - test passes if no exception is thrown
     }
     
-    [Fact]
-    public void Constructor_WithNullLogger_ShouldNotThrow()
+    [Test]
+    public async Task Constructor_WithNullLogger_ShouldNotThrow()
     {
         // Act & Assert
-        using var service = new SecurityAuditService(null, _config);
-        Assert.NotNull(service);
+        var service = new SecurityAuditService(null, _config);
+        await Assert.That(service).IsNotNull();
     }
     
-    [Fact]
-    public void Constructor_WithNullConfig_ShouldUseDefaults()
+    [Test]
+    public async Task Constructor_WithNullConfig_ShouldUseDefaults()
     {
         // Act & Assert
-        using var service = new SecurityAuditService(_logger, null);
-        Assert.NotNull(service);
+        var service = new SecurityAuditService(_logger, null);
+        await Assert.That(service).IsNotNull();
     }
     
+    [After(Test)]
     public void Dispose()
     {
         _auditService?.Dispose();
+        _loggerFactory?.Dispose();
     }
 }

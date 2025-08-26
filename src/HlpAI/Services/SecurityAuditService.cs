@@ -10,7 +10,7 @@ namespace HlpAI.Services;
 /// Provides security auditing and monitoring functionality
 /// </summary>
 [RequiresSecurityValidation]
-public class SecurityAuditService
+public class SecurityAuditService : IDisposable
 {
     private readonly ILogger<SecurityAuditService>? _logger;
     private readonly SecurityAuditConfiguration _config;
@@ -198,7 +198,7 @@ public class SecurityAuditService
     /// <summary>
     /// Gets security events within a time range
     /// </summary>
-    public async Task<List<SecurityEvent>> GetSecurityEventsAsync(DateTime? startTime = null, DateTime? endTime = null, 
+    public Task<List<SecurityEvent>> GetSecurityEventsAsync(DateTime? startTime = null, DateTime? endTime = null, 
         SecurityEventType? eventType = null, SecurityLevel? minSeverity = null)
     {
         try
@@ -235,13 +235,13 @@ public class SecurityAuditService
                     events = events.Where(e => e.Severity >= minSeverity.Value);
                 }
                 
-                return events.OrderByDescending(e => e.Timestamp).ToList();
+                return Task.FromResult(events.OrderByDescending(e => e.Timestamp).ToList());
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to retrieve security events");
-            return new List<SecurityEvent>();
+            return Task.FromResult(new List<SecurityEvent>());
         }
     }
     

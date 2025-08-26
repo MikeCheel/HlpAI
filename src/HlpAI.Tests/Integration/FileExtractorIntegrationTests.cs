@@ -281,7 +281,7 @@ public class FileExtractorIntegrationTests
 
         // Assert
         await Assert.That(results.Count).IsEqualTo(50);
-         await Assert.That(duration.TotalSeconds < 10).IsTrue();
+         await Assert.That(duration.TotalSeconds).IsLessThan(10);
          
          foreach (var result in results)
          {

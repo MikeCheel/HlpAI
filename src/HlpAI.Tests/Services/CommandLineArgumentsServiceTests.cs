@@ -791,13 +791,13 @@ public class CommandLineArgumentsServiceTests
         // Arrange - First add some extensions to remove
         var addArgs = new[] { "--add-file-type", "text:docx,rtf" };
         var addService = new CommandLineArgumentsService(addArgs, _logger);
-        await addService.ApplyExtractorManagementConfigurationAsync();
+        await addService.ApplyExtractorManagementConfigurationAsync(_configService);
         
         var removeArgs = new[] { "--remove-file-type", "text:docx" };
         var service = new CommandLineArgumentsService(removeArgs, _logger);
 
         // Act
-        var config = await service.ApplyExtractorManagementConfigurationAsync();
+        var config = await service.ApplyExtractorManagementConfigurationAsync(_configService);
 
         // Assert
         await Assert.That(config.ShowExtractors).IsFalse();

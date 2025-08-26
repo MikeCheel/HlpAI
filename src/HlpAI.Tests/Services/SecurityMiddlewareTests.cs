@@ -1,24 +1,33 @@
 using Microsoft.Extensions.Logging;
-using Xunit;
+using TUnit.Assertions;
+using TUnit.Core;
 using HlpAI.Services;
 
 namespace HlpAI.Tests.Services;
 
-public class SecurityMiddlewareTests
+public class SecurityMiddlewareTests : IDisposable
 {
     private readonly SecurityMiddleware _middleware;
     private readonly ILogger<SecurityMiddleware> _logger;
     private readonly SecurityConfiguration _config;
+    private readonly LoggerFactory _loggerFactory;
     
     public SecurityMiddlewareTests()
     {
-        _logger = new LoggerFactory().CreateLogger<SecurityMiddleware>();
+        _loggerFactory = new LoggerFactory();
+        _logger = _loggerFactory.CreateLogger<SecurityMiddleware>();
         _config = new SecurityConfiguration();
         _middleware = new SecurityMiddleware(_logger, _config);
     }
     
-    [Fact]
-    public void ValidateRequest_WithValidRequest_ShouldReturnSuccess()
+    [After(Test)]
+    public void Dispose()
+    {
+        _loggerFactory?.Dispose();
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithValidRequest_ShouldReturnSuccess()
     {
         // Arrange
         var request = new SecurityRequest
@@ -43,13 +52,13 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.True(result.IsValid);
-        Assert.Empty(result.Violations);
-        Assert.NotEmpty(result.SecurityHeaders);
+        await Assert.That(result.IsValid).IsTrue();
+        await Assert.That(result.Violations).IsEmpty();
+        await Assert.That(result.SecurityHeaders).IsNotEmpty();
     }
     
-    [Fact]
-    public void ValidateRequest_WithOversizedRequest_ShouldReturnViolation()
+    [Test]
+    public async Task ValidateRequest_WithOversizedRequest_ShouldReturnViolation()
     {
         // Arrange
         var request = new SecurityRequest
@@ -64,12 +73,12 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Violations, v => v.Contains("Request size"));
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("Request size"));
     }
     
-    [Fact]
-    public void ValidateRequest_WithSuspiciousContent_ShouldReturnViolation()
+    [Test]
+    public async Task ValidateRequest_WithSuspiciousContent_ShouldReturnViolation()
     {
         // Arrange
         var request = new SecurityRequest
@@ -84,12 +93,12 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Violations, v => v.Contains("script injection"));
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("script injection"));
     }
     
-    [Fact]
-    public void ValidateRequest_WithSqlInjectionContent_ShouldReturnViolation()
+    [Test]
+    public async Task ValidateRequest_WithSqlInjectionContent_ShouldReturnViolation()
     {
         // Arrange
         var request = new SecurityRequest
@@ -104,12 +113,12 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Violations, v => v.Contains("SQL injection"));
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("SQL injection"));
     }
     
-    [Fact]
-    public void ValidateRequest_WithInvalidParameters_ShouldReturnViolation()
+    [Test]
+    public async Task ValidateRequest_WithInvalidParameters_ShouldReturnViolation()
     {
         // Arrange
         var longValue = new string('a', _config.MaxParameterLength + 1);
@@ -129,27 +138,27 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Violations, v => v.Contains("value too long"));
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("value too long"));
     }
     
-    [Fact]
-    public void GenerateSecurityHeaders_ShouldReturnStandardHeaders()
+    [Test]
+    public async Task GenerateSecurityHeaders_ShouldReturnStandardHeaders()
     {
         // Act
         var headers = _middleware.GenerateSecurityHeaders();
         
         // Assert
-        Assert.Contains("Content-Security-Policy", headers.Keys);
-        Assert.Contains("X-Frame-Options", headers.Keys);
-        Assert.Contains("X-Content-Type-Options", headers.Keys);
-        Assert.Contains("X-XSS-Protection", headers.Keys);
-        Assert.Contains("Referrer-Policy", headers.Keys);
-        Assert.Contains("Permissions-Policy", headers.Keys);
+        await Assert.That(headers.Keys).Contains("Content-Security-Policy");
+        await Assert.That(headers.Keys).Contains("X-Frame-Options");
+        await Assert.That(headers.Keys).Contains("X-Content-Type-Options");
+        await Assert.That(headers.Keys).Contains("X-XSS-Protection");
+        await Assert.That(headers.Keys).Contains("Referrer-Policy");
+        await Assert.That(headers.Keys).Contains("Permissions-Policy");
     }
     
-    [Fact]
-    public void GenerateSecurityHeaders_WithHttpsEnabled_ShouldIncludeHSTS()
+    [Test]
+    public async Task GenerateSecurityHeaders_WithHttpsEnabled_ShouldIncludeHSTS()
     {
         // Arrange
         var config = new SecurityConfiguration { UseHttpsOnly = true };
@@ -159,11 +168,11 @@ public class SecurityMiddlewareTests
         var headers = middleware.GenerateSecurityHeaders();
         
         // Assert
-        Assert.Contains("Strict-Transport-Security", headers.Keys);
+        await Assert.That(headers.Keys).Contains("Strict-Transport-Security");
     }
     
-    [Fact]
-    public void SanitizeInput_WithValidInput_ShouldReturnSanitized()
+    [Test]
+    public async Task SanitizeInput_WithValidInput_ShouldReturnSanitized()
     {
         // Arrange
         var input = "<p>Hello <script>alert('xss')</script> World</p>";
@@ -177,22 +186,22 @@ public class SecurityMiddlewareTests
         var result = _middleware.SanitizeInput(input, options);
         
         // Assert
-        Assert.DoesNotContain("<script>", result);
-        Assert.DoesNotContain("<p>", result);
+        await Assert.That(result).DoesNotContain("<script>");
+        await Assert.That(result).DoesNotContain("<p>");
     }
     
-    [Fact]
-    public void SanitizeInput_WithNullInput_ShouldReturnEmpty()
+    [Test]
+    public async Task SanitizeInput_WithNullInput_ShouldReturnEmpty()
     {
         // Act
         var result = _middleware.SanitizeInput(null);
         
         // Assert
-        Assert.Equal(string.Empty, result);
+        await Assert.That(result).IsEqualTo(string.Empty);
     }
     
-    [Fact]
-    public void EncryptSensitiveData_WithValidData_ShouldReturnEncrypted()
+    [Test]
+    public async Task EncryptSensitiveData_WithValidData_ShouldReturnEncrypted()
     {
         // Arrange
         var sensitiveData = "secret-api-key";
@@ -202,12 +211,12 @@ public class SecurityMiddlewareTests
         var encrypted = _middleware.EncryptSensitiveData(sensitiveData, context);
         
         // Assert
-        Assert.NotEqual(sensitiveData, encrypted);
-        Assert.NotEmpty(encrypted);
+        await Assert.That(encrypted).IsNotEqualTo(sensitiveData);
+        await Assert.That(encrypted).IsNotEmpty();
     }
     
-    [Fact]
-    public void DecryptSensitiveData_WithValidEncryptedData_ShouldReturnOriginal()
+    [Test]
+    public async Task DecryptSensitiveData_WithValidEncryptedData_ShouldReturnOriginal()
     {
         // Arrange
         var originalData = "secret-api-key";
@@ -218,11 +227,11 @@ public class SecurityMiddlewareTests
         var decrypted = _middleware.DecryptSensitiveData(encrypted, context);
         
         // Assert
-        Assert.Equal(originalData, decrypted);
+        await Assert.That(decrypted).IsEqualTo(originalData);
     }
     
-    [Fact]
-    public void EncryptDecrypt_WithDifferentContexts_ShouldFail()
+    [Test]
+    public async Task EncryptDecrypt_WithDifferentContexts_ShouldFail()
     {
         // Arrange
         var originalData = "secret-api-key";
@@ -231,11 +240,11 @@ public class SecurityMiddlewareTests
         var encrypted = _middleware.EncryptSensitiveData(originalData, context1);
         
         // Act & Assert
-        Assert.Throws<SecurityException>(() => _middleware.DecryptSensitiveData(encrypted, context2));
+        await Assert.That(() => _middleware.DecryptSensitiveData(encrypted, context2)).Throws<SecurityException>();
     }
     
-    [Fact]
-    public void ValidateRequest_WithEmptyRequest_ShouldHandleGracefully()
+    [Test]
+    public async Task ValidateRequest_WithEmptyRequest_ShouldHandleGracefully()
     {
         // Arrange
         var request = new SecurityRequest();
@@ -244,12 +253,12 @@ public class SecurityMiddlewareTests
         var result = _middleware.ValidateRequest(request);
         
         // Assert
-        Assert.NotNull(result);
-        Assert.NotNull(result.SecurityHeaders);
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result.SecurityHeaders).IsNotNull();
     }
     
-    [Fact]
-    public void SanitizeInput_WithLongInput_ShouldTruncate()
+    [Test]
+    public async Task SanitizeInput_WithLongInput_ShouldTruncate()
     {
         // Arrange
         var longInput = new string('a', 2000);
@@ -259,15 +268,15 @@ public class SecurityMiddlewareTests
         var result = _middleware.SanitizeInput(longInput, options);
         
         // Assert
-        Assert.True(result.Length <= options.MaxLength);
+        await Assert.That(result.Length <= options.MaxLength).IsTrue();
     }
     
-    [Theory]
-    [InlineData("<script>alert('xss')</script>", "alert('xss')")]
-    [InlineData("<p>Hello World</p>", "Hello World")]
-    [InlineData("No HTML here", "No HTML here")]
-    [InlineData("", "")]
-    public void SanitizeInput_WithHtmlRemoval_ShouldRemoveHtmlTags(string input, string expected)
+    [Test]
+    [Arguments("<script>alert('xss')</script>", "alert('xss')")]
+    [Arguments("<p>Hello World</p>", "Hello World")]
+    [Arguments("No HTML here", "No HTML here")]
+    [Arguments("", "")]
+    public async Task SanitizeInput_WithHtmlRemoval_ShouldRemoveHtmlTags(string input, string expected)
     {
         // Arrange
         var options = new SanitizationOptions { RemoveHtml = true, EscapeSpecialChars = false };
@@ -276,15 +285,15 @@ public class SecurityMiddlewareTests
         var result = _middleware.SanitizeInput(input, options);
         
         // Assert
-        Assert.Equal(expected, result);
+        await Assert.That(result).IsEqualTo(expected);
     }
     
-    [Theory]
-    [InlineData("Hello & World", "Hello &amp; World")]
-    [InlineData("<test>", "&lt;test&gt;")]
-    [InlineData("Quote: \"test\"", "Quote: &quot;test&quot;")]
-    [InlineData("Apostrophe: 'test'", "Apostrophe: &#x27;test&#x27;")]
-    public void SanitizeInput_WithEscaping_ShouldEscapeSpecialChars(string input, string expected)
+    [Test]
+    [Arguments("Hello & World", "Hello &amp; World")]
+    [Arguments("<test>", "&lt;test&gt;")]
+    [Arguments("Quote: \"test\"", "Quote: &quot;test&quot;")]
+    [Arguments("Apostrophe: 'test'", "Apostrophe: &#x27;test&#x27;")]
+    public async Task SanitizeInput_WithEscaping_ShouldEscapeSpecialChars(string input, string expected)
     {
         // Arrange
         var options = new SanitizationOptions { RemoveHtml = false, EscapeSpecialChars = true };
@@ -293,11 +302,11 @@ public class SecurityMiddlewareTests
         var result = _middleware.SanitizeInput(input, options);
         
         // Assert
-        Assert.Equal(expected, result);
+        await Assert.That(result).IsEqualTo(expected);
     }
     
-    [Fact]
-    public void ValidateRequest_WithRequiredHeaders_ShouldCheckHeaders()
+    [Test]
+    public async Task ValidateRequest_WithRequiredHeaders_ShouldCheckHeaders()
     {
         // Arrange
         var config = new SecurityConfiguration
@@ -321,7 +330,7 @@ public class SecurityMiddlewareTests
         var result = middleware.ValidateRequest(request);
         
         // Assert
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Violations, v => v.Contains("Missing required header: X-API-Key"));
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("Missing required header: X-API-Key"));
     }
 }

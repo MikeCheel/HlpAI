@@ -28,7 +28,9 @@ public class ApiKeyValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be a valid API key (20-200 alphanumeric characters, underscores, or hyphens)";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be a valid API key (20-200 alphanumeric characters, underscores, or hyphens)";
     }
     
     public bool IsRequired { get; set; } = true;
@@ -62,7 +64,9 @@ public class UrlValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be a valid HTTP or HTTPS URL";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be a valid HTTP or HTTPS URL";
     }
     
     public bool IsRequired { get; set; } = true;
@@ -93,7 +97,9 @@ public class ModelNameValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be a valid model name (1-100 characters: letters, numbers, dots, underscores, hyphens)";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be a valid model name (1-100 characters: letters, numbers, dots, underscores, hyphens)";
     }
     
     public bool IsRequired { get; set; } = true;
@@ -124,7 +130,9 @@ public class ProviderNameValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be a valid provider name (1-50 characters: letters, numbers, underscores, hyphens)";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be a valid provider name (1-50 characters: letters, numbers, underscores, hyphens)";
     }
     
     public bool IsRequired { get; set; } = true;
@@ -160,7 +168,9 @@ public class SqlInjectionSafeAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field contains potentially dangerous content";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field contains potentially dangerous content";
     }
 }
 
@@ -195,7 +205,9 @@ public class TemperatureValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be between {MinValue} and {MaxValue}";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be between {MinValue} and {MaxValue}";
     }
 }
 
@@ -206,7 +218,7 @@ public class TemperatureValidationAttribute : ValidationAttribute
 public class TokenCountValidationAttribute : ValidationAttribute
 {
     public int MinValue { get; set; } = 1;
-    public int MaxValue { get; set; } = 100000;
+    public int MaxValue { get; set; } = 99999;
     
     public override bool IsValid(object? value)
     {
@@ -225,7 +237,9 @@ public class TokenCountValidationAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must be between {MinValue} and {MaxValue}";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must be between {MinValue} and {MaxValue}";
     }
 }
 
@@ -256,7 +270,9 @@ public class SafeTextAttribute : ValidationAttribute
     
     public override string FormatErrorMessage(string name)
     {
-        return $"The {name} field must not contain dangerous characters and be {MaxLength} characters or less";
+        return !string.IsNullOrEmpty(ErrorMessage) 
+            ? ErrorMessage 
+            : $"The {name} field must not contain dangerous characters and be {MaxLength} characters or less";
     }
 }
 
@@ -273,7 +289,7 @@ public class RequiresSecurityValidationAttribute : Attribute
 /// <summary>
 /// Marks a method or class as handling sensitive data
 /// </summary>
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Property)]
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field)]
 public class SensitiveDataAttribute : Attribute
 {
     public string? DataType { get; set; }
