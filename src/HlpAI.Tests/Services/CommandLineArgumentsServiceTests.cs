@@ -721,4 +721,190 @@ public class CommandLineArgumentsServiceTests
         await Assert.That(config.ShouldDisplay).IsFalse();
         await Assert.That(config.ExportResult).IsNull();
     }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithListExtractors_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--list-extractors" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsTrue();
+        await Assert.That(config.ShowStats).IsFalse();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithExtractorStats_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--extractor-stats" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsFalse();
+        await Assert.That(config.ShowStats).IsTrue();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNotNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithAddFileType_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--add-file-type", "text:docx,rtf" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsFalse();
+        await Assert.That(config.ShowStats).IsFalse();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(2);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithRemoveFileType_ConfiguresCorrectly()
+    {
+        // Arrange - First add some extensions to remove
+        var addArgs = new[] { "--add-file-type", "text:docx,rtf" };
+        var addService = new CommandLineArgumentsService(addArgs, _logger);
+        await addService.ApplyExtractorManagementConfigurationAsync();
+        
+        var removeArgs = new[] { "--remove-file-type", "text:docx" };
+        var service = new CommandLineArgumentsService(removeArgs, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsFalse();
+        await Assert.That(config.ShowStats).IsFalse();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(1);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithResetExtractor_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--reset-extractor", "text" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsFalse();
+        await Assert.That(config.ShowStats).IsFalse();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(1);
+        await Assert.That(config.Statistics).IsNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithTestExtraction_ConfiguresCorrectly()
+    {
+        // Arrange - Create a test file
+        var testFile = Path.GetTempFileName();
+        File.WriteAllText(testFile, "Test content");
+        var txtFile = Path.ChangeExtension(testFile, ".txt");
+        File.Move(testFile, txtFile);
+        
+        try
+        {
+            var args = new[] { "--test-extraction", txtFile };
+            var service = new CommandLineArgumentsService(args, _logger);
+
+            // Act
+            var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+            // Assert
+            await Assert.That(config.ShowExtractors).IsFalse();
+            await Assert.That(config.ShowStats).IsFalse();
+            await Assert.That(config.HasTest).IsTrue();
+            await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+            await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+            await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+            await Assert.That(config.Statistics).IsNull();
+            await Assert.That(config.TestResult).IsNotNull();
+            await Assert.That(config.TestResult!.Success).IsTrue();
+        }
+        finally
+        {
+            if (File.Exists(txtFile))
+                File.Delete(txtFile);
+        }
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithMultipleOptions_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--list-extractors", "--extractor-stats", "--add-file-type", "text:docx" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsTrue();
+        await Assert.That(config.ShowStats).IsTrue();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(1);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNotNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyExtractorManagementConfigurationAsync_WithNoExtractorOptions_ReturnsDefaultConfig()
+    {
+        // Arrange
+        var args = new[] { "--log-level", "Error" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var config = await service.ApplyExtractorManagementConfigurationAsync();
+
+        // Assert
+        await Assert.That(config.ShowExtractors).IsFalse();
+        await Assert.That(config.ShowStats).IsFalse();
+        await Assert.That(config.HasTest).IsFalse();
+        await Assert.That(config.ExtensionsAdded).IsEqualTo(0);
+        await Assert.That(config.ExtensionsRemoved).IsEqualTo(0);
+        await Assert.That(config.ExtractorsReset).IsEqualTo(0);
+        await Assert.That(config.Statistics).IsNull();
+        await Assert.That(config.TestResult).IsNull();
+    }
 }
