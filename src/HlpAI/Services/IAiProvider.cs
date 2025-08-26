@@ -64,5 +64,20 @@ public enum AiProviderType
     /// <summary>
     /// Open Web UI - Web-based model management
     /// </summary>
-    OpenWebUi
+    OpenWebUi,
+
+    /// <summary>
+    /// OpenAI - Cloud-based AI service (GPT models)
+    /// </summary>
+    OpenAI,
+
+    /// <summary>
+    /// Anthropic - Cloud-based AI service (Claude models)
+    /// </summary>
+    Anthropic,
+
+    /// <summary>
+    /// DeepSeek - Cloud-based AI service
+    /// </summary>
+    DeepSeek
 }

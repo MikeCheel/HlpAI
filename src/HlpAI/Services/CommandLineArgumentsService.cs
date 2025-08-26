@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using HlpAI.MCP;
+using System.Runtime.Versioning;
 
 namespace HlpAI.Services;
 
@@ -927,6 +928,7 @@ public class CommandLineArgumentsService
     /// <summary>
     /// Apply AI provider configuration from command line arguments
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public async Task<AiProviderConfiguration> ApplyAiProviderConfigurationAsync()
     {
         var config = new AiProviderConfiguration();
@@ -1116,7 +1118,8 @@ public class CommandLineArgumentsService
                     var provider = AiProviderFactory.CreateProvider(
                         providerType,
                         GetDefaultModelForProvider(providerType, appConfig),
-                        GetProviderUrl(appConfig, providerType)
+                        GetProviderUrl(appConfig, providerType),
+                        logger: null
                     );
                     
                     Console.WriteLine($"\n🔌 Testing {provider.ProviderName} connection...");
@@ -1198,6 +1201,9 @@ public class CommandLineArgumentsService
             AiProviderType.Ollama => config.OllamaDefaultModel,
             AiProviderType.LmStudio => config.LmStudioDefaultModel,
             AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+            AiProviderType.OpenAI => config.OpenAiDefaultModel,
+            AiProviderType.Anthropic => config.AnthropicDefaultModel,
+            AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
             _ => "default"
         };
     }
@@ -1209,6 +1215,9 @@ public class CommandLineArgumentsService
             AiProviderType.Ollama => config.OllamaUrl,
             AiProviderType.LmStudio => config.LmStudioUrl,
             AiProviderType.OpenWebUi => config.OpenWebUiUrl,
+            AiProviderType.OpenAI => config.OpenAiUrl,
+            AiProviderType.Anthropic => config.AnthropicUrl,
+            AiProviderType.DeepSeek => config.DeepSeekUrl,
             _ => null
         };
     }

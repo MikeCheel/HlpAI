@@ -70,6 +70,46 @@ public class AppConfiguration
     public string OpenWebUiDefaultModel { get; set; } = "default";
 
     /// <summary>
+    /// Base URL for OpenAI provider
+    /// </summary>
+    public string? OpenAiUrl { get; set; } = "https://api.openai.com";
+
+    /// <summary>
+    /// Base URL for Anthropic provider
+    /// </summary>
+    public string? AnthropicUrl { get; set; } = "https://api.anthropic.com";
+
+    /// <summary>
+    /// Base URL for DeepSeek provider
+    /// </summary>
+    public string? DeepSeekUrl { get; set; } = "https://api.deepseek.com";
+
+    /// <summary>
+    /// Default model for OpenAI provider
+    /// </summary>
+    public string OpenAiDefaultModel { get; set; } = "gpt-3.5-turbo";
+
+    /// <summary>
+    /// Default model for Anthropic provider
+    /// </summary>
+    public string AnthropicDefaultModel { get; set; } = "claude-3-haiku-20240307";
+
+    /// <summary>
+    /// Default model for DeepSeek provider
+    /// </summary>
+    public string DeepSeekDefaultModel { get; set; } = "deepseek-chat";
+
+    /// <summary>
+    /// Whether to store API keys securely using Windows DPAPI
+    /// </summary>
+    public bool UseSecureApiKeyStorage { get; set; } = true;
+
+    /// <summary>
+    /// Whether to validate API keys on startup
+    /// </summary>
+    public bool ValidateApiKeysOnStartup { get; set; } = true;
+
+    /// <summary>
     /// The last used operation mode
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]

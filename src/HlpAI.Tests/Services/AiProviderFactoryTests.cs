@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Runtime.Versioning;
 using HlpAI.Services;
 using HlpAI.Models;
 
@@ -17,14 +18,20 @@ public class AiProviderFactoryTests
 
         // Assert
         await Assert.That(descriptions).IsNotNull();
-        await Assert.That(descriptions.Count).IsEqualTo(3);
+        await Assert.That(descriptions.Count).IsEqualTo(6);
         await Assert.That(descriptions.ContainsKey(AiProviderType.Ollama)).IsTrue();
         await Assert.That(descriptions.ContainsKey(AiProviderType.LmStudio)).IsTrue();
         await Assert.That(descriptions.ContainsKey(AiProviderType.OpenWebUi)).IsTrue();
+        await Assert.That(descriptions.ContainsKey(AiProviderType.OpenAI)).IsTrue();
+        await Assert.That(descriptions.ContainsKey(AiProviderType.Anthropic)).IsTrue();
+        await Assert.That(descriptions.ContainsKey(AiProviderType.DeepSeek)).IsTrue();
         
         await Assert.That(descriptions[AiProviderType.Ollama]).IsEqualTo("Ollama - Local model runner (recommended)");
         await Assert.That(descriptions[AiProviderType.LmStudio]).IsEqualTo("LM Studio - Local API server with GUI");
         await Assert.That(descriptions[AiProviderType.OpenWebUi]).IsEqualTo("Open Web UI - Web-based model management");
+        await Assert.That(descriptions[AiProviderType.OpenAI]).IsEqualTo("OpenAI - Cloud-based AI service (GPT models)");
+        await Assert.That(descriptions[AiProviderType.Anthropic]).IsEqualTo("Anthropic - Cloud-based AI service (Claude models)");
+        await Assert.That(descriptions[AiProviderType.DeepSeek]).IsEqualTo("DeepSeek - Cloud-based AI service");
     }
 
     [Test]
@@ -70,7 +77,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithOllamaType_ReturnsOllamaClient()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://localhost:11434");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://localhost:11434", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -84,7 +91,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithLmStudioType_ReturnsLmStudioProvider()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.LmStudio, "test-model", "http://localhost:1234");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.LmStudio, "test-model", "http://localhost:1234", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -98,7 +105,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithOpenWebUiType_ReturnsOpenWebUiProvider()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.OpenWebUi, "test-model", "http://localhost:3000");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.OpenWebUi, "test-model", "http://localhost:3000", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -112,7 +119,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithNullUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", null);
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", null, logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -123,7 +130,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithEmptyUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -134,7 +141,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithWhitespaceUrl_UsesDefaultUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "   ");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "   ", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -145,7 +152,7 @@ public class AiProviderFactoryTests
     public async Task CreateProvider_WithCustomUrl_UsesCustomUrl()
     {
         // Act
-        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://custom:8080");
+        var provider = AiProviderFactory.CreateProvider(AiProviderType.Ollama, "test-model", "http://custom:8080", logger: null);
 
         // Assert
         await Assert.That(provider).IsNotNull();
@@ -153,6 +160,7 @@ public class AiProviderFactoryTests
     }
 
     [Test]
+    [SupportedOSPlatform("windows")]
     public async Task DetectAvailableProvidersAsync_ReturnsProviderAvailability()
     {
         // Act
@@ -160,17 +168,23 @@ public class AiProviderFactoryTests
 
         // Assert
         await Assert.That(availableProviders).IsNotNull();
-        await Assert.That(availableProviders.Count).IsEqualTo(3);
+        await Assert.That(availableProviders.Count).IsEqualTo(6);
         await Assert.That(availableProviders.ContainsKey(AiProviderType.Ollama)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.LmStudio)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.OpenWebUi)).IsTrue();
+        await Assert.That(availableProviders.ContainsKey(AiProviderType.OpenAI)).IsTrue();
+        await Assert.That(availableProviders.ContainsKey(AiProviderType.Anthropic)).IsTrue();
+        await Assert.That(availableProviders.ContainsKey(AiProviderType.DeepSeek)).IsTrue();
         
         // We can't predict availability, but we can check that all providers are present
         foreach (var (providerType, isAvailable) in availableProviders)
         {
             await Assert.That(providerType == AiProviderType.Ollama || 
                         providerType == AiProviderType.LmStudio || 
-                        providerType == AiProviderType.OpenWebUi).IsTrue();
+                        providerType == AiProviderType.OpenWebUi ||
+                        providerType == AiProviderType.OpenAI ||
+                        providerType == AiProviderType.Anthropic ||
+                        providerType == AiProviderType.DeepSeek).IsTrue();
         }
     }
 

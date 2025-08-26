@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Versioning;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 
@@ -38,6 +43,65 @@ public static class AiProviderFactory
                 model,
                 logger),
 
+            AiProviderType.OpenAI => throw new InvalidOperationException("OpenAI provider requires an API key. Use the overload with apiKey parameter."),
+
+            AiProviderType.Anthropic => throw new InvalidOperationException("Anthropic provider requires an API key. Use the overload with apiKey parameter."),
+
+            AiProviderType.DeepSeek => throw new InvalidOperationException("DeepSeek provider requires an API key. Use the overload with apiKey parameter."),
+
+            _ => throw new ArgumentException($"Unknown provider type: {providerType}")
+        };
+    }
+
+    /// <summary>
+    /// Create an AI provider instance with API key for cloud providers
+    /// </summary>
+    public static IAiProvider CreateProvider(
+        AiProviderType providerType,
+        string model,
+        string? baseUrl = null,
+        string? apiKey = null,
+        ILogger? logger = null)
+    {
+        // Handle empty or whitespace URLs by using default
+        string GetEffectiveUrl(string defaultUrl) => 
+            string.IsNullOrWhiteSpace(baseUrl) ? defaultUrl : baseUrl;
+
+        return providerType switch
+        {
+            AiProviderType.Ollama => new OllamaClient(
+                GetEffectiveUrl("http://localhost:11434"),
+                model,
+                logger),
+
+            AiProviderType.LmStudio => new LmStudioProvider(
+                GetEffectiveUrl("http://localhost:1234"),
+                model,
+                logger),
+
+            AiProviderType.OpenWebUi => new OpenWebUiProvider(
+                GetEffectiveUrl("http://localhost:3000"),
+                model,
+                logger),
+
+            AiProviderType.OpenAI => new OpenAiProvider(
+                apiKey ?? throw new ArgumentNullException(nameof(apiKey), "OpenAI provider requires an API key"),
+                model,
+                GetEffectiveUrl("https://api.openai.com"),
+                logger),
+
+            AiProviderType.Anthropic => new AnthropicProvider(
+                apiKey ?? throw new ArgumentNullException(nameof(apiKey), "Anthropic provider requires an API key"),
+                model,
+                GetEffectiveUrl("https://api.anthropic.com"),
+                logger),
+
+            AiProviderType.DeepSeek => new DeepSeekProvider(
+                apiKey ?? throw new ArgumentNullException(nameof(apiKey), "DeepSeek provider requires an API key"),
+                model,
+                GetEffectiveUrl("https://api.deepseek.com/v1"),
+                logger),
+
             _ => throw new ArgumentException($"Unknown provider type: {providerType}")
         };
     }
@@ -67,6 +131,24 @@ public static class AiProviderFactory
                 "http://localhost:3000",
                 "default"),
 
+            AiProviderType.OpenAI => new ProviderInfo(
+                "OpenAI",
+                "Cloud-based AI service (GPT models)",
+                "https://api.openai.com/v1",
+                "gpt-4o-mini"),
+
+            AiProviderType.Anthropic => new ProviderInfo(
+                "Anthropic",
+                "Cloud-based AI service (Claude models)",
+                "https://api.anthropic.com/v1",
+                "claude-3-5-haiku-20241022"),
+
+            AiProviderType.DeepSeek => new ProviderInfo(
+                "DeepSeek",
+                "Cloud-based AI service",
+                "https://api.deepseek.com/v1",
+                "deepseek-chat"),
+
             _ => throw new ArgumentException($"Unknown provider type: {providerType}")
         };
     }
@@ -80,24 +162,54 @@ public static class AiProviderFactory
         {
             [AiProviderType.Ollama] = "Ollama - Local model runner (recommended)",
             [AiProviderType.LmStudio] = "LM Studio - Local API server with GUI",
-            [AiProviderType.OpenWebUi] = "Open Web UI - Web-based model management"
+            [AiProviderType.OpenWebUi] = "Open Web UI - Web-based model management",
+            [AiProviderType.OpenAI] = "OpenAI - Cloud-based AI service (GPT models)",
+            [AiProviderType.Anthropic] = "Anthropic - Cloud-based AI service (Claude models)",
+            [AiProviderType.DeepSeek] = "DeepSeek - Cloud-based AI service"
         };
     }
 
     /// <summary>
     /// Try to detect which providers are available
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public static async Task<Dictionary<AiProviderType, bool>> DetectAvailableProvidersAsync(ILogger? logger = null)
     {
         var results = new Dictionary<AiProviderType, bool>();
         var providers = Enum.GetValues<AiProviderType>();
+        var apiKeyStorage = new SecureApiKeyStorage();
 
         foreach (var providerType in providers)
         {
             try
             {
                 var info = GetProviderInfo(providerType);
-                var provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger);
+                IAiProvider provider;
+                
+                // For cloud providers, check if API key is available
+                if (providerType == AiProviderType.OpenAI || 
+                    providerType == AiProviderType.Anthropic || 
+                    providerType == AiProviderType.DeepSeek)
+                {
+                    var hasApiKey = apiKeyStorage.HasApiKey(providerType.ToString());
+                    if (hasApiKey)
+                    {
+                        var apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
+                        provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, apiKey, logger);
+                    }
+                    else
+                    {
+                        // No API key available for cloud provider
+                        results[providerType] = false;
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Local providers don't need API keys
+                    provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger);
+                }
+                
                 var isAvailable = await provider.IsAvailableAsync();
                 results[providerType] = isAvailable;
                 provider.Dispose();
@@ -122,6 +234,9 @@ public static class AiProviderFactory
             AiProviderType.Ollama => config.OllamaDefaultModel ?? "llama3.2",
             AiProviderType.LmStudio => config.LmStudioDefaultModel ?? "default",
             AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel ?? "default",
+            AiProviderType.OpenAI => config.OpenAiDefaultModel ?? "gpt-4o-mini",
+            AiProviderType.Anthropic => config.AnthropicDefaultModel ?? "claude-3-5-haiku-20241022",
+            AiProviderType.DeepSeek => config.DeepSeekDefaultModel ?? "deepseek-chat",
             _ => "default"
         };
     }
@@ -136,6 +251,9 @@ public static class AiProviderFactory
             AiProviderType.Ollama => config.OllamaUrl,
             AiProviderType.LmStudio => config.LmStudioUrl,
             AiProviderType.OpenWebUi => config.OpenWebUiUrl,
+            AiProviderType.OpenAI => config.OpenAiUrl,
+            AiProviderType.Anthropic => config.AnthropicUrl,
+            AiProviderType.DeepSeek => config.DeepSeekUrl,
             _ => null
         };
     }

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.Versioning;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
@@ -25,6 +27,7 @@ public static class Program
 
 
 
+    [SupportedOSPlatform("windows")]
     public static async Task Main(string[] args)
     {
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
@@ -368,7 +371,8 @@ public static class Program
         }
     }
 
-    private static async Task RestoreMenuContextAsync(MenuContext context, EnhancedMcpRagServer? server, MenuStateManager menuStateManager)
+    [SupportedOSPlatform("windows")]
+    private static async Task RestoreMenuContextAsync(MenuContext context, EnhancedMcpRagServer? _, MenuStateManager menuStateManager)
     {
         switch (context)
         {
@@ -1068,6 +1072,7 @@ public static class Program
         DisplayResponse(response, "Indexing Report");
     }
 
+    [SupportedOSPlatform("windows")]
     private static async Task ShowConfigurationMenuAsync(MenuStateManager? menuStateManager = null)
     {
         using var sqliteConfig = new SqliteConfigurationService();
@@ -1267,6 +1272,7 @@ public static class Program
         }
     }
 
+    [SupportedOSPlatform("windows")]
     private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > AI Model" ?? "Main Menu > Configuration > AI Model";
@@ -1337,7 +1343,8 @@ public static class Program
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider) ?? string.Empty
+                GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                logger: null
             );
             
             Console.WriteLine($"Checking models for {provider.ProviderName}...");
@@ -1385,7 +1392,8 @@ public static class Program
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider) ?? string.Empty
+                GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                logger: null
             );
             
             Console.WriteLine($"Getting models from {provider.ProviderName}...");
@@ -2223,6 +2231,278 @@ public static class Program
         }
         
         return Task.CompletedTask;
+    }
+
+    [SupportedOSPlatform("windows")]
+    static async Task ConfigureApiKeysAsync(AppConfiguration _)
+    {
+        Console.WriteLine("\n🔐 Configure API Keys");
+        Console.WriteLine("=====================");
+        
+        var apiKeyStorage = new SecureApiKeyStorage();
+        bool running = true;
+        
+        while (running)
+        {
+            Console.WriteLine("\nCloud Provider API Keys:");
+            Console.WriteLine("1. OpenAI API Key");
+            Console.WriteLine("2. Anthropic API Key");
+            Console.WriteLine("3. DeepSeek API Key");
+            Console.WriteLine("4. View stored API keys");
+            Console.WriteLine("5. Delete API key");
+            Console.WriteLine("b. Back to provider menu");
+            Console.WriteLine();
+            
+            Console.Write("Select option (1-5, b): ");
+            var input = SafePromptForString("", "b").ToLower().Trim();
+            
+            switch (input)
+            {
+                case "1":
+                    await ConfigureProviderApiKeyAsync("OpenAI", AiProviderType.OpenAI, apiKeyStorage);
+                    break;
+                case "2":
+                    await ConfigureProviderApiKeyAsync("Anthropic", AiProviderType.Anthropic, apiKeyStorage);
+                    break;
+                case "3":
+                    await ConfigureProviderApiKeyAsync("DeepSeek", AiProviderType.DeepSeek, apiKeyStorage);
+                    break;
+                case "4":
+                    await ViewStoredApiKeysAsync(apiKeyStorage);
+                    break;
+                case "5":
+                    DeleteApiKeyAsync(apiKeyStorage);
+                    break;
+                case "b":
+                case "back":
+                    running = false;
+                    break;
+                default:
+                    Console.WriteLine("❌ Invalid option. Please try again.");
+                    break;
+            }
+            
+            if (running)
+            {
+                await ShowBriefPauseAsync("Processing", 1000);
+            }
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    static Task ConfigureProviderApiKeyAsync(string providerName, AiProviderType providerType, SecureApiKeyStorage apiKeyStorage)
+    {
+        Console.WriteLine($"\n🔑 Configure {providerName} API Key");
+        Console.WriteLine(new string('=', 30 + providerName.Length));
+        
+        var hasExisting = apiKeyStorage.HasApiKey(providerType.ToString());
+        if (hasExisting)
+        {
+            Console.WriteLine($"✅ {providerName} API key is already configured.");
+            Console.Write("Do you want to update it? (y/n): ");
+            var update = SafePromptForString("", "n").ToLower().Trim();
+            if (update != "y" && update != "yes")
+            {
+                Console.WriteLine("✅ API key unchanged.");
+                return Task.CompletedTask;
+            }
+        }
+        
+        Console.WriteLine($"\nEnter your {providerName} API key:");
+        Console.WriteLine("(Input will be hidden for security)");
+        Console.Write("> ");
+        
+        var apiKey = ReadPasswordFromConsole();
+        
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Console.WriteLine("❌ No API key entered. Operation cancelled.");
+            return Task.CompletedTask;
+        }
+        
+        try
+        {
+            apiKeyStorage.StoreApiKey(providerType.ToString(), apiKey);
+            Console.WriteLine($"✅ {providerName} API key stored securely.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to store API key: {ex.Message}");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    static Task ViewStoredApiKeysAsync(SecureApiKeyStorage apiKeyStorage)
+    {
+        Console.WriteLine("\n📋 Stored API Keys");
+        Console.WriteLine("==================");
+        
+        try
+        {
+            var providers = apiKeyStorage.GetProvidersWithKeys();
+            
+            if (providers.Count == 0)
+            {
+                Console.WriteLine("No API keys are currently stored.");
+                return Task.CompletedTask;
+            }
+            
+            Console.WriteLine("Providers with stored API keys:");
+            foreach (var provider in providers)
+            {
+                Console.WriteLine($"✅ {provider}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to list API keys: {ex.Message}");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    static void DeleteApiKeyAsync(SecureApiKeyStorage apiKeyStorage)
+    {
+        Console.WriteLine("\n🗑️ Delete API Key");
+        Console.WriteLine("==================");
+        
+        try
+        {
+            var providers = apiKeyStorage.GetProvidersWithKeys();
+            
+            if (providers.Count == 0)
+            {
+                Console.WriteLine("No API keys are currently stored.");
+                return;
+            }
+            
+            Console.WriteLine("Select provider to delete API key:");
+            for (int i = 0; i < providers.Count; i++)
+            {
+                Console.WriteLine($"{i + 1}. {providers[i]}");
+            }
+            
+            Console.Write($"\nSelect provider (1-{providers.Count}): ");
+            var input = SafePromptForString("", "0").Trim();
+            
+            if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+            {
+                var selectedProvider = providers[selection - 1];
+                
+                Console.Write($"Are you sure you want to delete the {selectedProvider} API key? (y/n): ");
+                var confirm = SafePromptForString("", "n").ToLower().Trim();
+                
+                if (confirm == "y" || confirm == "yes")
+                {
+                    apiKeyStorage.DeleteApiKey(selectedProvider);
+                    Console.WriteLine($"✅ {selectedProvider} API key deleted.");
+                }
+                else
+                {
+                    Console.WriteLine("✅ Operation cancelled.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid selection.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to delete API key: {ex.Message}");
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    static async Task TestApiKeyValidationAsync(AppConfiguration _)
+    {
+        Console.WriteLine("\n🧪 Test API Key Validation");
+        Console.WriteLine("===========================");
+        
+        var apiKeyStorage = new SecureApiKeyStorage();
+        var cloudProviders = new[] { AiProviderType.OpenAI, AiProviderType.Anthropic, AiProviderType.DeepSeek };
+        
+        foreach (var providerType in cloudProviders)
+        {
+            try
+            {
+                var hasKey = apiKeyStorage.HasApiKey(providerType.ToString());
+                if (!hasKey)
+                {
+                    Console.WriteLine($"⚠️ {providerType}: No API key stored");
+                    continue;
+                }
+                
+                var apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
+                var provider = AiProviderFactory.CreateProvider(providerType, "default", "", apiKey: apiKey);
+                
+                if (provider is ICloudAiProvider cloudProvider)
+                {
+                    Console.Write($"🔍 Testing {providerType} API key... ");
+                    var isValid = await cloudProvider.ValidateApiKeyAsync();
+                    Console.WriteLine(isValid ? "✅ Valid" : "❌ Invalid");
+                }
+                
+                provider.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ {providerType}: Error testing API key - {ex.Message}");
+            }
+        }
+    }
+
+    static Task ToggleSecureApiKeyStorageAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🔒 Toggle Secure API Key Storage");
+        Console.WriteLine("=================================");
+        
+        Console.WriteLine($"Current setting: {(config.UseSecureApiKeyStorage ? "Enabled" : "Disabled")}");
+        Console.WriteLine();
+        Console.WriteLine("Secure API Key Storage uses Windows Data Protection API (DPAPI)");
+        Console.WriteLine("to encrypt API keys with your user account credentials.");
+        Console.WriteLine();
+        
+        Console.Write($"Do you want to {(config.UseSecureApiKeyStorage ? "disable" : "enable")} secure storage? (y/n): ");
+        var input = SafePromptForString("", "n").ToLower().Trim();
+        
+        if (input == "y" || input == "yes")
+        {
+            config.UseSecureApiKeyStorage = !config.UseSecureApiKeyStorage;
+            Console.WriteLine($"✅ Secure API key storage {(config.UseSecureApiKeyStorage ? "enabled" : "disabled")}.");
+        }
+        else
+        {
+            Console.WriteLine("✅ Setting unchanged.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    static string ReadPasswordFromConsole()
+    {
+        var password = new StringBuilder();
+        ConsoleKeyInfo key;
+        
+        do
+        {
+            key = Console.ReadKey(true);
+            
+            if (key.Key != ConsoleKey.Backspace && key.Key != ConsoleKey.Enter)
+            {
+                password.Append(key.KeyChar);
+                Console.Write("*");
+            }
+            else if (key.Key == ConsoleKey.Backspace && password.Length > 0)
+            {
+                password.Remove(password.Length - 1, 1);
+                Console.Write("\b \b");
+            }
+        } while (key.Key != ConsoleKey.Enter);
+        
+        Console.WriteLine();
+        return password.ToString();
     }
 
     private static Task<string> GetLogLevelFilterAsync()
@@ -3734,6 +4014,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
+    [SupportedOSPlatform("windows")]
     static async Task ShowAiProviderMenuAsync(MenuStateManager? menuStateManager = null)
     {
         var config = ConfigurationService.LoadConfiguration();
@@ -3751,26 +4032,39 @@ private static Task WaitForKeyPress()
             await DisplayAllProvidersStatusAsync(config, menuStateManager);
             Console.WriteLine();
             
-            Console.WriteLine("Provider Settings:");
+            Console.WriteLine("Local Provider Settings:");
             Console.WriteLine($"1. Ollama URL: {config.OllamaUrl}");
             Console.WriteLine($"2. LM Studio URL: {config.LmStudioUrl}");
             Console.WriteLine($"3. Open Web UI URL: {config.OpenWebUiUrl}");
             Console.WriteLine();
+            Console.WriteLine("Cloud Provider Settings:");
+            Console.WriteLine($"4. OpenAI Base URL: {config.OpenAiUrl}");
+        Console.WriteLine($"5. Anthropic Base URL: {config.AnthropicUrl}");
+        Console.WriteLine($"6. DeepSeek Base URL: {config.DeepSeekUrl}");
+            Console.WriteLine();
             Console.WriteLine("Default Models:");
-            Console.WriteLine($"4. Ollama Default: {config.OllamaDefaultModel}");
-            Console.WriteLine($"5. LM Studio Default: {config.LmStudioDefaultModel}");
-            Console.WriteLine($"6. Open Web UI Default: {config.OpenWebUiDefaultModel}");
+            Console.WriteLine($"7. Ollama Default: {config.OllamaDefaultModel}");
+            Console.WriteLine($"8. LM Studio Default: {config.LmStudioDefaultModel}");
+            Console.WriteLine($"9. Open Web UI Default: {config.OpenWebUiDefaultModel}");
+            Console.WriteLine($"10. OpenAI Default: {config.OpenAiDefaultModel}");
+            Console.WriteLine($"11. Anthropic Default: {config.AnthropicDefaultModel}");
+            Console.WriteLine($"12. DeepSeek Default: {config.DeepSeekDefaultModel}");
+            Console.WriteLine();
+            Console.WriteLine("API Key Management:");
+            Console.WriteLine($"13. Configure API Keys");
+            Console.WriteLine($"14. Test API Key Validation");
+            Console.WriteLine($"15. API Key Storage: {(config.UseSecureApiKeyStorage ? "Secure (DPAPI)" : "Not configured")}");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("7. Select AI Provider");
-            Console.WriteLine("8. Test Provider Connection");
-            Console.WriteLine("9. List Available Models");
-            Console.WriteLine("10. Detect Available Providers");
-            Console.WriteLine("11. Quick Switch to Available Provider");
+            Console.WriteLine("16. Select AI Provider");
+            Console.WriteLine("17. Test Provider Connection");
+            Console.WriteLine("18. List Available Models");
+            Console.WriteLine("19. Detect Available Providers");
+            Console.WriteLine("20. Quick Switch to Available Provider");
             Console.WriteLine("b. Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-11, b): ");
+            Console.Write("Select option (1-20, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -3785,27 +4079,54 @@ private static Task WaitForKeyPress()
                     await ConfigureProviderUrlAsync("Open Web UI", url => config.OpenWebUiUrl = url);
                     break;
                 case "4":
-                    await ConfigureDefaultModelAsync("Ollama", model => config.OllamaDefaultModel = model);
+                    await ConfigureProviderUrlAsync("OpenAI", url => config.OpenAiUrl = url);
                     break;
                 case "5":
-                    await ConfigureDefaultModelAsync("LM Studio", model => config.LmStudioDefaultModel = model);
+                    await ConfigureProviderUrlAsync("Anthropic", url => config.AnthropicUrl = url);
                     break;
                 case "6":
-                    await ConfigureDefaultModelAsync("Open Web UI", model => config.OpenWebUiDefaultModel = model);
+                    await ConfigureProviderUrlAsync("DeepSeek", url => config.DeepSeekUrl = url);
                     break;
                 case "7":
-                    await SelectAiProviderAsync(config, menuStateManager);
+                    await ConfigureDefaultModelAsync("Ollama", model => config.OllamaDefaultModel = model);
                     break;
                 case "8":
-                    await TestProviderConnectionAsync(config);
+                    await ConfigureDefaultModelAsync("LM Studio", model => config.LmStudioDefaultModel = model);
                     break;
                 case "9":
-                    await ListAvailableModelsAsync(config, menuStateManager);
+                    await ConfigureDefaultModelAsync("Open Web UI", model => config.OpenWebUiDefaultModel = model);
                     break;
                 case "10":
-                    await DetectAvailableProvidersAsync();
+                    await ConfigureDefaultModelAsync("OpenAI", model => config.OpenAiDefaultModel = model);
                     break;
                 case "11":
+                    await ConfigureDefaultModelAsync("Anthropic", model => config.AnthropicDefaultModel = model);
+                    break;
+                case "12":
+                    await ConfigureDefaultModelAsync("DeepSeek", model => config.DeepSeekDefaultModel = model);
+                    break;
+                case "13":
+                    await ConfigureApiKeysAsync(config);
+                    break;
+                case "14":
+                    await TestApiKeyValidationAsync(config);
+                    break;
+                case "15":
+                    await ToggleSecureApiKeyStorageAsync(config);
+                    break;
+                case "16":
+                    await SelectAiProviderAsync(config, menuStateManager);
+                    break;
+                case "17":
+                    await TestProviderConnectionAsync(config);
+                    break;
+                case "18":
+                    await ListAvailableModelsAsync(config, menuStateManager);
+                    break;
+                case "19":
+                    await DetectAvailableProvidersAsync();
+                    break;
+                case "20":
                     await QuickSwitchToAvailableProviderAsync(config);
                     break;
                 case "b":
@@ -3990,7 +4311,8 @@ private static Task WaitForKeyPress()
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                GetProviderUrl(config, config.LastProvider)
+                GetProviderUrl(config, config.LastProvider),
+                logger: null
             );
             
             Console.WriteLine($"Testing connection to {provider.ProviderName} at {provider.BaseUrl}...");
@@ -4050,6 +4372,7 @@ private static Task WaitForKeyPress()
 
 
 
+    [SupportedOSPlatform("windows")]
     static async Task DetectAvailableProvidersAsync()
     {
         Console.WriteLine("\n🔍 Detect Available Providers");
@@ -4086,7 +4409,8 @@ private static Task WaitForKeyPress()
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                providerUrl ?? string.Empty
+                providerUrl ?? string.Empty,
+                logger: null
             );
             
             var isAvailable = await provider.IsAvailableAsync();
@@ -4110,6 +4434,7 @@ private static Task WaitForKeyPress()
         }
     }
 
+    [SupportedOSPlatform("windows")]
     static async Task DisplayAllProvidersStatusAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > All Providers Status" ?? "Main Menu > AI Provider Management > All Providers Status";
@@ -4135,6 +4460,7 @@ private static Task WaitForKeyPress()
         }
     }
 
+    [SupportedOSPlatform("windows")]
     static async Task QuickSwitchToAvailableProviderAsync(AppConfiguration config)
     {
         Console.WriteLine("\n⚡ Quick Switch to Available Provider");
@@ -4290,7 +4616,8 @@ private static Task WaitForKeyPress()
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
-                providerUrl ?? string.Empty
+                providerUrl ?? string.Empty,
+                logger: null
             );
 
             // Quick availability check (non-async for menu display)
