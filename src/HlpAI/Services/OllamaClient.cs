@@ -1,18 +1,18 @@
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
+using HlpAI.Models;
 
 namespace HlpAI.Services
 {
     public class OllamaClient : IAiProvider
     {
-        private const int OLLAMA_TIMEOUT = 10;  //  Minutes
-
         private readonly HttpClient _httpClient;
         private readonly bool _disposeHttpClient;
         private readonly string _baseUrl;
         private readonly string _model;
         private readonly ILogger? _logger;
+        private readonly AppConfiguration? _config;
         private bool _disposed = false;
         
         public AiProviderType ProviderType => AiProviderType.Ollama;
@@ -22,26 +22,29 @@ namespace HlpAI.Services
         public string CurrentModel => _model;
 
         // Constructor for dependency injection (used in tests)
-        public OllamaClient(HttpClient httpClient, string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null)
+        public OllamaClient(HttpClient httpClient, string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null, AppConfiguration? config = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _disposeHttpClient = false; // Don't dispose injected HttpClient
             _baseUrl = baseUrl.TrimEnd('/');
             _model = model;
             _logger = logger;
+            _config = config;
         }
 
         // Original constructor for backward compatibility
-        public OllamaClient(string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null)
+        public OllamaClient(string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null, AppConfiguration? config = null)
         {
+            var timeoutMinutes = config?.OllamaTimeoutMinutes ?? 10;
             _httpClient = new HttpClient
             {
-                Timeout = TimeSpan.FromMinutes(OLLAMA_TIMEOUT)
+                Timeout = TimeSpan.FromMinutes(timeoutMinutes)
             };
             _disposeHttpClient = true; // Dispose our own HttpClient
             _baseUrl = baseUrl.TrimEnd('/');
             _model = model;
             _logger = logger;
+            _config = config;
         }
 
         public async Task<string> GenerateAsync(string prompt, string? context = null, double temperature = 0.7)

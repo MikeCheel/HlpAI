@@ -16,7 +16,8 @@ namespace HlpAI.VectorStores
         {
             try
             {
-                var chunks = SplitIntoChunks(content, 1000, 200);
+                var config = ConfigurationService.LoadConfiguration(_logger);
+                var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
 
                 for (int i = 0; i < chunks.Count; i++)
                 {

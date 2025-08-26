@@ -41,10 +41,11 @@ namespace HlpAI.MCP
             config.LastProvider,
             aiModel,
             GetProviderUrl(config, config.LastProvider),
-            logger
+            logger,
+            config
         );
         
-        _embeddingService = new EmbeddingService(logger: logger);
+        _embeddingService = new EmbeddingService(logger: logger, config: config);
 
             // Use optimized SQLite-backed vector store with MD5 checksum optimization
             var dbPath = Path.Combine(_rootPath, "vectors.db");

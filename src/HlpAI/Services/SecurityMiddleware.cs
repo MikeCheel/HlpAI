@@ -438,6 +438,18 @@ public class SecurityConfiguration
     public int MaxContentLength { get; set; } = 1024 * 1024; // 1MB
     public int MaxParameterLength { get; set; } = 1000;
     public string[]? RequiredHeaders { get; set; }
+
+    /// <summary>
+    /// Creates a SecurityConfiguration from AppConfiguration
+    /// </summary>
+    public static SecurityConfiguration FromAppConfiguration(HlpAI.Models.AppConfiguration appConfig)
+    {
+        return new SecurityConfiguration
+        {
+            MaxRequestSize = appConfig.MaxRequestSizeBytes,
+            MaxContentLength = appConfig.MaxContentLengthBytes
+        };
+    }
 }
 
 /// <summary>

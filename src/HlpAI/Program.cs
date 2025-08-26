@@ -69,7 +69,8 @@ public static class Program
         if (args.Length > 0 && args[0] == "--audit")
         {
             string auditPath = args.Length > 1 ? args[1] : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            FileAuditUtility.AuditDirectory(auditPath);
+            var config = ConfigurationService.LoadConfiguration(logger);
+            FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: config.MaxFileAuditSizeBytes);
             return;
         }
 
@@ -267,7 +268,7 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
                             break;
-                        case "11":
+                        case "12":
                             ClearScreen();
                             if (server != null) 
                                 await DemoIndexingReport(server);
@@ -275,7 +276,7 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
                             break;
-                        case "12":
+                        case "13":
                         case "server":
                             ClearScreen();
                             if (server != null) 
@@ -284,7 +285,7 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
                             break;
-                        case "13":
+                        case "15":
                         case "dir":
                         case "directory":
                             ClearScreen();
@@ -297,7 +298,7 @@ public static class Program
                                     ShowMenu(); // Restore main menu after command
                             }
                             break;
-                        case "14":
+                        case "16":
                         case "config":
                         case "configuration":
                             menuStateManager.NavigateToMenu(MenuContext.Configuration);
@@ -305,7 +306,7 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "15":
+                        case "17":
                         case "logs":
                         case "errorlogs":
                             menuStateManager.NavigateToMenu(MenuContext.LogViewer);
@@ -313,7 +314,7 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "16":
+                        case "18":
                         case "extractors":
                         case "extractor-management":
                             menuStateManager.NavigateToMenu(MenuContext.ExtractorManagement);
@@ -321,7 +322,7 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "17":
+                        case "19":
                         case "ai":
                         case "ai-provider":
                             menuStateManager.NavigateToMenu(MenuContext.AiProviderManagement);
@@ -329,7 +330,7 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "18":
+                        case "20":
                         case "vector":
                         case "vector-db":
                         case "vector-database":
@@ -338,7 +339,7 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "19":
+                        case "21":
                         case "filter":
                         case "filtering":
                         case "file-filter":
@@ -1062,7 +1063,8 @@ public static class Program
                 config.LastProvider, 
                 config.LastModel ?? "default", 
                 providerUrl, 
-                logger);
+                logger,
+                config);
             
             // Check if the new provider is available
             if (await newProvider.IsAvailableAsync())
@@ -1164,14 +1166,16 @@ public static class Program
             Console.WriteLine("6. Configure prompt defaults");
             Console.WriteLine("7. Configure error logging");
             Console.WriteLine();
-            Console.WriteLine("8. View configuration database details");
-            Console.WriteLine("9. Reset all settings to defaults");
-            Console.WriteLine("10. Delete configuration database");
-            Console.WriteLine("11. Change AI model");
+            Console.WriteLine("8. Configure timeout and token limits");
+            Console.WriteLine("9. Configure file size limits");
+            Console.WriteLine("10. View configuration database details");
+            Console.WriteLine("11. Reset all settings to defaults");
+            Console.WriteLine("12. Delete configuration database");
+            Console.WriteLine("13. Change AI model");
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-11, b): ");
+            Console.Write("Select option (1-13, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -1222,10 +1226,18 @@ public static class Program
                     break;
                     
                 case "8":
-                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    await ConfigureTimeoutAndTokenLimitsAsync();
                     break;
                     
                 case "9":
+                    await ConfigureFileSizeLimitsAsync();
+                    break;
+                    
+                case "10":
+                    await ShowConfigurationDatabaseDetailsAsync(sqliteConfig);
+                    break;
+                    
+                case "11":
                     {
                         Console.WriteLine("\n🔄 Reset Settings");
                         Console.WriteLine("==================");
@@ -1252,7 +1264,7 @@ public static class Program
                         break;
                     }
                     
-                case "10":
+                case "12":
                     {
                         Console.WriteLine("\n🗑️ Delete Configuration Database");
                         Console.WriteLine("=================================");
@@ -1292,7 +1304,7 @@ public static class Program
                         break;
                     }
                     
-                case "11":
+                case "13":
                     await ChangeAiModelAsync(sqliteConfig, menuStateManager);
                     break;
                     
@@ -1385,7 +1397,8 @@ public static class Program
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider) ?? string.Empty,
-                logger: null
+                logger: null,
+                config
             );
             
             Console.WriteLine($"Checking models for {provider.ProviderName}...");
@@ -1434,7 +1447,8 @@ public static class Program
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider) ?? string.Empty,
-                logger: null
+                logger: null,
+                config
             );
             
             Console.WriteLine($"Getting models from {provider.ProviderName}...");
@@ -1846,6 +1860,282 @@ public static class Program
         
         Console.WriteLine("\nPress any key to continue...");
         Console.ReadKey(true);
+    }
+
+    private static async Task ConfigureTimeoutAndTokenLimitsAsync()
+    {
+        var config = ConfigurationService.LoadConfiguration();
+        bool running = true;
+        
+        while (running)
+        {
+            Console.WriteLine("\n⏱️ Configure Timeout and Token Limits");
+            Console.WriteLine("=====================================");
+            
+            // Display current configuration
+            Console.WriteLine("Current Timeout Settings (minutes):");
+            Console.WriteLine($"  AI Provider: {config.AiProviderTimeoutMinutes}");
+            Console.WriteLine($"  Ollama: {config.OllamaTimeoutMinutes}");
+            Console.WriteLine($"  LM Studio: {config.LmStudioTimeoutMinutes}");
+            Console.WriteLine($"  Open Web UI: {config.OpenWebUiTimeoutMinutes}");
+            Console.WriteLine($"  Embedding: {config.EmbeddingTimeoutMinutes}");
+            Console.WriteLine($"  OpenAI: {config.OpenAiTimeoutMinutes}");
+            Console.WriteLine($"  Anthropic: {config.AnthropicTimeoutMinutes}");
+            Console.WriteLine($"  DeepSeek: {config.DeepSeekTimeoutMinutes}");
+            Console.WriteLine();
+            
+            Console.WriteLine("Current Token Limits:");
+            Console.WriteLine($"  OpenAI: {config.OpenAiMaxTokens}");
+            Console.WriteLine($"  Anthropic: {config.AnthropicMaxTokens}");
+            Console.WriteLine($"  DeepSeek: {config.DeepSeekMaxTokens}");
+            Console.WriteLine($"  LM Studio: {config.LmStudioMaxTokens}");
+            Console.WriteLine($"  Open Web UI: {config.OpenWebUiMaxTokens}");
+            Console.WriteLine();
+            
+            Console.WriteLine("Configuration Options:");
+            Console.WriteLine("1. Configure AI Provider timeout");
+            Console.WriteLine("2. Configure Ollama timeout");
+            Console.WriteLine("3. Configure LM Studio timeout");
+            Console.WriteLine("4. Configure Open Web UI timeout");
+            Console.WriteLine("5. Configure Embedding timeout");
+            Console.WriteLine("6. Configure OpenAI timeout");
+            Console.WriteLine("7. Configure Anthropic timeout");
+            Console.WriteLine("8. Configure DeepSeek timeout");
+            Console.WriteLine("9. Configure OpenAI max tokens");
+            Console.WriteLine("10. Configure Anthropic max tokens");
+            Console.WriteLine("11. Configure DeepSeek max tokens");
+            Console.WriteLine("12. Configure LM Studio max tokens");
+            Console.WriteLine("13. Configure Open Web UI max tokens");
+            Console.WriteLine("14. Reset all to defaults");
+            Console.WriteLine("b. Back to configuration menu");
+            Console.WriteLine();
+            
+            Console.Write("Select option (1-14, b): ");
+            var choice = SafePromptForString("", "b").ToLower().Trim();
+            
+            switch (choice)
+            {
+                case "1":
+                    config.AiProviderTimeoutMinutes = ConfigureTimeoutValue("AI Provider", config.AiProviderTimeoutMinutes);
+                    break;
+                case "2":
+                    config.OllamaTimeoutMinutes = ConfigureTimeoutValue("Ollama", config.OllamaTimeoutMinutes);
+                    break;
+                case "3":
+                    config.LmStudioTimeoutMinutes = ConfigureTimeoutValue("LM Studio", config.LmStudioTimeoutMinutes);
+                    break;
+                case "4":
+                    config.OpenWebUiTimeoutMinutes = ConfigureTimeoutValue("Open Web UI", config.OpenWebUiTimeoutMinutes);
+                    break;
+                case "5":
+                    config.EmbeddingTimeoutMinutes = ConfigureTimeoutValue("Embedding", config.EmbeddingTimeoutMinutes);
+                    break;
+                case "6":
+                    config.OpenAiTimeoutMinutes = ConfigureTimeoutValue("OpenAI", config.OpenAiTimeoutMinutes);
+                    break;
+                case "7":
+                    config.AnthropicTimeoutMinutes = ConfigureTimeoutValue("Anthropic", config.AnthropicTimeoutMinutes);
+                    break;
+                case "8":
+                    config.DeepSeekTimeoutMinutes = ConfigureTimeoutValue("DeepSeek", config.DeepSeekTimeoutMinutes);
+                    break;
+                case "9":
+                    config.OpenAiMaxTokens = ConfigureTokenValue("OpenAI", config.OpenAiMaxTokens);
+                    break;
+                case "10":
+                    config.AnthropicMaxTokens = ConfigureTokenValue("Anthropic", config.AnthropicMaxTokens);
+                    break;
+                case "11":
+                    config.DeepSeekMaxTokens = ConfigureTokenValue("DeepSeek", config.DeepSeekMaxTokens);
+                    break;
+                case "12":
+                    config.LmStudioMaxTokens = ConfigureTokenValue("LM Studio", config.LmStudioMaxTokens);
+                    break;
+                case "13":
+                    config.OpenWebUiMaxTokens = ConfigureTokenValue("Open Web UI", config.OpenWebUiMaxTokens);
+                    break;
+                case "14":
+                    ResetTimeoutAndTokenDefaults(config);
+                    Console.WriteLine("✅ All timeout and token settings reset to defaults.");
+                    break;
+                case "b":
+                case "back":
+                    running = false;
+                    break;
+                default:
+                    Console.WriteLine("❌ Invalid option. Please try again.");
+                    break;
+            }
+            
+            if (running && choice != "14")
+            {
+                await ShowBriefPauseAsync("Updating configuration", 500);
+            }
+        }
+        
+        // Save configuration after changes
+        ConfigurationService.SaveConfiguration(config);
+    }
+    
+    private static int ConfigureTimeoutValue(string providerName, int currentValue)
+    {
+        Console.WriteLine($"\nConfigure {providerName} Timeout");
+        Console.WriteLine($"Current value: {currentValue} minutes");
+        Console.WriteLine("Valid range: 1-60 minutes");
+        Console.Write($"Enter new timeout for {providerName} (1-60, Enter to keep current): ");
+        
+        var input = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            return currentValue;
+        }
+        
+        if (int.TryParse(input, out int newValue) && newValue >= 1 && newValue <= 60)
+        {
+            Console.WriteLine($"✅ {providerName} timeout set to {newValue} minutes.");
+            return newValue;
+        }
+        
+        Console.WriteLine("❌ Invalid value. Timeout must be between 1 and 60 minutes.");
+        return currentValue;
+    }
+    
+    private static int ConfigureTokenValue(string providerName, int currentValue)
+    {
+        Console.WriteLine($"\nConfigure {providerName} Max Tokens");
+        Console.WriteLine($"Current value: {currentValue} tokens");
+        Console.WriteLine("Valid range: 100-32000 tokens");
+        Console.Write($"Enter new max tokens for {providerName} (100-32000, Enter to keep current): ");
+        
+        var input = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            return currentValue;
+        }
+        
+        if (int.TryParse(input, out int newValue) && newValue >= 100 && newValue <= 32000)
+        {
+            Console.WriteLine($"✅ {providerName} max tokens set to {newValue}.");
+            return newValue;
+        }
+        
+        Console.WriteLine("❌ Invalid value. Max tokens must be between 100 and 32000.");
+        return currentValue;
+    }
+    
+    private static void ResetTimeoutAndTokenDefaults(AppConfiguration config)
+    {
+        // Reset timeout defaults
+        config.AiProviderTimeoutMinutes = 10;
+        config.OllamaTimeoutMinutes = 10;
+        config.LmStudioTimeoutMinutes = 10;
+        config.OpenWebUiTimeoutMinutes = 10;
+        config.EmbeddingTimeoutMinutes = 10;
+        config.OpenAiTimeoutMinutes = 5;
+        config.AnthropicTimeoutMinutes = 5;
+        config.DeepSeekTimeoutMinutes = 5;
+        
+        // Reset token defaults
+        config.OpenAiMaxTokens = 4000;
+        config.AnthropicMaxTokens = 4000;
+        config.DeepSeekMaxTokens = 4000;
+        config.LmStudioMaxTokens = 4096;
+        config.OpenWebUiMaxTokens = 4096;
+    }
+
+    private static async Task ConfigureFileSizeLimitsAsync()
+    {
+        var config = ConfigurationService.LoadConfiguration();
+        bool running = true;
+        
+        while (running)
+        {
+            Console.WriteLine("\n📏 Configure File Size Limits");
+            Console.WriteLine("==============================");
+            
+            // Display current configuration
+            Console.WriteLine("Current File Size Settings:");
+            Console.WriteLine($"  Max Request Size: {config.MaxRequestSizeBytes / (1024 * 1024)} MB");
+            Console.WriteLine($"  Max Content Length: {config.MaxContentLengthBytes / (1024 * 1024)} MB");
+            Console.WriteLine($"  Max File Audit Size: {config.MaxFileAuditSizeBytes / (1024 * 1024)} MB");
+            Console.WriteLine();
+            
+            Console.WriteLine("Configuration Options:");
+            Console.WriteLine("1. Configure max request size");
+            Console.WriteLine("2. Configure max content length");
+            Console.WriteLine("3. Configure max file audit size");
+            Console.WriteLine("4. Reset all to defaults");
+            Console.WriteLine("b. Back to configuration menu");
+            Console.WriteLine();
+            
+            Console.Write("Select option (1-4, b): ");
+            var choice = SafePromptForString("", "b").ToLower().Trim();
+            
+            switch (choice)
+            {
+                case "1":
+                    config.MaxRequestSizeBytes = ConfigureFileSizeValue("Max Request Size", config.MaxRequestSizeBytes);
+                    break;
+                case "2":
+                    config.MaxContentLengthBytes = (int)ConfigureFileSizeValue("Max Content Length", config.MaxContentLengthBytes);
+                    break;
+                case "3":
+                    config.MaxFileAuditSizeBytes = ConfigureFileSizeValue("Max File Audit Size", config.MaxFileAuditSizeBytes);
+                    break;
+                case "4":
+                    ResetFileSizeDefaults(config);
+                    Console.WriteLine("✅ All file size settings reset to defaults.");
+                    break;
+                case "b":
+                case "back":
+                    running = false;
+                    break;
+                default:
+                    Console.WriteLine("❌ Invalid option. Please try again.");
+                    break;
+            }
+            
+            if (running && choice != "4")
+            {
+                await ShowBriefPauseAsync("Updating configuration", 500);
+            }
+        }
+        
+        // Save configuration after changes
+        ConfigurationService.SaveConfiguration(config);
+    }
+    
+    private static long ConfigureFileSizeValue(string settingName, long currentValueBytes)
+    {
+        var currentValueMB = currentValueBytes / (1024 * 1024);
+        Console.WriteLine($"\nConfigure {settingName}");
+        Console.WriteLine($"Current value: {currentValueMB} MB");
+        Console.WriteLine("Valid range: 1-1000 MB");
+        Console.Write($"Enter new size for {settingName} in MB (1-1000, Enter to keep current): ");
+        
+        var input = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            return currentValueBytes;
+        }
+        
+        if (int.TryParse(input, out int newValueMB) && newValueMB >= 1 && newValueMB <= 1000)
+        {
+            var newValueBytes = (long)newValueMB * 1024 * 1024;
+            Console.WriteLine($"✅ {settingName} set to {newValueMB} MB.");
+            return newValueBytes;
+        }
+        
+        Console.WriteLine("❌ Invalid value. Size must be between 1 and 1000 MB.");
+        return currentValueBytes;
+    }
+    
+    private static void ResetFileSizeDefaults(AppConfiguration config)
+    {
+        // Reset file size defaults
+        config.MaxRequestSizeBytes = 10 * 1024 * 1024; // 10MB
+        config.MaxContentLengthBytes = 1 * 1024 * 1024; // 1MB
+        config.MaxFileAuditSizeBytes = 100 * 1024 * 1024; // 100MB
     }
 
     private static async Task ConfigureErrorLoggingAsync()
@@ -2495,7 +2785,7 @@ public static class Program
                 }
                 
                 var apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
-                var provider = AiProviderFactory.CreateProvider(providerType, "default", "", apiKey: apiKey);
+                var provider = AiProviderFactory.CreateProvider(providerType, "default", "", apiKey: apiKey, logger: null, config: null);
                 
                 if (provider is ICloudAiProvider cloudProvider)
                 {
@@ -2783,7 +3073,8 @@ public static class Program
     private static async Task ShowVectorDatabaseManagementMenuAsync(MenuStateManager? menuStateManager = null)
     {
         using var cleanupService = new CleanupService();
-        using var embeddingService = new EmbeddingService();
+        var config = ConfigurationService.LoadConfiguration();
+        using var embeddingService = new EmbeddingService(config: config);
         using var changeDetectionService = new FileChangeDetectionService();
         var connectionString = "Data Source=vectors.db";
         using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
@@ -3023,7 +3314,7 @@ private static async Task ExecuteReindex()
     var config = ConfigurationService.LoadConfiguration();
     var currentDirectory = GetCurrentDirectory(config);
     
-    using var embeddingService = new EmbeddingService();
+    using var embeddingService = new EmbeddingService(config: config);
     using var changeDetectionService = new FileChangeDetectionService();
     var connectionString = "Data Source=vectors.db";
     using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
@@ -4417,7 +4708,8 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider),
-                logger: null
+                logger: null,
+                config
             );
             
             Console.WriteLine($"Testing connection to {provider.ProviderName} at {provider.BaseUrl}...");
@@ -4515,7 +4807,8 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 providerUrl ?? string.Empty,
-                logger: null
+                logger: null,
+                config
             );
             
             var isAvailable = await provider.IsAvailableAsync();
@@ -4722,7 +5015,8 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 providerUrl ?? string.Empty,
-                logger: null
+                logger: null,
+                config
             );
 
             // Quick availability check (non-async for menu display)

@@ -40,12 +40,18 @@ public class ProgramMenuTests
     [After(Test)]
     public void TearDown()
     {
-        // Restore original console output
+        try
+        {
+            // Restore original console output first
 #pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
-        Console.SetOut(_originalOut);
+            Console.SetOut(_originalOut);
 #pragma warning restore TUnit0055
-        // Dispose the StringWriter to free resources
-        _stringWriter?.Dispose();
+        }
+        finally
+        {
+            // Dispose the StringWriter to free resources
+            _stringWriter?.Dispose();
+        }
     }
     
     [Test]
@@ -414,6 +420,8 @@ public class ProgramMenuTests
         
         // Act
         Program.ShowMenu();
+        
+        // Capture output immediately after the call, before any potential disposal
         var output = _stringWriter.ToString();
         
         // Assert - Menu should contain main menu options

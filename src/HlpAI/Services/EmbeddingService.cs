@@ -3,40 +3,44 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using HlpAI.Models;
 
 namespace HlpAI.Services
 {
     public class EmbeddingService : IEmbeddingService
     {
-        private const int EMBEDDING_TIMEOUT = 10;  //  Minutes
         private readonly HttpClient _httpClient;
         private readonly bool _disposeHttpClient;
         private readonly string _baseUrl;
         private readonly string _embeddingModel;
         private readonly ILogger? _logger;
+        private readonly AppConfiguration? _config;
         private bool _disposed = false;
 
         // Constructor for dependency injection (used in tests)
-        public EmbeddingService(HttpClient httpClient, string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null)
+        public EmbeddingService(HttpClient httpClient, string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null, AppConfiguration? config = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _disposeHttpClient = false; // Don't dispose injected HttpClient
             _baseUrl = baseUrl.TrimEnd('/');
             _embeddingModel = embeddingModel;
             _logger = logger;
+            _config = config;
         }
 
         // Original constructor for backward compatibility
-        public EmbeddingService(string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null)
+        public EmbeddingService(string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null, AppConfiguration? config = null)
         {
+            var timeoutMinutes = config?.EmbeddingTimeoutMinutes ?? 10;
             _httpClient = new HttpClient
             {
-                Timeout = TimeSpan.FromMinutes(EMBEDDING_TIMEOUT)
+                Timeout = TimeSpan.FromMinutes(timeoutMinutes)
             };
             _disposeHttpClient = true; // Dispose our own HttpClient
             _baseUrl = baseUrl.TrimEnd('/');
             _embeddingModel = embeddingModel;
             _logger = logger;
+            _config = config;
         }
 
         public async Task<float[]> GetEmbeddingAsync(string text)

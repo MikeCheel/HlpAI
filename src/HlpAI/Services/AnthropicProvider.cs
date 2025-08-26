@@ -3,6 +3,7 @@ using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -16,9 +17,10 @@ public class AnthropicProvider : ICloudAiProvider
     private readonly string _apiKey;
     private readonly string _baseUrl;
     private readonly string _currentModel;
+    private readonly AppConfiguration? _config;
     private bool _disposed;
 
-    public AnthropicProvider(string apiKey, string model = "claude-3-haiku-20240307", string? baseUrl = null, ILogger? logger = null)
+    public AnthropicProvider(string apiKey, string model = "claude-3-haiku-20240307", string? baseUrl = null, ILogger? logger = null, AppConfiguration? config = null)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
@@ -30,11 +32,13 @@ public class AnthropicProvider : ICloudAiProvider
         _currentModel = model;
         _baseUrl = baseUrl ?? "https://api.anthropic.com";
         _logger = logger;
+        _config = config;
         
+        var timeoutMinutes = config?.AnthropicTimeoutMinutes ?? 5;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(_baseUrl),
-            Timeout = TimeSpan.FromMinutes(5)
+            Timeout = TimeSpan.FromMinutes(timeoutMinutes)
         };
         
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
@@ -44,7 +48,7 @@ public class AnthropicProvider : ICloudAiProvider
     /// <summary>
     /// Constructor for testing with custom HttpClient
     /// </summary>
-    public AnthropicProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null)
+    public AnthropicProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null, AppConfiguration? config = null)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
@@ -56,8 +60,11 @@ public class AnthropicProvider : ICloudAiProvider
         _currentModel = model;
         _baseUrl = httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://api.anthropic.com";
         _logger = logger;
+        _config = config;
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         
+        var timeoutMinutes = config?.AnthropicTimeoutMinutes ?? 5;
+        _httpClient.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
@@ -86,7 +93,7 @@ public class AnthropicProvider : ICloudAiProvider
                 requestBody = new
                 {
                     model = _currentModel,
-                    max_tokens = 4000,
+                    max_tokens = _config?.AnthropicMaxTokens ?? 4000,
                     temperature = Math.Max(0.0, Math.Min(1.0, temperature)),
                     system = context,
                     messages = messages
@@ -97,7 +104,7 @@ public class AnthropicProvider : ICloudAiProvider
                 requestBody = new
                 {
                     model = _currentModel,
-                    max_tokens = 4000,
+                    max_tokens = _config?.AnthropicMaxTokens ?? 4000,
                     temperature = Math.Max(0.0, Math.Min(1.0, temperature)),
                     messages = messages
                 };

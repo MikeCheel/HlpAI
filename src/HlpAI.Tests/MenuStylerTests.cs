@@ -7,8 +7,41 @@ using HlpAI;
 
 namespace HlpAI.Tests
 {
+    [NotInParallel]
     public class MenuStylerTests
     {
+        private StringWriter _stringWriter = null!;
+        private TextWriter _originalOut = null!;
+        
+        [Before(Test)]
+        public void Setup()
+        {
+            // Store the current Console.Out before redirecting
+            _originalOut = Console.Out;
+            // Create a fresh StringWriter for this test
+            _stringWriter = new StringWriter();
+            // Redirect console output to capture it for testing
+#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
+            Console.SetOut(_stringWriter);
+#pragma warning restore TUnit0055
+        }
+
+        [After(Test)]
+        public void TearDown()
+        {
+            try
+            {
+                // Restore original console output first
+#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
+                Console.SetOut(_originalOut);
+#pragma warning restore TUnit0055
+            }
+            finally
+            {
+                // Dispose the StringWriter to free resources
+                _stringWriter?.Dispose();
+            }
+        }
         [Test]
         public async Task CreateStyledHeader_WithDefaultWidth_ReturnsFormattedHeader()
         {
@@ -243,59 +276,23 @@ namespace HlpAI.Tests
         [Test]
         public async Task WriteColored_WritesToConsole_WithoutException()
         {
-            // Arrange
-            var originalOut = Console.Out;
-            var stringWriter = new StringWriter();
-#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
-            Console.SetOut(stringWriter);
-#pragma warning restore TUnit0055
+            // Act
+            MenuStyler.WriteColored("Test", ConsoleColor.Red);
             
-            try
-            {
-                // Act
-                MenuStyler.WriteColored("Test", ConsoleColor.Red);
-                
-                // Assert
-                var output = stringWriter.ToString();
-                await Assert.That(output).Contains("Test");
-            }
-            finally
-            {
-                // Cleanup
-#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
-                Console.SetOut(originalOut);
-#pragma warning restore TUnit0055
-                stringWriter.Dispose();
-            }
+            // Assert
+            var output = _stringWriter.ToString();
+            await Assert.That(output).Contains("Test");
         }
         
         [Test]
         public async Task WriteColoredLine_WritesToConsole_WithoutException()
         {
-            // Arrange
-            var originalOut = Console.Out;
-            var stringWriter = new StringWriter();
-#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
-            Console.SetOut(stringWriter);
-#pragma warning restore TUnit0055
+            // Act
+            MenuStyler.WriteColoredLine("Test Line", ConsoleColor.Blue);
             
-            try
-            {
-                // Act
-                MenuStyler.WriteColoredLine("Test Line", ConsoleColor.Blue);
-                
-                // Assert
-                var output = stringWriter.ToString();
-                await Assert.That(output).Contains("Test Line");
-            }
-            finally
-            {
-                // Cleanup
-#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
-                Console.SetOut(originalOut);
-#pragma warning restore TUnit0055
-                stringWriter.Dispose();
-            }
+            // Assert
+            var output = _stringWriter.ToString();
+            await Assert.That(output).Contains("Test Line");
         }
     }
 }

@@ -100,6 +100,71 @@ public class AppConfiguration
     public string DeepSeekDefaultModel { get; set; } = "deepseek-chat";
 
     /// <summary>
+    /// Timeout in minutes for AI provider requests
+    /// </summary>
+    public int AiProviderTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// Timeout in minutes for Ollama provider requests
+    /// </summary>
+    public int OllamaTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// Timeout in minutes for LM Studio provider requests
+    /// </summary>
+    public int LmStudioTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// Timeout in minutes for Open Web UI provider requests
+    /// </summary>
+    public int OpenWebUiTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// Timeout in minutes for embedding service requests
+    /// </summary>
+    public int EmbeddingTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// Timeout in minutes for OpenAI provider requests
+    /// </summary>
+    public int OpenAiTimeoutMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Timeout in minutes for Anthropic provider requests
+    /// </summary>
+    public int AnthropicTimeoutMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Timeout in minutes for DeepSeek provider requests
+    /// </summary>
+    public int DeepSeekTimeoutMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum tokens for OpenAI provider requests
+    /// </summary>
+    public int OpenAiMaxTokens { get; set; } = 4000;
+
+    /// <summary>
+    /// Maximum tokens for Anthropic provider requests
+    /// </summary>
+    public int AnthropicMaxTokens { get; set; } = 4000;
+
+    /// <summary>
+    /// Maximum tokens for DeepSeek provider requests
+    /// </summary>
+    public int DeepSeekMaxTokens { get; set; } = 4000;
+
+    /// <summary>
+    /// Maximum tokens for LM Studio provider requests
+    /// </summary>
+    public int LmStudioMaxTokens { get; set; } = 4096;
+
+    /// <summary>
+    /// Maximum tokens for Open Web UI provider requests
+    /// </summary>
+    public int OpenWebUiMaxTokens { get; set; } = 4096;
+
+    /// <summary>
     /// Whether to store API keys securely using Windows DPAPI
     /// </summary>
     public bool UseSecureApiKeyStorage { get; set; } = true;
@@ -129,6 +194,31 @@ public class AppConfiguration
     /// Whether to automatically detect hh.exe location if not configured
     /// </summary>
     public bool AutoDetectHhExe { get; set; } = true;
+
+    /// <summary>
+    /// Maximum request size in bytes for security middleware (default: 10MB)
+    /// </summary>
+    public long MaxRequestSizeBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Maximum content length in bytes for security middleware (default: 1MB)
+    /// </summary>
+    public int MaxContentLengthBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>
+    /// Maximum file size in bytes for file audit operations (default: 100MB)
+    /// </summary>
+    public long MaxFileAuditSizeBytes { get; set; } = 100 * 1024 * 1024;
+
+    /// <summary>
+    /// Size of text chunks for vector store operations (default: 1000 characters)
+    /// </summary>
+    public int ChunkSize { get; set; } = 1000;
+
+    /// <summary>
+    /// Overlap between text chunks for vector store operations (default: 200 characters)
+    /// </summary>
+    public int ChunkOverlap { get; set; } = 200;
 
     /// <summary>
     /// When this configuration was last updated

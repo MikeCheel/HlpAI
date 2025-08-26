@@ -89,7 +89,8 @@ namespace HlpAI.VectorStores
                 // Remove existing chunks for this file
                 await RemoveFileChunksAsync(filePath);
 
-                var chunks = SplitIntoChunks(content, 1000, 200);
+                var config = ConfigurationService.LoadConfiguration(_logger);
+                var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
 
                 var insertSql = @"
                     INSERT INTO document_chunks 

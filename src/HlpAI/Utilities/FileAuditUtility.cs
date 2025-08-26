@@ -7,7 +7,7 @@ namespace HlpAI.Utilities
     // File Audit Utility
     public static class FileAuditUtility
     {
-        public static void AuditDirectory(string rootPath, ILogger? logger = null, TextWriter? output = null)
+        public static void AuditDirectory(string rootPath, ILogger? logger = null, TextWriter? output = null, long maxFileSizeBytes = 100 * 1024 * 1024)
         {
             var writer = output ?? Console.Out;
             writer.WriteLine($"🔍 Auditing directory: {rootPath}");
@@ -50,9 +50,9 @@ namespace HlpAI.Utilities
                     results.ByExtension[extension] = results.ByExtension.GetValueOrDefault(extension, 0) + 1;
 
                     // Check if should skip
-                    if (ShouldSkipFileAudit(file, fileInfo, out string skipReason))
+                    if (ShouldSkipFileAudit(file, fileInfo, maxFileSizeBytes, out string skipReason))
                     {
-                        if (fileInfo.Length > 100 * 1024 * 1024)
+                        if (fileInfo.Length > maxFileSizeBytes)
                         {
                             results.TooLarge.Add((file, fileInfo.Length));
                         }
@@ -115,7 +115,7 @@ namespace HlpAI.Utilities
 
             if (results.TooLarge.Count > 0)
             {
-                writer.WriteLine("\n📦 LARGE FILES (>100MB)");
+                writer.WriteLine($"\n📦 LARGE FILES (>{maxFileSizeBytes / (1024 * 1024)}MB)");
                 writer.WriteLine("=======================");
                 foreach (var (file, size) in results.TooLarge.OrderByDescending(x => x.size).Take(5))
                 {
@@ -157,7 +157,7 @@ namespace HlpAI.Utilities
             writer.WriteLine($"\n✨ Audit completed in {DateTime.Now:HH:mm:ss}");
         }
 
-        private static bool ShouldSkipFileAudit(string filePath, FileInfo fileInfo, out string reason)
+        private static bool ShouldSkipFileAudit(string filePath, FileInfo fileInfo, long maxFileSizeBytes, out string reason)
         {
             var fileName = Path.GetFileName(filePath);
             var fileExtension = Path.GetExtension(filePath);
@@ -174,7 +174,7 @@ namespace HlpAI.Utilities
                 return true;
             }
 
-            if (fileInfo.Length > 100 * 1024 * 1024)
+            if (fileInfo.Length > maxFileSizeBytes)
             {
                 reason = $"Too large ({fileInfo.Length / (1024 * 1024):F1} MB)";
                 return true;

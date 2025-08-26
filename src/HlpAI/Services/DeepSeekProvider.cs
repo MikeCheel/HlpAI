@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -15,9 +16,10 @@ public class DeepSeekProvider : ICloudAiProvider
     private readonly string _apiKey;
     private readonly string _baseUrl;
     private readonly string _currentModel;
+    private readonly AppConfiguration? _config;
     private bool _disposed;
 
-    public DeepSeekProvider(string apiKey, string model = "deepseek-chat", string? baseUrl = null, ILogger? logger = null)
+    public DeepSeekProvider(string apiKey, string model = "deepseek-chat", string? baseUrl = null, ILogger? logger = null, AppConfiguration? config = null)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
@@ -29,11 +31,13 @@ public class DeepSeekProvider : ICloudAiProvider
         _currentModel = model;
         _baseUrl = baseUrl ?? "https://api.deepseek.com";
         _logger = logger;
+        _config = config;
         
+        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 5;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(_baseUrl),
-            Timeout = TimeSpan.FromMinutes(5)
+            Timeout = TimeSpan.FromMinutes(timeoutMinutes)
         };
         
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
@@ -43,7 +47,7 @@ public class DeepSeekProvider : ICloudAiProvider
     /// <summary>
     /// Constructor for testing with custom HttpClient
     /// </summary>
-    public DeepSeekProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null)
+    public DeepSeekProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null, AppConfiguration? config = null)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
@@ -55,8 +59,11 @@ public class DeepSeekProvider : ICloudAiProvider
         _currentModel = model;
         _baseUrl = httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "https://api.deepseek.com";
         _logger = logger;
+        _config = config;
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         
+        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 5;
+        _httpClient.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
@@ -86,7 +93,7 @@ public class DeepSeekProvider : ICloudAiProvider
                 model = _currentModel,
                 messages = messages,
                 temperature = Math.Max(0.0, Math.Min(2.0, temperature)),
-                max_tokens = 4000,
+                max_tokens = _config?.DeepSeekMaxTokens ?? 4000,
                 stream = false
             };
 

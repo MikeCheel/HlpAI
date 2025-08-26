@@ -1121,7 +1121,8 @@ public class CommandLineArgumentsService
                         providerType,
                         GetDefaultModelForProvider(providerType, appConfig),
                         GetProviderUrl(appConfig, providerType),
-                        logger: null
+                        logger: null,
+                        appConfig
                     );
                     
                     Console.WriteLine($"\n🔌 Testing {provider.ProviderName} connection...");
@@ -1257,6 +1258,246 @@ public class CommandLineArgumentsService
     {
         return double.TryParse(value, out _);
     }
+
+    /// <summary>
+    /// Apply application configuration from command line arguments
+    /// </summary>
+    public AppConfigurationResult ApplyAppConfiguration()
+    {
+        var result = new AppConfigurationResult();
+        var appConfig = ConfigurationService.LoadConfiguration(_logger);
+        bool hasChanges = false;
+
+        // Timeout configurations
+        if (HasArgument("ai-provider-timeout"))
+        {
+            var timeout = GetIntegerArgument("ai-provider-timeout", 10);
+            if (timeout > 0)
+            {
+                appConfig.AiProviderTimeoutMinutes = timeout;
+                result.AiProviderTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("AI provider timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("ollama-timeout"))
+        {
+            var timeout = GetIntegerArgument("ollama-timeout", 10);
+            if (timeout > 0)
+            {
+                appConfig.OllamaTimeoutMinutes = timeout;
+                result.OllamaTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Ollama timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("lmstudio-timeout"))
+        {
+            var timeout = GetIntegerArgument("lmstudio-timeout", 10);
+            if (timeout > 0)
+            {
+                appConfig.LmStudioTimeoutMinutes = timeout;
+                result.LmStudioTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("LM Studio timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("openwebui-timeout"))
+        {
+            var timeout = GetIntegerArgument("openwebui-timeout", 10);
+            if (timeout > 0)
+            {
+                appConfig.OpenWebUiTimeoutMinutes = timeout;
+                result.OpenWebUiTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Open Web UI timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("embedding-timeout"))
+        {
+            var timeout = GetIntegerArgument("embedding-timeout", 10);
+            if (timeout > 0)
+            {
+                appConfig.EmbeddingTimeoutMinutes = timeout;
+                result.EmbeddingTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Embedding timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("openai-timeout"))
+        {
+            var timeout = GetIntegerArgument("openai-timeout", 5);
+            if (timeout > 0)
+            {
+                appConfig.OpenAiTimeoutMinutes = timeout;
+                result.OpenAiTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("OpenAI timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("anthropic-timeout"))
+        {
+            var timeout = GetIntegerArgument("anthropic-timeout", 5);
+            if (timeout > 0)
+            {
+                appConfig.AnthropicTimeoutMinutes = timeout;
+                result.AnthropicTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Anthropic timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        if (HasArgument("deepseek-timeout"))
+        {
+            var timeout = GetIntegerArgument("deepseek-timeout", 5);
+            if (timeout > 0)
+            {
+                appConfig.DeepSeekTimeoutMinutes = timeout;
+                result.DeepSeekTimeoutChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("DeepSeek timeout set to {Timeout} minutes via command line", timeout);
+            }
+        }
+
+        // Token limit configurations
+        if (HasArgument("openai-max-tokens"))
+        {
+            var maxTokens = GetIntegerArgument("openai-max-tokens", 4000);
+            if (maxTokens > 0)
+            {
+                appConfig.OpenAiMaxTokens = maxTokens;
+                result.OpenAiMaxTokensChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("OpenAI max tokens set to {MaxTokens} via command line", maxTokens);
+            }
+        }
+
+        if (HasArgument("anthropic-max-tokens"))
+        {
+            var maxTokens = GetIntegerArgument("anthropic-max-tokens", 4000);
+            if (maxTokens > 0)
+            {
+                appConfig.AnthropicMaxTokens = maxTokens;
+                result.AnthropicMaxTokensChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Anthropic max tokens set to {MaxTokens} via command line", maxTokens);
+            }
+        }
+
+        if (HasArgument("deepseek-max-tokens"))
+        {
+            var maxTokens = GetIntegerArgument("deepseek-max-tokens", 4000);
+            if (maxTokens > 0)
+            {
+                appConfig.DeepSeekMaxTokens = maxTokens;
+                result.DeepSeekMaxTokensChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("DeepSeek max tokens set to {MaxTokens} via command line", maxTokens);
+            }
+        }
+
+        if (HasArgument("lmstudio-max-tokens"))
+        {
+            var maxTokens = GetIntegerArgument("lmstudio-max-tokens", 4096);
+            if (maxTokens > 0)
+            {
+                appConfig.LmStudioMaxTokens = maxTokens;
+                result.LmStudioMaxTokensChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("LM Studio max tokens set to {MaxTokens} via command line", maxTokens);
+            }
+        }
+
+        if (HasArgument("openwebui-max-tokens"))
+        {
+            var maxTokens = GetIntegerArgument("openwebui-max-tokens", 4096);
+            if (maxTokens > 0)
+            {
+                appConfig.OpenWebUiMaxTokens = maxTokens;
+                result.OpenWebUiMaxTokensChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Open Web UI max tokens set to {MaxTokens} via command line", maxTokens);
+            }
+        }
+
+        // File size configurations
+        if (HasArgument("max-request-size"))
+        {
+            var maxRequestSize = GetIntegerArgument("max-request-size", 10);
+            if (maxRequestSize > 0)
+            {
+                appConfig.MaxRequestSizeBytes = maxRequestSize * 1024 * 1024; // Convert MB to bytes
+                result.MaxRequestSizeChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Max request size set to {MaxRequestSize} MB via command line", maxRequestSize);
+            }
+        }
+
+        if (HasArgument("max-content-length"))
+        {
+            var maxContentLength = GetIntegerArgument("max-content-length", 1);
+            if (maxContentLength > 0)
+            {
+                appConfig.MaxContentLengthBytes = maxContentLength * 1024 * 1024; // Convert MB to bytes
+                result.MaxContentLengthChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Max content length set to {MaxContentLength} MB via command line", maxContentLength);
+            }
+        }
+
+        if (HasArgument("max-file-audit-size"))
+        {
+            var maxFileAuditSize = GetIntegerArgument("max-file-audit-size", 100);
+            if (maxFileAuditSize > 0)
+            {
+                appConfig.MaxFileAuditSizeBytes = maxFileAuditSize * 1024 * 1024; // Convert MB to bytes
+                result.MaxFileAuditSizeChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Max file audit size set to {MaxFileAuditSize} MB via command line", maxFileAuditSize);
+            }
+        }
+
+        // Text chunking configurations
+        if (HasArgument("chunk-size"))
+        {
+            var chunkSize = GetIntegerArgument("chunk-size", 1000);
+            if (chunkSize > 0)
+            {
+                appConfig.ChunkSize = chunkSize;
+                result.ChunkSizeChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Chunk size set to {ChunkSize} via command line", chunkSize);
+            }
+        }
+
+        if (HasArgument("chunk-overlap"))
+        {
+            var chunkOverlap = GetIntegerArgument("chunk-overlap", 200);
+            if (chunkOverlap >= 0)
+            {
+                appConfig.ChunkOverlap = chunkOverlap;
+                result.ChunkOverlapChanged = true;
+                hasChanges = true;
+                _logger?.LogInformation("Chunk overlap set to {ChunkOverlap} via command line", chunkOverlap);
+            }
+        }
+
+        // Save configuration if any changes were made
+        if (hasChanges)
+        {
+            ConfigurationService.SaveConfiguration(appConfig, _logger);
+            result.HasChanges = true;
+            Console.WriteLine("✅ Application configuration updated from command line arguments.");
+        }
+
+        return result;
+    }
 }
 
 /// <summary>
@@ -1341,4 +1582,38 @@ public class AiProviderConfiguration
     public AiProviderType? ProviderUrlChanged { get; set; }
     public AiProviderType? ProviderModelChanged { get; set; }
     public AiProviderType? TestProvider { get; set; }
+}
+
+/// <summary>
+/// Application configuration result from command line arguments
+/// </summary>
+public class AppConfigurationResult
+{
+    public bool HasChanges { get; set; }
+    
+    // Timeout changes
+    public bool AiProviderTimeoutChanged { get; set; }
+    public bool OllamaTimeoutChanged { get; set; }
+    public bool LmStudioTimeoutChanged { get; set; }
+    public bool OpenWebUiTimeoutChanged { get; set; }
+    public bool EmbeddingTimeoutChanged { get; set; }
+    public bool OpenAiTimeoutChanged { get; set; }
+    public bool AnthropicTimeoutChanged { get; set; }
+    public bool DeepSeekTimeoutChanged { get; set; }
+    
+    // Token limit changes
+    public bool OpenAiMaxTokensChanged { get; set; }
+    public bool AnthropicMaxTokensChanged { get; set; }
+    public bool DeepSeekMaxTokensChanged { get; set; }
+    public bool LmStudioMaxTokensChanged { get; set; }
+    public bool OpenWebUiMaxTokensChanged { get; set; }
+    
+    // File size changes
+    public bool MaxRequestSizeChanged { get; set; }
+    public bool MaxContentLengthChanged { get; set; }
+    public bool MaxFileAuditSizeChanged { get; set; }
+    
+    // Text chunking changes
+    public bool ChunkSizeChanged { get; set; }
+    public bool ChunkOverlapChanged { get; set; }
 }

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -9,7 +10,6 @@ namespace HlpAI.Services;
 /// </summary>
 public class OpenWebUiProvider : IAiProvider
 {
-    private const int DEFAULT_TIMEOUT = 10; // Minutes
     private const string DEFAULT_MODEL = "default";
 
     private readonly HttpClient _httpClient;
@@ -17,6 +17,7 @@ public class OpenWebUiProvider : IAiProvider
     private readonly string _baseUrl;
     private readonly string _model;
     private readonly ILogger? _logger;
+    private readonly AppConfiguration? _config;
     private bool _disposed = false;
 
     public AiProviderType ProviderType => AiProviderType.OpenWebUi;
@@ -26,26 +27,29 @@ public class OpenWebUiProvider : IAiProvider
     public string CurrentModel => _model;
 
     // Constructor for dependency injection (used in tests)
-    public OpenWebUiProvider(HttpClient httpClient, string baseUrl = "http://localhost:3000", string model = DEFAULT_MODEL, ILogger? logger = null)
+    public OpenWebUiProvider(HttpClient httpClient, string baseUrl = "http://localhost:3000", string model = DEFAULT_MODEL, ILogger? logger = null, AppConfiguration? config = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _disposeHttpClient = false; // Don't dispose injected HttpClient
         _baseUrl = baseUrl.TrimEnd('/');
         _model = model;
         _logger = logger;
+        _config = config;
     }
 
     // Main constructor
-    public OpenWebUiProvider(string baseUrl = "http://localhost:3000", string model = DEFAULT_MODEL, ILogger? logger = null)
+    public OpenWebUiProvider(string baseUrl = "http://localhost:3000", string model = DEFAULT_MODEL, ILogger? logger = null, AppConfiguration? config = null)
     {
+        var timeoutMinutes = config?.OpenWebUiTimeoutMinutes ?? 10;
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromMinutes(DEFAULT_TIMEOUT)
+            Timeout = TimeSpan.FromMinutes(timeoutMinutes)
         };
         _disposeHttpClient = true; // Dispose our own HttpClient
         _baseUrl = baseUrl.TrimEnd('/');
         _model = model;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<string> GenerateAsync(string prompt, string? context = null, double temperature = 0.7)
@@ -66,7 +70,7 @@ public class OpenWebUiProvider : IAiProvider
                 model = _model,
                 messages,
                 temperature,
-                max_tokens = 4096,
+                max_tokens = _config?.OpenWebUiMaxTokens ?? 4096,
                 stream = false
             };
 

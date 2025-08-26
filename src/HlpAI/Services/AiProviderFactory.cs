@@ -20,7 +20,8 @@ public static class AiProviderFactory
         AiProviderType providerType,
         string model,
         string? baseUrl = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        AppConfiguration? config = null)
     {
         // Handle empty or whitespace URLs by using default
         string GetEffectiveUrl(string defaultUrl) => 
@@ -31,17 +32,20 @@ public static class AiProviderFactory
             AiProviderType.Ollama => new OllamaClient(
                 GetEffectiveUrl("http://localhost:11434"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.LmStudio => new LmStudioProvider(
                 GetEffectiveUrl("http://localhost:1234"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.OpenWebUi => new OpenWebUiProvider(
                 GetEffectiveUrl("http://localhost:3000"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.OpenAI => throw new InvalidOperationException("OpenAI provider requires an API key. Use the overload with apiKey parameter."),
 
@@ -61,7 +65,8 @@ public static class AiProviderFactory
         string model,
         string? baseUrl = null,
         string? apiKey = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        AppConfiguration? config = null)
     {
         // Handle empty or whitespace URLs by using default
         string GetEffectiveUrl(string defaultUrl) => 
@@ -72,35 +77,41 @@ public static class AiProviderFactory
             AiProviderType.Ollama => new OllamaClient(
                 GetEffectiveUrl("http://localhost:11434"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.LmStudio => new LmStudioProvider(
                 GetEffectiveUrl("http://localhost:1234"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.OpenWebUi => new OpenWebUiProvider(
                 GetEffectiveUrl("http://localhost:3000"),
                 model,
-                logger),
+                logger,
+                config),
 
             AiProviderType.OpenAI => new OpenAiProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "OpenAI provider requires an API key"),
                 model,
                 GetEffectiveUrl("https://api.openai.com"),
-                logger),
+                logger,
+                config),
 
             AiProviderType.Anthropic => new AnthropicProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "Anthropic provider requires an API key"),
                 model,
                 GetEffectiveUrl("https://api.anthropic.com"),
-                logger),
+                logger,
+                config),
 
             AiProviderType.DeepSeek => new DeepSeekProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "DeepSeek provider requires an API key"),
                 model,
                 GetEffectiveUrl("https://api.deepseek.com/v1"),
-                logger),
+                logger,
+                config),
 
             _ => throw new ArgumentException($"Unknown provider type: {providerType}")
         };
@@ -195,7 +206,7 @@ public static class AiProviderFactory
                     if (hasApiKey)
                     {
                         var apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
-                        provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, apiKey, logger);
+                        provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, apiKey, logger, null);
                     }
                     else
                     {
@@ -207,7 +218,7 @@ public static class AiProviderFactory
                 else
                 {
                     // Local providers don't need API keys
-                    provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger);
+                    provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger, null);
                 }
                 
                 var isAvailable = await provider.IsAvailableAsync();

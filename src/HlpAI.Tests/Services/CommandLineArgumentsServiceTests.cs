@@ -1,4 +1,5 @@
 using HlpAI.MCP;
+using HlpAI.Models;
 using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
@@ -906,5 +907,171 @@ public class CommandLineArgumentsServiceTests
         await Assert.That(config.ExtractorsReset).IsEqualTo(0);
         await Assert.That(config.Statistics).IsNull();
         await Assert.That(config.TestResult).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithChunkSize_ConfiguresCorrectly()
+    {
+        // Arrange
+        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
+        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
+        
+        // Reset configuration to defaults before test
+        var defaultConfig = new AppConfiguration();
+        ConfigurationService.SaveConfiguration(defaultConfig);
+        
+        var args = new[] { "--chunk-size", "2000" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsTrue();
+        await Assert.That(result.ChunkSizeChanged).IsTrue();
+        await Assert.That(result.ChunkOverlapChanged).IsFalse();
+        
+        // Verify configuration was saved
+        var config = ConfigurationService.LoadConfiguration();
+        await Assert.That(config.ChunkSize).IsEqualTo(2000);
+        
+        // Cleanup
+        ConfigurationService.SetConfigFilePathForTesting(null);
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithChunkOverlap_ConfiguresCorrectly()
+    {
+        // Arrange
+        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
+        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
+        
+        // Reset configuration to defaults before test
+        var defaultConfig = new AppConfiguration();
+        ConfigurationService.SaveConfiguration(defaultConfig);
+        
+        var args = new[] { "--chunk-overlap", "300" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsTrue();
+        await Assert.That(result.ChunkSizeChanged).IsFalse();
+        await Assert.That(result.ChunkOverlapChanged).IsTrue();
+        
+        // Verify configuration was saved
+        var config = ConfigurationService.LoadConfiguration();
+        await Assert.That(config.ChunkOverlap).IsEqualTo(300);
+        
+        // Cleanup
+        ConfigurationService.SetConfigFilePathForTesting(null);
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithBothChunkParameters_ConfiguresCorrectly()
+    {
+        // Arrange
+        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
+        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
+        
+        // Reset configuration to defaults before test
+        var defaultConfig = new AppConfiguration();
+        ConfigurationService.SaveConfiguration(defaultConfig);
+        
+        var args = new[] { "--chunk-size", "1500", "--chunk-overlap", "150" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsTrue();
+        await Assert.That(result.ChunkSizeChanged).IsTrue();
+        await Assert.That(result.ChunkOverlapChanged).IsTrue();
+        
+        // Verify configuration was saved
+        var config = ConfigurationService.LoadConfiguration();
+        await Assert.That(config.ChunkSize).IsEqualTo(1500);
+        await Assert.That(config.ChunkOverlap).IsEqualTo(150);
+        
+        // Cleanup
+        ConfigurationService.SetConfigFilePathForTesting(null);
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithZeroChunkOverlap_ConfiguresCorrectly()
+    {
+        // Arrange
+        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
+        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
+        
+        // Reset configuration to defaults before test
+        var defaultConfig = new AppConfiguration();
+        ConfigurationService.SaveConfiguration(defaultConfig);
+        
+        var args = new[] { "--chunk-overlap", "0" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsTrue();
+        await Assert.That(result.ChunkOverlapChanged).IsTrue();
+        
+        // Verify configuration was saved
+        var config = ConfigurationService.LoadConfiguration();
+        await Assert.That(config.ChunkOverlap).IsEqualTo(0);
+        
+        // Cleanup
+        ConfigurationService.SetConfigFilePathForTesting(null);
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithInvalidChunkSize_MakesNoChanges()
+    {
+        // Arrange
+        var args = new[] { "--chunk-size", "-100" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsFalse();
+        await Assert.That(result.ChunkSizeChanged).IsFalse();
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithInvalidChunkOverlap_MakesNoChanges()
+    {
+        // Arrange
+        var args = new[] { "--chunk-overlap", "-50" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsFalse();
+        await Assert.That(result.ChunkOverlapChanged).IsFalse();
+    }
+
+    [Test]
+    public async Task ApplyAppConfiguration_WithNoChunkParameters_MakesNoChanges()
+    {
+        // Arrange
+        var args = new[] { "--log-level", "Error" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = service.ApplyAppConfiguration();
+
+        // Assert
+        await Assert.That(result.HasChanges).IsFalse();
+        await Assert.That(result.ChunkSizeChanged).IsFalse();
+        await Assert.That(result.ChunkOverlapChanged).IsFalse();
     }
 }

@@ -19,7 +19,9 @@ public class PromptService : IDisposable
         _logger = logger;
         _configService = new SqliteConfigurationService(logger);
         _validationService = new SecurityValidationService(logger as ILogger<SecurityValidationService>);
-        _securityMiddleware = new SecurityMiddleware(_validationService, logger as ILogger<SecurityMiddleware>);
+        var appConfig = ConfigurationService.LoadConfiguration(logger);
+        var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
+        _securityMiddleware = new SecurityMiddleware(_validationService, new SecurityAuditService(logger as ILogger<SecurityAuditService>), logger as ILogger<SecurityMiddleware>, securityConfig);
         _ownsConfigService = true;
     }
 
@@ -28,7 +30,9 @@ public class PromptService : IDisposable
         _logger = logger;
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _validationService = new SecurityValidationService(logger as ILogger<SecurityValidationService>);
-        _securityMiddleware = new SecurityMiddleware(_validationService, logger as ILogger<SecurityMiddleware>);
+        var appConfig = ConfigurationService.LoadConfiguration(logger);
+        var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
+        _securityMiddleware = new SecurityMiddleware(_validationService, new SecurityAuditService(logger as ILogger<SecurityAuditService>), logger as ILogger<SecurityMiddleware>, securityConfig);
         _ownsConfigService = false;
     }
 
