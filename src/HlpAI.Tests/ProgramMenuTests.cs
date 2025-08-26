@@ -71,8 +71,8 @@ public class ProgramMenuTests
         
         // Assert
         await Assert.That(output).Contains(header, StringComparison.Ordinal);
-        await Assert.That(output).Contains("========================", StringComparison.Ordinal);
-        await Assert.That(output).DoesNotContain("📍", StringComparison.Ordinal); // No breadcrumb
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────", StringComparison.Ordinal);
+        await Assert.That(output).DoesNotContain("▶", StringComparison.Ordinal); // No breadcrumb
     }
     
     [Test]
@@ -88,8 +88,8 @@ public class ProgramMenuTests
         // Assert
         var output = _stringWriter.ToString();
         await Assert.That(output).Contains(header);
-        await Assert.That(output).Contains(new string('=', Math.Max(header.Length, 24)));
-        await Assert.That(output).Contains($"📍 {breadcrumb}");
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────");
+        await Assert.That(output).Contains($"▶ {breadcrumb}");
     }
     
     [Test]
@@ -104,7 +104,7 @@ public class ProgramMenuTests
         // Assert
         var output = _stringWriter.ToString();
         await Assert.That(output).Contains(longHeader);
-        await Assert.That(output).Contains(new string('=', longHeader.Length));
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────");
     }
     
     [Test]
@@ -119,7 +119,7 @@ public class ProgramMenuTests
         // Assert
         var output = _stringWriter.ToString();
         await Assert.That(output).Contains(shortHeader);
-        await Assert.That(output).Contains(new string('=', 24)); // Minimum length
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────"); // Box border
     }
     
     [Test]
@@ -215,18 +215,18 @@ public class ProgramMenuTests
         var output = _stringWriter.ToString();
         
         // Check for main sections
-        await Assert.That(output).Contains("📚 HlpAI - Available Commands:");
-        await Assert.That(output).Contains("🤖 AI Provider:"); // This line includes provider status
-        await Assert.That(output).Contains("📁 File Operations:");
-        await Assert.That(output).Contains("🤖 AI Features:");
-        await Assert.That(output).Contains("🔍 RAG Features:");
-        await Assert.That(output).Contains("🛠️ System:");
+        await Assert.That(output).Contains("📚 HlpAI - Enhanced MCP RAG Server");
+        await Assert.That(output).Contains("🤖 AI Provider Status"); // This line includes provider status
+        await Assert.That(output).Contains("📁 File Operations");
+        await Assert.That(output).Contains("🤖 AI Features");
+        await Assert.That(output).Contains("🔍 RAG Features");
+        await Assert.That(output).Contains("🛠️ System");
         
         // Check for specific menu items
-        await Assert.That(output).Contains("1 - List all available files");
-        await Assert.That(output).Contains("17 - AI provider management");
-        await Assert.That(output).Contains("18 - Vector database management");
-        await Assert.That(output).Contains("q - Quit");
+        await Assert.That(output).Contains("01. 📋 List all available files");
+        await Assert.That(output).Contains("17. 🤖 AI provider management");
+        await Assert.That(output).Contains("18. 💾 Vector database management");
+        await Assert.That(output).Contains("q. 🚪 Quit");
     }
     
     [Test]
@@ -238,7 +238,7 @@ public class ProgramMenuTests
         // Assert
         var output = _stringWriter.ToString();
         await Assert.That(output).Contains("🎯 HlpAI");
-        await Assert.That(output).Contains(new string('=', 24));
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────");
     }
     
     [Test]
@@ -299,7 +299,7 @@ public class ProgramMenuTests
         
         // Assert
         await Assert.That(output).Contains("🎯 HlpAI", StringComparison.Ordinal);
-        await Assert.That(output).Contains(new string('=', 24), StringComparison.Ordinal);
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────", StringComparison.Ordinal);
     }
     
     [Test]
@@ -313,11 +313,11 @@ public class ProgramMenuTests
         var output = _stringWriter.ToString();
         
         // Assert - Check for key menu elements
-        await Assert.That(output).Contains("📚 HlpAI - Available Commands:", StringComparison.Ordinal);
-        await Assert.That(output).Contains("📁 File Operations:", StringComparison.Ordinal);
-        await Assert.That(output).Contains("🤖 AI Features:", StringComparison.Ordinal);
-        await Assert.That(output).Contains("🔍 RAG Features:", StringComparison.Ordinal);
-        await Assert.That(output).Contains("🛠️ System:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("📚 HlpAI - Enhanced MCP RAG Server", StringComparison.Ordinal);
+        await Assert.That(output).Contains("📁 File Operations", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🤖 AI Features", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🔍 RAG Features", StringComparison.Ordinal);
+        await Assert.That(output).Contains("🛠️ System", StringComparison.Ordinal);
     }
     
     [Test]
@@ -335,7 +335,7 @@ public class ProgramMenuTests
         
         // Assert
         await Assert.That(output).Contains(header, StringComparison.Ordinal);
-        await Assert.That(output).Contains($"📍 {breadcrumb}", StringComparison.Ordinal);
+        await Assert.That(output).Contains($"▶ {breadcrumb}", StringComparison.Ordinal);
     }
     
     [Test]
@@ -369,7 +369,7 @@ public class ProgramMenuTests
         
         // Assert
         await Assert.That(output).Contains(headerWithEmojis, StringComparison.Ordinal);
-        await Assert.That(output).Contains(new string('=', headerWithEmojis.Length), StringComparison.Ordinal);
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────", StringComparison.Ordinal);
     }
     
     [Test]
@@ -387,7 +387,7 @@ public class ProgramMenuTests
         
         // Assert
         await Assert.That(output).Contains(header, StringComparison.Ordinal);
-        await Assert.That(output).Contains($"📍 {complexBreadcrumb}", StringComparison.Ordinal);
+        await Assert.That(output).Contains($"▶ {complexBreadcrumb}", StringComparison.Ordinal);
     }
     
     [Test]
@@ -403,7 +403,7 @@ public class ProgramMenuTests
         var output = _stringWriter.ToString();
         
         // Assert - Should still show minimum separator length
-        await Assert.That(output).Contains(new string('=', 24), StringComparison.Ordinal);
+        await Assert.That(output).Contains("╭─────────────────────────────────────────────────", StringComparison.Ordinal);
     }
     
     [Test]
@@ -417,10 +417,10 @@ public class ProgramMenuTests
         var output = _stringWriter.ToString();
         
         // Assert - Menu should contain main menu options
-        await Assert.That(output).Contains("📚 HlpAI - Available Commands:", StringComparison.Ordinal);
-        await Assert.That(output).Contains("1 - List all available files", StringComparison.Ordinal);
-        await Assert.That(output).Contains("2 - Read specific file content", StringComparison.Ordinal);
-        await Assert.That(output).Contains("q - Quit", StringComparison.Ordinal);
+        await Assert.That(output).Contains("📚 HlpAI - Enhanced MCP RAG Server", StringComparison.Ordinal);
+        await Assert.That(output).Contains("01. 📋 List all available files", StringComparison.Ordinal);
+        await Assert.That(output).Contains("02. 📄 Read specific file content", StringComparison.Ordinal);
+        await Assert.That(output).Contains("q. 🚪 Quit", StringComparison.Ordinal);
     }
 
 }

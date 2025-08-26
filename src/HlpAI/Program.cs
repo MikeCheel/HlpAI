@@ -3866,36 +3866,56 @@ private static Task WaitForKeyPress()
     {
         var config = ConfigurationService.LoadConfiguration();
         
-        Console.WriteLine("\n📚 HlpAI - Available Commands:");
+        // Header with styled box
+        Console.WriteLine();
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Enhanced MCP RAG Server"), MenuStyler.HeaderColor);
         
-        // Display enhanced AI provider status
+        // AI Provider Status
         var providerStatus = GetProviderStatusDisplay(config);
-        Console.WriteLine($"🤖 AI Provider: {providerStatus}");
-        Console.WriteLine("📁 File Operations:");
-        Console.WriteLine("  1 - List all available files");
-        Console.WriteLine("  2 - Read specific file content");
-        Console.WriteLine("  3 - Search files by text content");
-        Console.WriteLine("\n🤖 AI Features:");
-        Console.WriteLine("  4 - Ask AI questions (with optional RAG enhancement)");
-        Console.WriteLine("  5 - Analyze specific files with AI");
-        Console.WriteLine("\n🔍 RAG Features:");
-        Console.WriteLine("  6 - Semantic search using vector embeddings");
-        Console.WriteLine("  7 - RAG-enhanced AI questioning");
-        Console.WriteLine("  8 - Reindex documents");
-        Console.WriteLine("\n🛠️ System:");
-        Console.WriteLine("  9 - Show available models");
-        Console.WriteLine("  10 - Display system status");
-        Console.WriteLine("  11 - Show comprehensive indexing report");
-        Console.WriteLine("  12 - Run as MCP server (for integration)");
-        Console.WriteLine("  13 - Change document directory");
-        Console.WriteLine("  14 - Configuration settings");
-        Console.WriteLine("  15 - View error logs");
-        Console.WriteLine("  16 - File extractor management");
-        Console.WriteLine("  17 - AI provider management");
-        Console.WriteLine("  18 - Vector database management");
-        Console.WriteLine("  c - Clear screen");
-        Console.WriteLine("  m - Show this menu");
-        Console.WriteLine("  q - Quit");
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Provider Status"), MenuStyler.InfoColor);
+        MenuStyler.WriteColoredLine($"  🤖 Current Provider: {providerStatus}", MenuStyler.StatusColor);
+        Console.WriteLine();
+        
+        // File Operations Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📁 File Operations"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(1, "List all available files", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(2, "Read specific file content", "📄"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Search files by text content", "🔍"));
+        Console.WriteLine();
+        
+        // AI Features Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Features"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Ask AI questions (with optional RAG enhancement)", "💬"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Analyze specific files with AI", "🔬"));
+        Console.WriteLine();
+        
+        // RAG Features Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🔍 RAG Features"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Semantic search using vector embeddings", "🎯"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(7, "RAG-enhanced AI questioning", "🧠"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(8, "Reindex documents", "🔄"));
+        Console.WriteLine();
+        
+        // System Management Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🛠️ System Management"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(9, "Show available models", "📊"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(10, "Display system status", "📈"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(11, "Show comprehensive indexing report", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(12, "Run as MCP server (for integration)", "🔗"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(13, "Change document directory", "📁"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(14, "Configuration settings", "⚙️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(15, "View error logs", "📝"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(16, "File extractor management", "🔧"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(17, "AI provider management", "🤖"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(18, "Vector database management", "💾"));
+        Console.WriteLine();
+        
+        // Quick Actions Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen", "🖥️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit", "🚪"));
+        Console.WriteLine();
     }
 
     public static void ClearScreen()
@@ -3921,12 +3941,12 @@ private static Task WaitForKeyPress()
             // Ignore console clear errors in test environments
         }
         
-        Console.WriteLine(header);
-        Console.WriteLine(new string('=', Math.Max(header.Length, 24)));
+        // Use styled header
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader(header), MenuStyler.HeaderColor);
         
         if (!string.IsNullOrEmpty(breadcrumb))
         {
-            Console.WriteLine($"📍 {breadcrumb}");
+            MenuStyler.WriteColoredLine(MenuStyler.FormatBreadcrumb(breadcrumb), MenuStyler.InfoColor);
             Console.WriteLine();
         }
     }
