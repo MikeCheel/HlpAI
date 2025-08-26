@@ -124,6 +124,7 @@ public class MenuStateManager
             MenuContext.ExtractorManagement => "Extractor Management",
             MenuContext.AiProviderManagement => "AI Provider Management",
             MenuContext.VectorDatabaseManagement => "Vector Database Management",
+            MenuContext.FileFilteringManagement => "File Filtering Management",
             _ => context.ToString()
         };
     }
@@ -143,6 +144,7 @@ public class MenuStateManager
             MenuContext.ExtractorManagement => "🔧",
             MenuContext.AiProviderManagement => "🤖",
             MenuContext.VectorDatabaseManagement => "🗄️",
+            MenuContext.FileFilteringManagement => "🗂️",
             _ => "📄"
         };
     }

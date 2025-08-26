@@ -338,6 +338,16 @@ public static class Program
                             menuStateManager.NavigateBack();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
+                        case "19":
+                        case "filter":
+                        case "filtering":
+                        case "file-filter":
+                        case "file-filtering":
+                            menuStateManager.NavigateToMenu(MenuContext.FileFilteringManagement);
+                            await ShowFileFilteringManagementMenuAsync(menuStateManager);
+                            menuStateManager.NavigateBack();
+                            ShowMenu(); // Restore main menu after sub-menu
+                            break;
                         case "c":
                         case "clear":
                             ClearScreen();
@@ -389,6 +399,9 @@ public static class Program
                 break;
             case MenuContext.VectorDatabaseManagement:
                 await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
+                break;
+            case MenuContext.FileFilteringManagement:
+                await ShowFileFilteringManagementMenuAsync(menuStateManager);
                 break;
             default:
                 ShowMenu();
@@ -3908,6 +3921,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine(MenuStyler.FormatMenuOption(16, "File extractor management", "🔧"));
         Console.WriteLine(MenuStyler.FormatMenuOption(17, "AI provider management", "🤖"));
         Console.WriteLine(MenuStyler.FormatMenuOption(18, "Vector database management", "💾"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(19, "File filtering management", "🗂️"));
         Console.WriteLine();
         
         // Quick Actions Section
@@ -4817,6 +4831,509 @@ private static Task WaitForKeyPress()
         }
     }
     
+    private static async Task ShowFilterConfigurationAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            var config = await filterService.GetFilterConfigurationAsync();
+            
+            ClearScreenWithHeader("🔍 Current Filter Configuration", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Configuration");
+            
+            Console.WriteLine("\n📋 Filter Configuration:");
+            Console.WriteLine($"   Only Supported Types: {(config.OnlySupportedTypes ? "✅ Yes" : "❌ No")}");
+            Console.WriteLine($"   Case Sensitive Patterns: {(config.CaseSensitivePatterns ? "✅ Yes" : "❌ No")}");
+            
+            if (config.MaxFileSizeBytes.HasValue)
+                Console.WriteLine($"   Max File Size: {config.MaxFileSizeBytes.Value:N0} bytes ({config.MaxFileSizeBytes.Value / 1024.0 / 1024.0:F2} MB)");
+            else
+                Console.WriteLine("   Max File Size: No limit");
+                
+            if (config.MinFileSizeBytes.HasValue)
+                Console.WriteLine($"   Min File Size: {config.MinFileSizeBytes.Value:N0} bytes");
+            else
+                Console.WriteLine("   Min File Size: No limit");
+                
+            if (config.MaxFileAgeDays.HasValue)
+                Console.WriteLine($"   Max File Age: {config.MaxFileAgeDays.Value} days");
+            else
+                Console.WriteLine("   Max File Age: No limit");
+                
+            if (config.MinFileAgeHours.HasValue)
+                Console.WriteLine($"   Min File Age: {config.MinFileAgeHours.Value} hours");
+            else
+                Console.WriteLine("   Min File Age: No limit");
+            
+            Console.WriteLine("\n📁 Supported File Types:");
+            if (config.SupportedTypes?.Count > 0)
+            {
+                foreach (var type in config.SupportedTypes.OrderBy(t => t))
+                {
+                    Console.WriteLine($"   • {type}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("   No supported types configured");
+            }
+            
+            Console.WriteLine("\n✅ Include Patterns:");
+            if (config.IncludePatterns?.Count > 0)
+            {
+                foreach (var pattern in config.IncludePatterns)
+                {
+                    Console.WriteLine($"   • {pattern}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("   No include patterns configured");
+            }
+            
+            Console.WriteLine("\n❌ Exclude Patterns:");
+            if (config.ExcludePatterns?.Count > 0)
+            {
+                foreach (var pattern in config.ExcludePatterns)
+                {
+                    Console.WriteLine($"   • {pattern}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("   No exclude patterns configured");
+            }
+            
+            Console.WriteLine("\nPress any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error retrieving filter configuration: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task ShowFilterStatisticsAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            var stats = await filterService.GetFilterStatisticsAsync();
+            
+            ClearScreenWithHeader("📊 Filter Statistics", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Statistics");
+            
+            Console.WriteLine("\n📈 Current Filter Statistics:");
+            Console.WriteLine($"   Include Patterns: {stats.IncludePatternCount}");
+            Console.WriteLine($"   Exclude Patterns: {stats.ExcludePatternCount}");
+            Console.WriteLine($"   Supported Types: {stats.SupportedTypeCount}");
+            Console.WriteLine($"   Only Supported Types: {(stats.OnlySupportedTypes ? "✅ Enabled" : "❌ Disabled")}");
+            Console.WriteLine($"   Has Size Filters: {(stats.HasSizeFilters ? "✅ Yes" : "❌ No")}");
+            Console.WriteLine($"   Has Age Filters: {(stats.HasAgeFilters ? "✅ Yes" : "❌ No")}");
+            Console.WriteLine($"   Last Updated: {stats.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC");
+            
+            Console.WriteLine("\nPress any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error retrieving filter statistics: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task AddIncludePatternAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            ClearScreenWithHeader("➕ Add Include Pattern", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Add Include");
+            
+            Console.WriteLine("\n📝 Add Include Pattern:");
+            Console.WriteLine("Examples: *.txt, document*.pdf, *report*, temp/*");
+            Console.WriteLine("Use * for wildcards and ? for single characters");
+            Console.WriteLine();
+            
+            var pattern = SafePromptForString("Enter include pattern (or 'cancel' to abort): ", "");
+            
+            if (string.IsNullOrWhiteSpace(pattern) || string.Equals(pattern, "cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Operation cancelled.");
+                await ShowBriefPauseAsync("Cancelled", 1000);
+                return;
+            }
+            
+            var success = await filterService.AddIncludePatternAsync(pattern);
+            
+            if (success)
+            {
+                Console.WriteLine($"✅ Include pattern '{pattern}' added successfully!");
+            }
+            else
+            {
+                Console.WriteLine($"❌ Failed to add include pattern '{pattern}'");
+            }
+            
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error adding include pattern: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task AddExcludePatternAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            ClearScreenWithHeader("➕ Add Exclude Pattern", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Add Exclude");
+            
+            Console.WriteLine("\n📝 Add Exclude Pattern:");
+            Console.WriteLine("Examples: *.tmp, .git/*, node_modules/*, *.log");
+            Console.WriteLine("Use * for wildcards and ? for single characters");
+            Console.WriteLine();
+            
+            var pattern = SafePromptForString("Enter exclude pattern (or 'cancel' to abort): ", "");
+            
+            if (string.IsNullOrWhiteSpace(pattern) || string.Equals(pattern, "cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Operation cancelled.");
+                await ShowBriefPauseAsync("Cancelled", 1000);
+                return;
+            }
+            
+            var success = await filterService.AddExcludePatternAsync(pattern);
+            
+            if (success)
+            {
+                Console.WriteLine($"✅ Exclude pattern '{pattern}' added successfully!");
+            }
+            else
+            {
+                Console.WriteLine($"❌ Failed to add exclude pattern '{pattern}'");
+            }
+            
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error adding exclude pattern: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task RemoveIncludePatternAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            var config = await filterService.GetFilterConfigurationAsync();
+            
+            ClearScreenWithHeader("➖ Remove Include Pattern", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Remove Include");
+            
+            if (!(config.IncludePatterns?.Count > 0))
+            {
+                Console.WriteLine("\n❌ No include patterns configured to remove.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey(true);
+                return;
+            }
+            
+            Console.WriteLine("\n📋 Current Include Patterns:");
+            for (int i = 0; i < config.IncludePatterns.Count; i++)
+            {
+                Console.WriteLine($"   {i + 1}. {config.IncludePatterns[i]}");
+            }
+            
+            Console.WriteLine();
+            var input = SafePromptForString("Enter pattern number to remove (or 'cancel' to abort): ", "");
+            
+            if (string.IsNullOrWhiteSpace(input) || string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Operation cancelled.");
+                await ShowBriefPauseAsync("Cancelled", 1000);
+                return;
+            }
+            
+            if (int.TryParse(input, out var index) && index >= 1 && index <= config.IncludePatterns.Count)
+            {
+                var pattern = config.IncludePatterns[index - 1];
+                var success = await filterService.RemoveIncludePatternAsync(pattern);
+                
+                if (success)
+                {
+                    Console.WriteLine($"✅ Include pattern '{pattern}' removed successfully!");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Failed to remove include pattern '{pattern}'");
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid pattern number.");
+            }
+            
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error removing include pattern: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task RemoveExcludePatternAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            var config = await filterService.GetFilterConfigurationAsync();
+            
+            ClearScreenWithHeader("➖ Remove Exclude Pattern", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Remove Exclude");
+            
+            if (!(config.ExcludePatterns?.Count > 0))
+            {
+                Console.WriteLine("\n❌ No exclude patterns configured to remove.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey(true);
+                return;
+            }
+            
+            Console.WriteLine("\n📋 Current Exclude Patterns:");
+            for (int i = 0; i < config.ExcludePatterns.Count; i++)
+            {
+                Console.WriteLine($"   {i + 1}. {config.ExcludePatterns[i]}");
+            }
+            
+            Console.WriteLine();
+            var input = SafePromptForString("Enter pattern number to remove (or 'cancel' to abort): ", "");
+            
+            if (string.IsNullOrWhiteSpace(input) || string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Operation cancelled.");
+                await ShowBriefPauseAsync("Cancelled", 1000);
+                return;
+            }
+            
+            if (int.TryParse(input, out var index) && index >= 1 && index <= config.ExcludePatterns.Count)
+            {
+                var pattern = config.ExcludePatterns[index - 1];
+                var success = await filterService.RemoveExcludePatternAsync(pattern);
+                
+                if (success)
+                {
+                    Console.WriteLine($"✅ Exclude pattern '{pattern}' removed successfully!");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Failed to remove exclude pattern '{pattern}'");
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid pattern number.");
+            }
+            
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error removing exclude pattern: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task TestFilterPatternsAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            ClearScreenWithHeader("🧪 Test Filter Patterns", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Test Patterns");
+            
+            Console.WriteLine("\n🧪 Test Filter Patterns:");
+            Console.WriteLine("Enter file paths to test (one per line, empty line to finish):");
+            Console.WriteLine("Examples: C:\\temp\\document.txt, /home/user/file.pdf, data/*.csv");
+            Console.WriteLine();
+            
+            var testFiles = new List<string>();
+            string? input;
+            
+            while (true)
+            {
+                input = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(input))
+                    break;
+                testFiles.Add(input.Trim());
+            }
+            
+            if (testFiles.Count == 0)
+            {
+                Console.WriteLine("❌ No test files provided.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey(true);
+                return;
+            }
+            
+            var result = await filterService.TestPatternsAsync(testFiles);
+            
+            Console.WriteLine("\n📊 Test Results:");
+            Console.WriteLine($"   Total files tested: {result.TestFiles.Count}");
+            Console.WriteLine($"   Accepted files: {result.AcceptedFiles.Count}");
+            Console.WriteLine($"   Rejected files: {result.RejectedFiles.Count}");
+            
+            if (result.AcceptedFiles.Count > 0)
+            {
+                Console.WriteLine("\n✅ Accepted Files:");
+                foreach (var file in result.AcceptedFiles)
+                {
+                    Console.WriteLine($"   • {file}");
+                }
+            }
+            
+            if (result.RejectedFiles.Count > 0)
+            {
+                Console.WriteLine("\n❌ Rejected Files:");
+                foreach (var file in result.RejectedFiles)
+                {
+                    Console.WriteLine($"   • {file}");
+                }
+            }
+            
+            Console.WriteLine("\nPress any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error testing filter patterns: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+    
+    private static async Task ResetFilterConfigurationAsync(FileTypeFilterService filterService, MenuStateManager? menuStateManager)
+    {
+        try
+        {
+            ClearScreenWithHeader("🔄 Reset Filter Configuration", menuStateManager?.GetBreadcrumbPath() ?? "File Filtering > Reset");
+            
+            Console.WriteLine("\n⚠️  Reset Filter Configuration:");
+            Console.WriteLine("This will reset all filter settings to their default values.");
+            Console.WriteLine("All custom include/exclude patterns will be lost.");
+            Console.WriteLine();
+            
+            var confirm = SafePromptForString("Are you sure you want to reset? (yes/no): ", "no").ToLower();
+            
+            if (confirm != "yes" && confirm != "y")
+            {
+                Console.WriteLine("Operation cancelled.");
+                await ShowBriefPauseAsync("Cancelled", 1000);
+                return;
+            }
+            
+            var success = await filterService.ResetToDefaultsAsync();
+            
+            if (success)
+            {
+                Console.WriteLine("✅ Filter configuration reset to defaults successfully!");
+            }
+            else
+            {
+                Console.WriteLine("❌ Failed to reset filter configuration.");
+            }
+            
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error resetting filter configuration: {ex.Message}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey(true);
+        }
+    }
+
+    private static async Task ShowFileFilteringManagementMenuAsync(MenuStateManager? menuStateManager = null)
+    {
+        using var filterService = new FileTypeFilterService();
+        
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > File Filtering Management";
+        ClearScreenWithHeader("🔍 File Filtering Management", breadcrumb);
+        
+        var running = true;
+        
+        while (running)
+        {
+            try
+            {
+                Console.WriteLine("\nFile Filtering Options:");
+                Console.WriteLine("1. View current filter configuration");
+                Console.WriteLine("2. View filter statistics");
+                Console.WriteLine("3. Add include pattern");
+                Console.WriteLine("4. Add exclude pattern");
+                Console.WriteLine("5. Remove include pattern");
+                Console.WriteLine("6. Remove exclude pattern");
+                Console.WriteLine("7. Test patterns against files");
+                Console.WriteLine("8. Reset to default configuration");
+                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("q. Quit application");
+                
+                Console.Write("\nEnter your choice (1-8, b, q): ");
+                var input = SafePromptForString("", "b").ToLower();
+                
+                switch (input)
+                {
+                    case "1":
+                        await ShowFilterConfigurationAsync(filterService, menuStateManager);
+                        break;
+                    case "2":
+                        await ShowFilterStatisticsAsync(filterService, menuStateManager);
+                        break;
+                    case "3":
+                        await AddIncludePatternAsync(filterService, menuStateManager);
+                        break;
+                    case "4":
+                        await AddExcludePatternAsync(filterService, menuStateManager);
+                        break;
+                    case "5":
+                        await RemoveIncludePatternAsync(filterService, menuStateManager);
+                        break;
+                    case "6":
+                        await RemoveExcludePatternAsync(filterService, menuStateManager);
+                        break;
+                    case "7":
+                        await TestFilterPatternsAsync(filterService, menuStateManager);
+                        break;
+                    case "8":
+                        await ResetFilterConfigurationAsync(filterService, menuStateManager);
+                        break;
+                    case "b":
+                    case "back":
+                        running = false;
+                        break;
+                    case "q":
+                    case "quit":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Console.WriteLine("Invalid choice. Please try again.");
+                        await ShowBriefPauseAsync("Invalid choice", 1000);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error: {ex.Message}");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey(true);
+            }
+        }
+    }
+
     /// <summary>
     /// Result of configuration validation
     /// </summary>

@@ -167,5 +167,6 @@ public enum MenuContext
     LogViewer,
     ExtractorManagement,
     AiProviderManagement,
-    VectorDatabaseManagement
+    VectorDatabaseManagement,
+    FileFilteringManagement
 }
