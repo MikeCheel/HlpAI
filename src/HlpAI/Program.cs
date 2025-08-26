@@ -166,10 +166,9 @@ public static class Program
             {
                 await RestoreMenuContextAsync(startupContext, server, menuStateManager);
             }
-            else
-            {
-                ShowMenu();
-            }
+            
+            // Always show menu after initialization (including after RAG indexing)
+            ShowMenu();
 
             bool running = true;
             while (running)

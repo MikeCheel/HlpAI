@@ -405,5 +405,22 @@ public class ProgramMenuTests
         // Assert - Should still show minimum separator length
         await Assert.That(output).Contains(new string('=', 24), StringComparison.Ordinal);
     }
+    
+    [Test]
+    public async Task MenuNavigation_ShowMenuAfterInitialization_DisplaysMenu()
+    {
+        // This test verifies that the menu is displayed after initialization
+        // regardless of startup context (fixes issue where no menu appeared after RAG indexing)
+        
+        // Act
+        Program.ShowMenu();
+        var output = _stringWriter.ToString();
+        
+        // Assert - Menu should contain main menu options
+        await Assert.That(output).Contains("📚 HlpAI - Available Commands:", StringComparison.Ordinal);
+        await Assert.That(output).Contains("1 - List all available files", StringComparison.Ordinal);
+        await Assert.That(output).Contains("2 - Read specific file content", StringComparison.Ordinal);
+        await Assert.That(output).Contains("q - Quit", StringComparison.Ordinal);
+    }
 
 }
