@@ -15,7 +15,7 @@ Start-Sleep -Seconds 2
 
 # Clean up previous builds
 Write-Host "🧹 Cleaning previous builds..." -ForegroundColor Yellow
-dotnet clean --configuration $Configuration --verbosity quiet
+dotnet clean src/HlpAI.sln --configuration $Configuration --verbosity quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Clean failed" -ForegroundColor Red
     exit 1
@@ -30,7 +30,7 @@ New-Item -ItemType Directory -Force -Path $CoverageDir | Out-Null
 
 # Build the solution
 Write-Host "🔨 Building solution..." -ForegroundColor Yellow
-dotnet build --configuration $Configuration --verbosity quiet
+dotnet build src/HlpAI.sln --configuration $Configuration --verbosity quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Build failed" -ForegroundColor Red
     exit 1
@@ -52,7 +52,7 @@ $TestCommand = @(
     "/p:CoverletOutputFormat=cobertura"
     "/p:CoverletOutput=$CoverageDir/"
     "/p:Include=[HlpAI]*"
-        "/p:Exclude=[HlpAI]HlpAI.Program*,[*.Tests]*"
+    "/p:Exclude=[HlpAI]HlpAI.Program*%2c[*.Tests]*"
     "/p:Threshold=$CoverageThreshold"
     "/p:ThresholdType=line"
 )

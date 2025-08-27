@@ -10,14 +10,14 @@ timeout /t 2 >nul
 
 REM Clean and build
 echo 🧹 Cleaning previous builds...
-dotnet clean --verbosity quiet
+dotnet clean src/HlpAI.sln --verbosity quiet
 if %ERRORLEVEL% neq 0 (
     echo ❌ Clean failed
     exit /b 1
 )
 
 echo 🔨 Building solution...
-dotnet build --verbosity quiet
+dotnet build src/HlpAI.sln --verbosity quiet
 if %ERRORLEVEL% neq 0 (
     echo ❌ Build failed
     exit /b 1
@@ -39,7 +39,7 @@ dotnet test src/HlpAI.Tests/HlpAI.Tests.csproj ^
     /p:CoverletOutputFormat=cobertura ^
     /p:CoverletOutput=TestResults/coverage/ ^
     /p:Include="[HlpAI]*" ^
-    /p:Exclude="[HlpAI]HlpAI.Program*,[*.Tests]*"
+    /p:Exclude="[HlpAI]HlpAI.Program*%2c[*.Tests]*"
 
 set TEST_EXIT_CODE=%ERRORLEVEL%
 

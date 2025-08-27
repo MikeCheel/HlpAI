@@ -141,6 +141,58 @@ graph TB
     K[🔌 MCP Protocol] --> G
 ```
 
+## 🧪 Development & Testing
+
+### Running Tests
+```bash
+# Run all tests
+dotnet test
+
+# Run tests with detailed output
+dotnet test --verbosity detailed
+
+# Run specific test project
+dotnet test src/HlpAI.Tests/HlpAI.Tests.csproj
+```
+
+### Code Coverage Analysis
+HlpAI maintains high code coverage standards (70%+ line coverage requirement).
+
+#### Generate Coverage Reports
+```bash
+# Method 1: Manual process
+# Run tests with coverage collection
+dotnet test src/HlpAI.Tests/HlpAI.Tests.csproj --collect:"XPlat Code Coverage" --results-directory:TestResults
+
+# Generate HTML coverage report
+reportgenerator -reports:coverage.cobertura.xml -targetdir:TestResults/CoverageReport -reporttypes:Html
+
+# View report in browser
+start TestResults/CoverageReport/index.html
+```
+
+```powershell
+# Method 2: Automated script (Windows)
+.\run-tests-with-coverage.ps1
+```
+
+#### Coverage Requirements
+- **Minimum Line Coverage**: 70%
+- **Minimum Branch Coverage**: 50%
+- **Current Status**: 39% line coverage, 25% branch coverage (improvement in progress)
+- **Test Count**: 877 tests (all passing)
+
+#### Coverage Report Locations
+- **Raw Data**: `coverage.cobertura.xml`
+- **HTML Report**: `TestResults/CoverageReport/index.html`
+- **Analysis**: See `ai-todos.md` for detailed improvement plan
+
+### Build Requirements
+- Zero build errors
+- Zero build warnings
+- All tests must pass
+- Code coverage targets must be met
+
 ## 📚 Detailed Documentation
 
 For comprehensive information about each operation mode, refer to the dedicated documentation:
