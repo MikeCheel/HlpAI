@@ -120,6 +120,26 @@ public class AppConfiguration
     public int OpenWebUiTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
+    /// The last used embedding model
+    /// </summary>
+    public string? LastEmbeddingModel { get; set; }
+
+    /// <summary>
+    /// Whether to remember and suggest the last embedding model on startup
+    /// </summary>
+    public bool RememberLastEmbeddingModel { get; set; } = true;
+
+    /// <summary>
+    /// Base URL for embedding service
+    /// </summary>
+    public string? EmbeddingServiceUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>
+    /// Default embedding model for Ollama provider
+    /// </summary>
+    public string DefaultEmbeddingModel { get; set; } = "nomic-embed-text";
+
+    /// <summary>
     /// Timeout in minutes for embedding service requests
     /// </summary>
     public int EmbeddingTimeoutMinutes { get; set; } = 10;

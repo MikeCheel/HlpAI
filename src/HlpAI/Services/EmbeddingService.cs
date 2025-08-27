@@ -18,18 +18,18 @@ namespace HlpAI.Services
         private bool _disposed = false;
 
         // Constructor for dependency injection (used in tests)
-        public EmbeddingService(HttpClient httpClient, string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null, AppConfiguration? config = null)
+        public EmbeddingService(HttpClient httpClient, string? baseUrl = null, string? embeddingModel = null, ILogger? logger = null, AppConfiguration? config = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _disposeHttpClient = false; // Don't dispose injected HttpClient
-            _baseUrl = baseUrl.TrimEnd('/');
-            _embeddingModel = embeddingModel;
+            _baseUrl = (baseUrl ?? config?.EmbeddingServiceUrl ?? "http://localhost:11434").TrimEnd('/');
+            _embeddingModel = embeddingModel ?? config?.LastEmbeddingModel ?? config?.DefaultEmbeddingModel ?? "nomic-embed-text";
             _logger = logger;
             _config = config;
         }
 
         // Original constructor for backward compatibility
-        public EmbeddingService(string baseUrl = "http://localhost:11434", string embeddingModel = "nomic-embed-text", ILogger? logger = null, AppConfiguration? config = null)
+        public EmbeddingService(string? baseUrl = null, string? embeddingModel = null, ILogger? logger = null, AppConfiguration? config = null)
         {
             var timeoutMinutes = config?.EmbeddingTimeoutMinutes ?? 10;
             _httpClient = new HttpClient
@@ -37,8 +37,8 @@ namespace HlpAI.Services
                 Timeout = TimeSpan.FromMinutes(timeoutMinutes)
             };
             _disposeHttpClient = true; // Dispose our own HttpClient
-            _baseUrl = baseUrl.TrimEnd('/');
-            _embeddingModel = embeddingModel;
+            _baseUrl = (baseUrl ?? config?.EmbeddingServiceUrl ?? "http://localhost:11434").TrimEnd('/');
+            _embeddingModel = embeddingModel ?? config?.LastEmbeddingModel ?? config?.DefaultEmbeddingModel ?? "nomic-embed-text";
             _logger = logger;
             _config = config;
         }

@@ -305,6 +305,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.Configuration);
                             await ShowConfigurationMenuAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "17":
@@ -313,6 +314,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.LogViewer);
                             await ShowLogViewerAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "18":
@@ -321,6 +323,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.ExtractorManagement);
                             await ShowExtractorManagementMenuAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "19":
@@ -329,6 +332,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.AiProviderManagement);
                             await ShowAiProviderMenuAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "20":
@@ -338,6 +342,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.VectorDatabaseManagement);
                             await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "21":
@@ -348,6 +353,7 @@ public static class Program
                             menuStateManager.NavigateToMenu(MenuContext.FileFilteringManagement);
                             await ShowFileFilteringManagementMenuAsync(menuStateManager);
                             menuStateManager.NavigateBack();
+                            ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "c":
@@ -1175,10 +1181,11 @@ public static class Program
             Console.WriteLine("12. Reset all settings to defaults");
             Console.WriteLine("13. Delete configuration database");
             Console.WriteLine("14. Change AI model");
+            Console.WriteLine("15. Configure embedding model");
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-14, b): ");
+            Console.Write("Select option (1-15, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
@@ -1316,6 +1323,10 @@ public static class Program
                     await ChangeAiModelAsync(sqliteConfig, menuStateManager);
                     break;
                     
+                case "15":
+                    await ConfigureEmbeddingModelAsync(menuStateManager);
+                    break;
+                    
                 case "b":
                 case "back":
                     configRunning = false;
@@ -1359,7 +1370,7 @@ public static class Program
         Console.WriteLine("1. List available models for current provider");
         Console.WriteLine("2. Select a different model");
         Console.WriteLine("3. Change AI provider (opens AI provider menu)");
-        Console.WriteLine("b. Back to configuration menu (back)");
+        Console.WriteLine("b. Back to configuration menu");
         Console.WriteLine();
         
         Console.Write("Select option (1-3, b): ");
@@ -1559,6 +1570,157 @@ public static class Program
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error updating model configuration: {ex.Message}");
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task ConfigureEmbeddingModelAsync(MenuStateManager? menuStateManager = null)
+    {
+        var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Embedding Model" ?? "Main Menu > Configuration > Embedding Model";
+        ClearScreenWithHeader("🧠 Configure Embedding Model", breadcrumb);
+        
+        var config = ConfigurationService.LoadConfiguration();
+        
+        // Display current embedding model configuration
+        Console.WriteLine($"Current Embedding Service URL: {config.EmbeddingServiceUrl}");
+        Console.WriteLine($"Current Embedding Model: {config.LastEmbeddingModel ?? config.DefaultEmbeddingModel}");
+        Console.WriteLine($"Remember Last Embedding Model: {(config.RememberLastEmbeddingModel ? "✅ Enabled" : "❌ Disabled")}");
+        Console.WriteLine();
+        
+        Console.WriteLine("Options:");
+        Console.WriteLine("1. Change embedding model");
+        Console.WriteLine("2. Change embedding service URL");
+        Console.WriteLine($"3. Toggle remember last embedding model (Currently: {(config.RememberLastEmbeddingModel ? "Enabled" : "Disabled")})");
+        Console.WriteLine("4. Test embedding service connection");
+        Console.WriteLine("5. Reset to defaults");
+        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine();
+        
+        Console.Write("Select option (1-5, b): ");
+        var choice = SafePromptForString("", "b").ToLower().Trim();
+        
+        switch (choice)
+        {
+            case "1":
+                await ChangeEmbeddingModelAsync(config);
+                break;
+                
+            case "2":
+                await ChangeEmbeddingServiceUrlAsync(config);
+                break;
+                
+            case "3":
+                config.RememberLastEmbeddingModel = !config.RememberLastEmbeddingModel;
+                ConfigurationService.SaveConfiguration(config);
+                Console.WriteLine($"✅ Remember last embedding model: {(config.RememberLastEmbeddingModel ? "Enabled" : "Disabled")}");
+                break;
+                
+            case "4":
+                await TestEmbeddingServiceConnectionAsync(config);
+                break;
+                
+            case "5":
+                config.EmbeddingServiceUrl = new AppConfiguration().EmbeddingServiceUrl;
+                config.DefaultEmbeddingModel = new AppConfiguration().DefaultEmbeddingModel;
+                config.LastEmbeddingModel = null;
+                config.RememberLastEmbeddingModel = true;
+                ConfigurationService.SaveConfiguration(config);
+                Console.WriteLine("✅ Embedding model configuration reset to defaults");
+                break;
+                
+            case "b":
+            case "back":
+                break;
+                
+            default:
+                Console.WriteLine("❌ Invalid option. Please try again.");
+                break;
+        }
+        
+        if (choice != "b" && choice != "back")
+        {
+            await ShowBriefPauseAsync(null, 2000);
+        }
+    }
+
+    private static Task ChangeEmbeddingModelAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🔄 Change Embedding Model");
+        Console.WriteLine("==========================\n");
+        
+        using var promptService = new PromptService();
+        var newModel = promptService.PromptForValidatedString(
+            $"Enter new embedding model name (current: {config.LastEmbeddingModel ?? config.DefaultEmbeddingModel}): ",
+            InputValidationType.ModelName,
+            config.LastEmbeddingModel ?? config.DefaultEmbeddingModel,
+            "embedding model name");
+            
+        if (!string.IsNullOrEmpty(newModel) && newModel != (config.LastEmbeddingModel ?? config.DefaultEmbeddingModel))
+        {
+            config.LastEmbeddingModel = newModel;
+            ConfigurationService.SaveConfiguration(config);
+            Console.WriteLine($"✅ Embedding model updated to: {newModel}");
+        }
+        else
+        {
+            Console.WriteLine("❌ No changes made.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private static Task ChangeEmbeddingServiceUrlAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🌐 Change Embedding Service URL");
+        Console.WriteLine("===============================\n");
+        
+        using var promptService = new PromptService();
+        var newUrl = promptService.PromptForValidatedString(
+            $"Enter new embedding service URL (current: {config.EmbeddingServiceUrl}): ",
+            InputValidationType.Url,
+            config.EmbeddingServiceUrl,
+            "service URL");
+            
+        if (!string.IsNullOrEmpty(newUrl) && newUrl != config.EmbeddingServiceUrl)
+        {
+            config.EmbeddingServiceUrl = newUrl;
+            ConfigurationService.SaveConfiguration(config);
+            Console.WriteLine($"✅ Embedding service URL updated to: {newUrl}");
+        }
+        else
+        {
+            Console.WriteLine("❌ No changes made.");
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestEmbeddingServiceConnectionAsync(AppConfiguration config)
+    {
+        Console.WriteLine("\n🔍 Testing Embedding Service Connection");
+        Console.WriteLine("======================================\n");
+        
+        try
+        {
+            using var embeddingService = new EmbeddingService(config: config);
+            Console.WriteLine($"Testing connection to: {config.EmbeddingServiceUrl}");
+            Console.WriteLine($"Using model: {config.LastEmbeddingModel ?? config.DefaultEmbeddingModel}");
+            Console.WriteLine("\nGenerating test embedding...");
+            
+            var testEmbedding = await embeddingService.GetEmbeddingAsync("test connection");
+            
+            if (testEmbedding != null && testEmbedding.Length > 0)
+            {
+                Console.WriteLine($"✅ Connection successful! Generated embedding with {testEmbedding.Length} dimensions");
+            }
+            else
+            {
+                Console.WriteLine("❌ Connection failed: No embedding generated");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Connection failed: {ex.Message}");
         }
     }
 
@@ -3284,7 +3446,7 @@ public static class Program
                 Console.WriteLine("5. Test file extraction");
                 Console.WriteLine("6. Reset extractor to default configuration");
                 Console.WriteLine("7. View configuration audit");
-                Console.WriteLine("b. Back to main menu (back)");
+                Console.WriteLine("b. Back to main menu");
                 Console.WriteLine("q. Quit application");
                 
                 Console.Write("\nEnter your choice (1-7, b, q): ");
