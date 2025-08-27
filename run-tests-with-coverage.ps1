@@ -48,11 +48,10 @@ $TestCommand = @(
     "--results-directory", $TestResultsDir
     "--logger", "trx"
     "--verbosity", "normal"
+    "--settings", "coverageSettings.json"
     "/p:CollectCoverage=true"
     "/p:CoverletOutputFormat=cobertura"
     "/p:CoverletOutput=$CoverageDir/"
-    "/p:Include=[HlpAI]*"
-    "/p:Exclude=[HlpAI]HlpAI.Program*%2c[*.Tests]*"
     "/p:Threshold=$CoverageThreshold"
     "/p:ThresholdType=line"
 )

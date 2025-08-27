@@ -26,6 +26,20 @@ public class SecureApiKeyStorage
         // Ensure the directory exists
         Directory.CreateDirectory(_storageDirectory);
     }
+    
+    /// <summary>
+    /// Constructor for testing with custom storage directory
+    /// </summary>
+    /// <param name="logger">Logger instance</param>
+    /// <param name="storageDirectory">Custom storage directory path</param>
+    public SecureApiKeyStorage(ILogger? logger, string storageDirectory)
+    {
+        _logger = logger;
+        _storageDirectory = storageDirectory;
+        
+        // Ensure the directory exists
+        Directory.CreateDirectory(_storageDirectory);
+    }
 
     /// <summary>
     /// Store an API key securely using DPAPI encryption

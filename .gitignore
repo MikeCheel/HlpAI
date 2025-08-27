@@ -432,9 +432,10 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# AI Tools and related
-.claude/
+# AI Tools
 ai-todos.md
+vibe-docs/
+.claude/
 vector.db
 vectors.db
 

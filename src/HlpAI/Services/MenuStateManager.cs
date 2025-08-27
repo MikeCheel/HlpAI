@@ -61,10 +61,9 @@ public class MenuStateManager
     /// <returns>The menu context that was navigated to, or MainMenu if no history</returns>
     public MenuContext NavigateBack()
     {
-        if (_menuStack.Count > 1)
+        if (_menuStack.Count > 0)
         {
-            _menuStack.Pop(); // Remove current context
-            var previousContext = _menuStack.Peek();
+            var previousContext = _menuStack.Pop();
             _config.CurrentMenuContext = previousContext;
         }
         else
@@ -85,7 +84,6 @@ public class MenuStateManager
     public void ResetToMainMenu()
     {
         _menuStack.Clear();
-        _menuStack.Push(MenuContext.MainMenu);
         _config.CurrentMenuContext = MenuContext.MainMenu;
         UpdateMenuHistory();
         SaveConfiguration();
@@ -101,9 +99,23 @@ public class MenuStateManager
     {
         var breadcrumbs = new List<string>();
         
+        // If there's no navigation history, just show the current context
+        if (_menuStack.Count == 0)
+        {
+            return GetMenuDisplayName(_config.CurrentMenuContext);
+        }
+        
+        // Build breadcrumb from the navigation stack
         foreach (var context in _menuStack.Reverse())
         {
             breadcrumbs.Add(GetMenuDisplayName(context));
+        }
+        
+        // Add current context to show where we are now, but avoid duplicates
+        var currentDisplayName = GetMenuDisplayName(_config.CurrentMenuContext);
+        if (breadcrumbs.Count == 0 || breadcrumbs.Last() != currentDisplayName)
+        {
+            breadcrumbs.Add(currentDisplayName);
         }
         
         return string.Join(" > ", breadcrumbs);

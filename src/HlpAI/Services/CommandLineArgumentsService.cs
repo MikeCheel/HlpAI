@@ -101,10 +101,22 @@ public class CommandLineArgumentsService
         if (!_arguments.TryGetValue(key, out var value))
             return defaultValue;
             
-        return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("on", StringComparison.OrdinalIgnoreCase);
+        // Handle explicit true values
+        if (value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("on", StringComparison.OrdinalIgnoreCase))
+            return true;
+            
+        // Handle explicit false values
+        if (value.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("0", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("no", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("off", StringComparison.OrdinalIgnoreCase))
+            return false;
+            
+        // For invalid values, return the default
+        return defaultValue;
     }
 
     /// <summary>

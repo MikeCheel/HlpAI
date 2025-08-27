@@ -48,6 +48,18 @@ public class SecurityMiddleware
     }
     
     /// <summary>
+    /// Constructor for testing that accepts AppConfiguration directly to avoid database dependencies
+    /// </summary>
+    public SecurityMiddleware(SecurityValidationService validationService, SecurityAuditService auditService, AppConfiguration appConfig, ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
+    {
+        _logger = logger;
+        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+        _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
+        _config = config ?? new SecurityConfiguration();
+        _dataProtection = new CrossPlatformDataProtection(appConfig ?? throw new ArgumentNullException(nameof(appConfig)), logger);
+    }
+    
+    /// <summary>
     /// Validates a request for security compliance
     /// </summary>
     public SecurityValidationResult ValidateRequest(SecurityRequest request)

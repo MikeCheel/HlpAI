@@ -3,6 +3,8 @@ using HlpAI.Models;
 using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
+using TUnit.Assertions;
+using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 
@@ -489,6 +491,105 @@ public class CommandLineArgumentsServiceTests
         await Assert.That(service.ShouldShowHelp()).IsFalse();
         await Assert.That(service.IsLoggingOnlyCommand()).IsFalse();
         await Assert.That(service.GetAllArguments().Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task GetIntegerArgument_WithNullValue_ReturnsDefault()
+    {
+        // Arrange
+        var args = new[] { "--empty-value", "" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetIntegerArgument("empty-value", 42)).IsEqualTo(42);
+        await Assert.That(service.GetIntegerArgument("nonexistent", 100)).IsEqualTo(100);
+    }
+
+    [Test]
+    public async Task GetIntegerArgument_WithExtremeValues_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--max-int", int.MaxValue.ToString(),
+            "--min-int", int.MinValue.ToString(),
+            "--zero", "0",
+            "--overflow", "999999999999999999999"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetIntegerArgument("max-int")).IsEqualTo(int.MaxValue);
+        await Assert.That(service.GetIntegerArgument("min-int")).IsEqualTo(int.MinValue);
+        await Assert.That(service.GetIntegerArgument("zero")).IsEqualTo(0);
+        await Assert.That(service.GetIntegerArgument("overflow", 999)).IsEqualTo(999); // Should return default for overflow
+    }
+
+    [Test]
+    public async Task GetLogLevelArgument_WithNullAndEmptyValues_ReturnsDefault()
+    {
+        // Arrange
+        var args = new[] { "--empty-level", "", "--whitespace-level", "   " };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetLogLevelArgument("empty-level", LogLevel.Warning)).IsEqualTo(LogLevel.Warning);
+        await Assert.That(service.GetLogLevelArgument("whitespace-level", LogLevel.Error)).IsEqualTo(LogLevel.Error);
+        await Assert.That(service.GetLogLevelArgument("nonexistent", LogLevel.Critical)).IsEqualTo(LogLevel.Critical);
+    }
+
+    [Test]
+    public async Task GetBooleanArgument_WithVariousValues_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--flag-only",
+            "--true-value", "true",
+            "--false-value", "false",
+            "--yes-value", "yes",
+            "--no-value", "no",
+            "--one-value", "1",
+            "--zero-value", "0",
+            "--invalid-value", "maybe"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetBooleanArgument("flag-only")).IsTrue();
+        await Assert.That(service.GetBooleanArgument("true-value")).IsTrue();
+        await Assert.That(service.GetBooleanArgument("false-value")).IsFalse();
+        await Assert.That(service.GetBooleanArgument("yes-value")).IsTrue();
+        await Assert.That(service.GetBooleanArgument("no-value")).IsFalse();
+        await Assert.That(service.GetBooleanArgument("one-value")).IsTrue();
+        await Assert.That(service.GetBooleanArgument("zero-value")).IsFalse();
+        await Assert.That(service.GetBooleanArgument("invalid-value", true)).IsTrue(); // Should return default
+        await Assert.That(service.GetBooleanArgument("nonexistent", false)).IsFalse();
+    }
+
+    [Test]
+    public async Task HasArgument_WithNullAndEmptyKeys_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--valid-key", "value" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.HasArgument("valid-key")).IsTrue();
+        await Assert.That(service.HasArgument("")).IsFalse();
+        await Assert.That(service.HasArgument("nonexistent")).IsFalse();
+    }
+
+    [Test]
+    public async Task GetArgument_WithNullAndEmptyKeys_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--valid-key", "value" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetArgument("valid-key")).IsEqualTo("value");
+        await Assert.That(service.GetArgument("", "default")).IsEqualTo("default");
+        await Assert.That(service.GetArgument("nonexistent")).IsNull();
+        await Assert.That(service.GetArgument("nonexistent", "default")).IsEqualTo("default");
     }
 
     [Test]
@@ -1049,5 +1150,338 @@ public class CommandLineArgumentsServiceTests
         await Assert.That(result.HasChanges).IsFalse();
         await Assert.That(result.ChunkSizeChanged).IsFalse();
         await Assert.That(result.ChunkOverlapChanged).IsFalse();
+    }
+
+    [Test]
+    public async Task IsAiProviderManagementCommand_WithValidCommands_ReturnsTrue()
+    {
+        // Arrange & Act & Assert
+        var testCases = new[]
+        {
+            new[] { "--test-provider", "openai" },
+            new[] { "--detect-providers" },
+            new[] { "--set-provider", "Ollama" },
+            new[] { "--set-provider-url", "http://localhost:11434" },
+            new[] { "--list-providers" },
+            new[] { "--provider-stats" },
+            new[] { "--set-default-model", "Ollama:llama3.2" }
+        };
+
+        foreach (var args in testCases)
+        {
+            var service = new CommandLineArgumentsService(args, _logger);
+            await Assert.That(service.IsAiProviderManagementCommand()).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task IsAiProviderManagementCommand_WithoutCommands_ReturnsFalse()
+    {
+        // Arrange
+        var args = new[] { "--help", "--log-level", "info" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.IsAiProviderManagementCommand()).IsFalse();
+    }
+
+    [Test]
+    public async Task IsExtractorManagementCommand_WithValidCommands_ReturnsTrue()
+    {
+        // Arrange & Act & Assert
+        var testCases = new[]
+        {
+            new[] { "--test-extraction", "test.pdf" },
+            new[] { "--list-extractors" },
+            new[] { "--extractor-stats" },
+            new[] { "--add-file-type", "text:docx" },
+            new[] { "--remove-file-type", "text:docx" },
+            new[] { "--reset-extractor", "text" }
+        };
+
+        foreach (var args in testCases)
+        {
+            var service = new CommandLineArgumentsService(args, _logger);
+            await Assert.That(service.IsExtractorManagementCommand()).IsTrue();
+        }
+    }
+
+    [Test]
+    public async Task IsExtractorManagementCommand_WithoutCommands_ReturnsFalse()
+    {
+        // Arrange
+        var args = new[] { "--help", "--log-level", "info" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.IsExtractorManagementCommand()).IsFalse();
+    }
+
+    [Test]
+    public async Task ApplyAiProviderConfigurationAsync_WithTokenLimits_ConfiguresCorrectly()
+    {
+        // Skip test on non-Windows platforms
+        if (!OperatingSystem.IsWindows())
+        {
+            Skip.Test("This test requires Windows platform");
+            return;
+        }
+
+        // Arrange
+        var args = new[] { 
+            "--set-provider", "Ollama"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = await service.ApplyAiProviderConfigurationAsync(_configService);
+
+        // Assert
+        await Assert.That(result.ProviderChanged).IsTrue();
+        await Assert.That(result.UrlChanged).IsFalse();
+        await Assert.That(result.ModelChanged).IsFalse();
+        await Assert.That(result.DetectProviders).IsFalse();
+    }
+
+    [Test]
+    public async Task ApplyAiProviderConfigurationAsync_WithInvalidTokenLimits_UsesDefaults()
+    {
+        // Skip test on non-Windows platforms
+        if (!OperatingSystem.IsWindows())
+        {
+            Skip.Test("This test requires Windows platform");
+            return;
+        }
+
+        // Arrange
+        var args = new[] { 
+            "--set-provider", "InvalidProvider"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var result = await service.ApplyAiProviderConfigurationAsync(_configService);
+
+        // Assert - Should use default values when parsing fails
+        await Assert.That(result.ProviderChanged).IsFalse();
+        await Assert.That(result.UrlChanged).IsFalse();
+        await Assert.That(result.ModelChanged).IsFalse();
+        await Assert.That(result.DetectProviders).IsFalse();
+    }
+
+    [Test]
+    public async Task ApplyFileFilteringConfigurationAsync_WithFileSizeLimits_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--max-request-file-size", "10485760", // 10MB
+            "--max-content-length", "52428800", // 50MB
+            "--file-audit-size-limit", "104857600" // 100MB
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var filterService = new FileTypeFilterService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyFileFilteringConfigurationAsync(filterService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.HasTest).IsFalse();
+        await Assert.That(result.FiltersReset).IsFalse();
+        await Assert.That(result.IncludePatternsAdded).IsEqualTo(0);
+        await Assert.That(result.ExcludePatternsAdded).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task ApplyFileFilteringConfigurationAsync_WithTextChunkingParams_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--text-chunk-size", "2048",
+            "--text-chunk-overlap", "256"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var filterService = new FileTypeFilterService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyFileFilteringConfigurationAsync(filterService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.HasTest).IsFalse();
+        await Assert.That(result.FiltersReset).IsFalse();
+        await Assert.That(result.IncludePatternsAdded).IsEqualTo(0);
+        await Assert.That(result.ExcludePatternsAdded).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task ApplyFileFilteringConfigurationAsync_WithInvalidValues_UsesDefaults()
+    {
+        // Arrange
+        var args = new[] { 
+            "--max-request-file-size", "invalid",
+            "--text-chunk-size", "-500",
+            "--text-chunk-overlap", "not-a-number"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var filterService = new FileTypeFilterService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyFileFilteringConfigurationAsync(filterService);
+
+        // Assert - Should use default values when parsing fails
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.HasTest).IsFalse();
+        await Assert.That(result.FiltersReset).IsFalse();
+        await Assert.That(result.IncludePatternsAdded).IsEqualTo(0);
+        await Assert.That(result.ExcludePatternsAdded).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task ApplyCleanupConfigurationAsync_WithValidDays_ConfiguresCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--cleanup-days", "30" };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var cleanupService = new CleanupService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyCleanupConfigurationAsync(cleanupService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.Statistics).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyCleanupConfigurationAsync_WithInvalidDays_UsesDefault()
+    {
+        // Arrange
+        var args = new[] { "--cleanup-days", "invalid" };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var cleanupService = new CleanupService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyCleanupConfigurationAsync(cleanupService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.Statistics).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyCleanupConfigurationAsync_WithNegativeDays_UsesDefault()
+    {
+        // Arrange
+        var args = new[] { "--cleanup-days", "-5" };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var cleanupService = new CleanupService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyCleanupConfigurationAsync(cleanupService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.Statistics).IsNull();
+    }
+
+    [Test]
+    public async Task ApplyCleanupConfigurationAsync_WithoutCleanupDays_NoChanges()
+    {
+        // Arrange
+        var args = new[] { "--help" };
+        var service = new CommandLineArgumentsService(args, _logger);
+        using var cleanupService = new CleanupService(_logger, _configService);
+
+        // Act
+        var result = await service.ApplyCleanupConfigurationAsync(cleanupService);
+
+        // Assert
+        await Assert.That(result.ShowStats).IsFalse();
+        await Assert.That(result.ShowHistory).IsFalse();
+        await Assert.That(result.HasCleanup).IsFalse();
+    }
+
+    [Test]
+    public async Task ParseArguments_WithDuplicateKeys_UsesLastValue()
+    {
+        // Arrange
+        var args = new[] { "--key", "first", "--key", "second", "--key", "third" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetArgument("key")).IsEqualTo("third");
+    }
+
+    [Test]
+    public async Task ParseArguments_WithMixedCaseKeys_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--Key", "value1", "--KEY", "value2", "--key", "value3" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert - Keys are case-insensitive, last value wins
+        await Assert.That(service.GetArgument("Key")).IsEqualTo("value3");
+        await Assert.That(service.GetArgument("KEY")).IsEqualTo("value3");
+        await Assert.That(service.GetArgument("key")).IsEqualTo("value3");
+    }
+
+    [Test]
+    public async Task ParseArguments_WithSpecialCharactersInValues_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--path", "C:\\Users\\Test\\File.txt",
+            "--url", "https://example.com/api?param=value&other=123",
+            "--json", "{\"key\": \"value\", \"number\": 42}",
+            "--unicode", "测试文本"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetArgument("path")).IsEqualTo("C:\\Users\\Test\\File.txt");
+        await Assert.That(service.GetArgument("url")).IsEqualTo("https://example.com/api?param=value&other=123");
+        await Assert.That(service.GetArgument("json")).IsEqualTo("{\"key\": \"value\", \"number\": 42}");
+        await Assert.That(service.GetArgument("unicode")).IsEqualTo("测试文本");
+    }
+
+    [Test]
+    public async Task ParseArguments_WithEmptyStringValues_HandlesCorrectly()
+    {
+        // Arrange
+        var args = new[] { "--empty", "", "--whitespace", "   ", "--tab", "\t" };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act & Assert
+        await Assert.That(service.GetArgument("empty")).IsEqualTo("");
+        await Assert.That(service.GetArgument("whitespace")).IsEqualTo("   ");
+        await Assert.That(service.GetArgument("tab")).IsEqualTo("\t");
+    }
+
+    [Test]
+    public async Task GetAllArguments_WithComplexArguments_ReturnsAllCorrectly()
+    {
+        // Arrange
+        var args = new[] { 
+            "--flag1",
+            "--key1", "value1",
+            "--flag2",
+            "--key2", "value2",
+            "positional1",
+            "positional2"
+        };
+        var service = new CommandLineArgumentsService(args, _logger);
+
+        // Act
+        var allArgs = service.GetAllArguments();
+
+        // Assert
+        await Assert.That(allArgs.Count).IsEqualTo(4); // Only named arguments
+        await Assert.That(allArgs.ContainsKey("flag1")).IsTrue();
+        await Assert.That(allArgs.ContainsKey("flag2")).IsTrue();
+        await Assert.That(allArgs.ContainsKey("key1")).IsTrue();
+        await Assert.That(allArgs.ContainsKey("key2")).IsTrue();
+        await Assert.That(allArgs["key1"]).IsEqualTo("value1");
+        await Assert.That(allArgs["key2"]).IsEqualTo("value2");
     }
 }

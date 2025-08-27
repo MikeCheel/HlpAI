@@ -32,10 +32,10 @@ public class FileTypeFilterService : IDisposable
         "config.db"       // Configuration database
     };
 
-    public FileTypeFilterService(ILogger? logger = null)
+    public FileTypeFilterService(ILogger? logger = null, SqliteConfigurationService? configService = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
+        _configService = configService ?? new SqliteConfigurationService(logger);
     }
 
     /// <summary>
@@ -287,6 +287,8 @@ public class FileTypeFilterService : IDisposable
     {
         try
         {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(FileTypeFilterService));
             // Save include patterns
             if (config.IncludePatterns?.Any() == true)
             {
@@ -370,6 +372,8 @@ public class FileTypeFilterService : IDisposable
     {
         try
         {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(FileTypeFilterService));
             var config = await GetFilterConfigurationAsync();
             config.IncludePatterns ??= [];
             
@@ -482,6 +486,8 @@ public class FileTypeFilterService : IDisposable
     {
         try
         {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(FileTypeFilterService));
             var config = await GetFilterConfigurationAsync();
             var result = new FileFilterTestResult
             {

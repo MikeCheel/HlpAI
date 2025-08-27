@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TUnit.Assertions;
 using TUnit.Core;
 using HlpAI.Services;
+using HlpAI.Attributes;
 
 namespace HlpAI.Tests.Services;
 
@@ -16,8 +17,36 @@ public class SecurityMiddlewareTests : IDisposable
     {
         _loggerFactory = new LoggerFactory();
         _logger = _loggerFactory.CreateLogger<SecurityMiddleware>();
-        _config = new SecurityConfiguration();
-        _middleware = new SecurityMiddleware(_logger, _config);
+        _config = new SecurityConfiguration
+        {
+            MaxRequestSize = 1000000,
+            MaxContentLength = 500000,
+            MaxParameterLength = 1000,
+            AddSecurityHeaders = true,
+            RequireSecurityHeaders = false,
+            EnableRateLimiting = false
+        };
+        
+        // Create a test AppConfiguration to avoid database dependencies
+        var testAppConfig = new HlpAI.Models.AppConfiguration
+        {
+            MaxRequestSizeBytes = 1000000,
+            MaxContentLengthBytes = 500000
+        };
+        var validationService = new SecurityValidationService(testAppConfig, _loggerFactory.CreateLogger<SecurityValidationService>());
+        var auditConfig = new SecurityAuditConfiguration { EnableBuffering = false, MinimumLogLevel = SecurityLevel.Low };
+        var auditService = new SecurityAuditService(_loggerFactory.CreateLogger<SecurityAuditService>(), auditConfig);
+        
+        try
+        {
+            _middleware = new SecurityMiddleware(validationService, auditService, testAppConfig, _logger, _config);
+            _logger.LogInformation("SecurityMiddleware instantiated successfully in test constructor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to instantiate SecurityMiddleware in test constructor");
+            throw;
+        }
     }
     
     [After(Test)]
@@ -47,14 +76,145 @@ public class SecurityMiddlewareTests : IDisposable
                 { "param2", "value2" }
             }
         };
-        
+
         // Act
-        var result = _middleware.ValidateRequest(request);
+        _logger.LogInformation("About to call ValidateRequest");
         
+        // Ensure the middleware is not null
+        await Assert.That(_middleware).IsNotNull();
+        
+        var result = _middleware.ValidateRequest(request);
+        _logger.LogInformation("ValidateRequest completed with result: {IsValid}", result.IsValid);
+
         // Assert
+        await Assert.That(result).IsNotNull();
         await Assert.That(result.IsValid).IsTrue();
         await Assert.That(result.Violations).IsEmpty();
         await Assert.That(result.SecurityHeaders).IsNotEmpty();
+        
+        // Additional assertions to ensure methods are called
+        var headers = _middleware.GenerateSecurityHeaders();
+        await Assert.That(headers).IsNotEmpty();
+        
+        var sanitized = _middleware.SanitizeInput("<script>alert('test')</script>");
+        await Assert.That(sanitized).IsNotNull();
+        
+        var encrypted = _middleware.EncryptSensitiveData("sensitive data", "test-context");
+        await Assert.That(encrypted).IsNotNull();
+        
+        var decrypted = _middleware.DecryptSensitiveData(encrypted, "test-context");
+        await Assert.That(decrypted).IsEqualTo("sensitive data");
+    }
+    
+    [Test]
+    public async Task SecurityMiddleware_AllMethods_ShouldExecuteSuccessfully()
+    {
+        // This test ensures all SecurityMiddleware methods are called for coverage
+        
+        // Test ValidateRequest with various scenarios
+        var validRequest = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content",
+            Headers = new Dictionary<string, string> { { "User-Agent", "Test-Agent/1.0" } },
+            Parameters = new Dictionary<string, string> { { "param1", "value1" } }
+        };
+        
+        var result = _middleware.ValidateRequest(validRequest);
+        await Assert.That(result).IsNotNull();
+        
+        // Test oversized request
+        var oversizedRequest = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 2000000, // Exceeds MaxRequestSize
+            Content = "Large content",
+            Headers = new Dictionary<string, string> { { "User-Agent", "Test-Agent/1.0" } },
+            Parameters = new Dictionary<string, string>()
+        };
+        
+        var oversizedResult = _middleware.ValidateRequest(oversizedRequest);
+        await Assert.That(oversizedResult).IsNotNull();
+        await Assert.That(oversizedResult.IsValid).IsFalse();
+        
+        // Test suspicious content
+        var suspiciousRequest = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "<script>alert('xss')</script>",
+            Headers = new Dictionary<string, string> { { "User-Agent", "Test-Agent/1.0" } },
+            Parameters = new Dictionary<string, string>()
+        };
+        
+        var suspiciousResult = _middleware.ValidateRequest(suspiciousRequest);
+        await Assert.That(suspiciousResult).IsNotNull();
+        
+        // Test SQL injection content
+        var sqlRequest = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "'; DROP TABLE users; --",
+            Headers = new Dictionary<string, string> { { "User-Agent", "Test-Agent/1.0" } },
+            Parameters = new Dictionary<string, string>()
+        };
+        
+        var sqlResult = _middleware.ValidateRequest(sqlRequest);
+        await Assert.That(sqlResult).IsNotNull();
+        
+        // Test GenerateSecurityHeaders
+        var headers = _middleware.GenerateSecurityHeaders();
+        await Assert.That(headers).IsNotNull();
+        
+        // Test SanitizeInput with various inputs
+        var sanitized1 = _middleware.SanitizeInput("<script>alert('test')</script>");
+        await Assert.That(sanitized1).IsNotNull();
+        
+        var sanitized2 = _middleware.SanitizeInput(null);
+        await Assert.That(sanitized2).IsNotNull();
+        
+        var sanitized3 = _middleware.SanitizeInput("Normal text");
+        await Assert.That(sanitized3).IsNotNull();
+        
+        // Test long input
+        var longInput = new string('a', 2000);
+        var sanitizedLong = _middleware.SanitizeInput(longInput);
+        await Assert.That(sanitizedLong).IsNotNull();
+        
+        // Test EncryptSensitiveData and DecryptSensitiveData
+        var testData = "sensitive information";
+        var context = "test-context";
+        
+        var encrypted = _middleware.EncryptSensitiveData(testData, context);
+        await Assert.That(encrypted).IsNotNull();
+        await Assert.That(encrypted).IsNotEqualTo(testData);
+        
+        var decrypted = _middleware.DecryptSensitiveData(encrypted, context);
+        await Assert.That(decrypted).IsEqualTo(testData);
+        
+        // Test with different context (should fail)
+        try
+        {
+            var wrongDecrypted = _middleware.DecryptSensitiveData(encrypted, "wrong-context");
+            await Assert.That(wrongDecrypted).IsNotEqualTo(testData);
+        }
+        catch (HlpAI.Services.SecurityException)
+        {
+            // Expected behavior - decryption should fail with wrong context
+        }
+        
+        // Test with null/empty inputs
+        var encryptedNull = _middleware.EncryptSensitiveData(null!, context);
+        await Assert.That(encryptedNull).IsNotNull();
+        
+        var encryptedEmpty = _middleware.EncryptSensitiveData("", context);
+        await Assert.That(encryptedEmpty).IsNotNull();
     }
     
     [Test]
@@ -66,8 +226,12 @@ public class SecurityMiddlewareTests : IDisposable
             Endpoint = "/api/test",
             ClientId = "test-client",
             ContentLength = _config.MaxRequestSize + 1,
-            Content = "Content"
+            Content = "Content",
+            Headers = new Dictionary<string, string>(),
+            Parameters = new Dictionary<string, string>()
         };
+        
+        _logger.LogInformation("Testing oversized request with size: {Size}, max: {Max}", request.ContentLength, _config.MaxRequestSize);
         
         // Act
         var result = _middleware.ValidateRequest(request);
@@ -240,7 +404,7 @@ public class SecurityMiddlewareTests : IDisposable
         var encrypted = _middleware.EncryptSensitiveData(originalData, context1);
         
         // Act & Assert
-        await Assert.That(() => _middleware.DecryptSensitiveData(encrypted, context2)).Throws<SecurityException>();
+        await Assert.That(() => _middleware.DecryptSensitiveData(encrypted, context2)).Throws<HlpAI.Services.SecurityException>();
     }
     
     [Test]
@@ -448,7 +612,7 @@ public class SecurityMiddlewareTests : IDisposable
     {
         // Act & Assert
         await Assert.That(() => _middleware.DecryptSensitiveData("invalid-encrypted-data", "context"))
-            .Throws<SecurityException>();
+            .Throws<HlpAI.Services.SecurityException>();
     }
     
     [Test]

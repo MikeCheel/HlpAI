@@ -391,4 +391,63 @@ public class SecurityValidationServiceTests : IDisposable
         await Assert.That(SecurityValidationService.ContainsSqlInjection("user@example.com")).IsFalse();
         await Assert.That(SecurityValidationService.ContainsSqlInjection("Product Name v1.0")).IsFalse();
     }
+    
+    [Test]
+    [Arguments("../../../etc/passwd", true)]
+    [Arguments("..\\..\\..\\windows\\system32", true)]
+    [Arguments("/etc/passwd", true)]
+    [Arguments("/etc/shadow", true)]
+    [Arguments("/root/secret.txt", true)]
+    [Arguments("C:\\Windows\\System32\\config", true)]
+    [Arguments("C:\\Program Files\\app.exe", true)]
+    [Arguments("~/secret.txt", true)]
+    [Arguments("normal/file/path.txt", false)]
+    [Arguments("./relative/path.txt", false)]
+    [Arguments("file.txt", false)]
+    [Arguments("", false)]
+    [Arguments(null, false)]
+    public async Task ContainsPathTraversal_ShouldDetectPathTraversalAttempts(string? input, bool expected)
+    {
+        // Act
+        var result = _service.ContainsPathTraversal(input);
+        
+        // Assert
+        await Assert.That(result).IsEqualTo(expected);
+    }
+    
+    [Test]
+    public async Task ContainsPathTraversal_WithSensitiveSystemPaths_ShouldDetectCorrectly()
+    {
+        // Test Windows sensitive paths
+        await Assert.That(_service.ContainsPathTraversal("C:\\Windows\\System32\\drivers")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("C:\\Windows\\SysWOW64\\kernel32.dll")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("C:\\Users\\Administrator\\Desktop")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("C:\\ProgramData\\config.xml")).IsTrue();
+        
+        // Test Unix/Linux sensitive paths
+        await Assert.That(_service.ContainsPathTraversal("/etc/ssh/ssh_config")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/var/log/auth.log")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/proc/version")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/sys/kernel/debug")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/dev/random")).IsTrue();
+        
+        // Test safe paths
+        await Assert.That(_service.ContainsPathTraversal("/home/user/documents/file.txt")).IsFalse();
+        await Assert.That(_service.ContainsPathTraversal("C:\\Users\\user\\Documents\\file.txt")).IsFalse();
+        await Assert.That(_service.ContainsPathTraversal("./app/data/config.json")).IsFalse();
+    }
+    
+    [Test]
+    public async Task ContainsPathTraversal_WithCaseInsensitiveMatching_ShouldDetectCorrectly()
+    {
+        // Test case insensitive matching for Windows paths
+        await Assert.That(_service.ContainsPathTraversal("c:\\windows\\system32\\config")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("C:\\WINDOWS\\SYSTEM32\\CONFIG")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("c:\\Windows\\System32\\Config")).IsTrue();
+        
+        // Test case insensitive matching for Unix paths
+        await Assert.That(_service.ContainsPathTraversal("/ETC/PASSWD")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/Etc/Shadow")).IsTrue();
+        await Assert.That(_service.ContainsPathTraversal("/ROOT/secret")).IsTrue();
+    }
 }
