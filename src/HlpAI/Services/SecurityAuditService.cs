@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using HlpAI.Attributes;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -14,6 +15,7 @@ public class SecurityAuditService : IDisposable
 {
     private readonly ILogger<SecurityAuditService>? _logger;
     private readonly SecurityAuditConfiguration _config;
+    private readonly AppConfiguration _appConfig;
     private readonly List<SecurityEvent> _eventBuffer;
     private readonly object _bufferLock = new();
     private readonly Timer? _flushTimer;
@@ -22,6 +24,7 @@ public class SecurityAuditService : IDisposable
     {
         _logger = logger;
         _config = config ?? new SecurityAuditConfiguration();
+        _appConfig = ConfigurationService.LoadConfiguration(logger);
         _eventBuffer = new List<SecurityEvent>();
         
         if (_config.EnableBuffering)
@@ -267,7 +270,7 @@ public class SecurityAuditService : IDisposable
                 TopViolations = events.Where(e => e.EventType == SecurityEventType.SecurityViolation)
                     .GroupBy(e => ExtractViolationType(e.Details))
                     .OrderByDescending(g => g.Count())
-                    .Take(10)
+                    .Take(_appConfig.MaxTopViolationsDisplayed)
                     .ToDictionary(g => g.Key, g => g.Count()),
                 GeneratedAt = DateTime.UtcNow
             };

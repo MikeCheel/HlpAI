@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -11,6 +12,7 @@ public class ErrorLoggingService : IDisposable
     private readonly ILogger? _logger;
     private readonly SqliteConfigurationService _configService;
     private readonly bool _ownsConfigService;
+    private readonly AppConfiguration _config;
     private bool _disposed = false;
 
     public ErrorLoggingService(ILogger? logger = null)
@@ -18,6 +20,7 @@ public class ErrorLoggingService : IDisposable
         _logger = logger;
         _configService = new SqliteConfigurationService(logger);
         _ownsConfigService = true;
+        _config = ConfigurationService.LoadConfiguration(logger);
     }
 
     public ErrorLoggingService(SqliteConfigurationService configService, ILogger? logger = null)
@@ -25,6 +28,7 @@ public class ErrorLoggingService : IDisposable
         _logger = logger;
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _ownsConfigService = false;
+        _config = ConfigurationService.LoadConfiguration(logger);
     }
 
     /// <summary>
@@ -104,7 +108,7 @@ public class ErrorLoggingService : IDisposable
     /// <param name="count">Number of logs to retrieve (default: 50)</param>
     /// <param name="logLevel">Filter by log level (optional)</param>
     /// <returns>List of error log entries</returns>
-    public async Task<List<ErrorLogEntry>> GetRecentLogsAsync(int count = 50, LogLevel? logLevel = null)
+    public async Task<List<ErrorLogEntry>> GetRecentLogsAsync(int? count = null, LogLevel? logLevel = null)
     {
         var allLogs = await _configService.GetCategoryConfigurationAsync("error_logs");
         var logEntries = new List<ErrorLogEntry>();
@@ -131,9 +135,10 @@ public class ErrorLoggingService : IDisposable
             }
         }
 
+        var actualCount = count ?? _config.MaxRecentLogsDisplayed;
         return logEntries
             .OrderByDescending(l => l.Timestamp)
-            .Take(count)
+            .Take(actualCount)
             .ToList();
     }
 

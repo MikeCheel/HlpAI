@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -13,13 +14,11 @@ namespace HlpAI.Services;
 public class CrossPlatformDataProtection : ICrossPlatformDataProtection
 {
     private readonly ILogger? _logger;
-    private const int KeySize = 256; // AES-256
-    private const int IvSize = 128; // 128-bit IV
-    private const int SaltSize = 32; // 256-bit salt
-    private const int Iterations = 100000; // PBKDF2 iterations
+    private readonly AppConfiguration _config;
     
-    public CrossPlatformDataProtection(ILogger? logger = null)
+    public CrossPlatformDataProtection(AppConfiguration config, ILogger? logger = null)
     {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
     }
     
@@ -88,21 +87,21 @@ public class CrossPlatformDataProtection : ICrossPlatformDataProtection
     private string ProtectCrossPlatform(byte[] data, byte[] entropy)
     {
         // Generate a random salt
-        var salt = new byte[SaltSize];
+        var salt = new byte[_config.EncryptionSaltSize];
         using (var rng = RandomNumberGenerator.Create())
         {
             rng.GetBytes(salt);
         }
         
         // Derive key from entropy and salt using PBKDF2
-        using var pbkdf2 = new Rfc2898DeriveBytes(entropy, salt, Iterations, HashAlgorithmName.SHA256);
-        var key = pbkdf2.GetBytes(KeySize / 8);
-        var iv = pbkdf2.GetBytes(IvSize / 8);
+        using var pbkdf2 = new Rfc2898DeriveBytes(entropy, salt, _config.EncryptionPbkdf2Iterations, HashAlgorithmName.SHA256);
+        var key = pbkdf2.GetBytes(_config.EncryptionKeySize / 8);
+        var iv = pbkdf2.GetBytes(_config.EncryptionIvSize / 8);
         
         // Encrypt data using AES
         using var aes = Aes.Create();
-        aes.KeySize = KeySize;
-        aes.BlockSize = IvSize;
+        aes.KeySize = _config.EncryptionKeySize;
+        aes.BlockSize = _config.EncryptionIvSize;
         aes.Mode = CipherMode.CBC;
         aes.Padding = PaddingMode.PKCS7;
         aes.Key = key;
@@ -123,26 +122,26 @@ public class CrossPlatformDataProtection : ICrossPlatformDataProtection
     {
         var combinedData = Convert.FromBase64String(encryptedData);
         
-        if (combinedData.Length < SaltSize)
+        if (combinedData.Length < _config.EncryptionSaltSize)
         {
             throw new CryptographicException("Invalid encrypted data format");
         }
         
         // Extract salt and encrypted data
-        var salt = new byte[SaltSize];
-        var encryptedBytes = new byte[combinedData.Length - SaltSize];
-        Array.Copy(combinedData, 0, salt, 0, SaltSize);
-        Array.Copy(combinedData, SaltSize, encryptedBytes, 0, encryptedBytes.Length);
+        var salt = new byte[_config.EncryptionSaltSize];
+        var encryptedBytes = new byte[combinedData.Length - _config.EncryptionSaltSize];
+        Array.Copy(combinedData, 0, salt, 0, _config.EncryptionSaltSize);
+        Array.Copy(combinedData, _config.EncryptionSaltSize, encryptedBytes, 0, encryptedBytes.Length);
         
         // Derive key from entropy and salt using PBKDF2
-        using var pbkdf2 = new Rfc2898DeriveBytes(entropy, salt, Iterations, HashAlgorithmName.SHA256);
-        var key = pbkdf2.GetBytes(KeySize / 8);
-        var iv = pbkdf2.GetBytes(IvSize / 8);
+        using var pbkdf2 = new Rfc2898DeriveBytes(entropy, salt, _config.EncryptionPbkdf2Iterations, HashAlgorithmName.SHA256);
+        var key = pbkdf2.GetBytes(_config.EncryptionKeySize / 8);
+        var iv = pbkdf2.GetBytes(_config.EncryptionIvSize / 8);
         
         // Decrypt data using AES
         using var aes = Aes.Create();
-        aes.KeySize = KeySize;
-        aes.BlockSize = IvSize;
+        aes.KeySize = _config.EncryptionKeySize;
+        aes.BlockSize = _config.EncryptionIvSize;
         aes.Mode = CipherMode.CBC;
         aes.Padding = PaddingMode.PKCS7;
         aes.Key = key;

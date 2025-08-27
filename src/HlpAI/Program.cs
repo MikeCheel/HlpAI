@@ -1754,6 +1754,7 @@ public static class Program
         Console.WriteLine("\n📜 hh.exe Detection History");
         Console.WriteLine("============================");
         
+        var config = ConfigurationService.LoadConfiguration();
         var history = await hhExeService.GetDetectionHistoryAsync();
         
         if (history.Count == 0)
@@ -1762,10 +1763,10 @@ public static class Program
         }
         else
         {
-            Console.WriteLine($"Showing {Math.Min(history.Count, 10)} most recent detection attempts:");
+            Console.WriteLine($"Showing {Math.Min(history.Count, config.MaxRecentHistoryDisplayed)} most recent detection attempts:");
             Console.WriteLine();
             
-            var recentHistory = history.Take(10);
+            var recentHistory = history.Take(config.MaxRecentHistoryDisplayed);
             foreach (var entry in recentHistory)
             {
                 var status = entry.Found ? "✅ Found" : "❌ Not Found";
@@ -2921,7 +2922,8 @@ public static class Program
         }
         
         // Validate API key format
-        var validationService = new SecurityValidationService();
+        var appConfig = ConfigurationService.LoadConfiguration();
+        var validationService = new SecurityValidationService(appConfig);
         var validationResult = validationService.ValidateApiKey(apiKey, providerName);
         
         if (!validationResult.IsValid)
@@ -3142,6 +3144,7 @@ public static class Program
         Console.WriteLine("\n📊 Detailed Log Statistics");
         Console.WriteLine("===========================");
         
+        var config = ConfigurationService.LoadConfiguration();
         var stats = await loggingService.GetLogStatisticsAsync();
         var allLogs = await loggingService.GetRecentLogsAsync(10000);
         
@@ -3173,7 +3176,7 @@ public static class Program
         var contextGroups = allLogs.Where(l => !string.IsNullOrEmpty(l.Context))
                                   .GroupBy(l => l.Context)
                                   .OrderByDescending(g => g.Count())
-                                  .Take(5);
+                                  .Take(config.MaxModelsDisplayed);
         
         Console.WriteLine("🏷️ Top contexts:");
         foreach (var group in contextGroups)
@@ -3608,15 +3611,16 @@ private static Task DisplaySkippedFiles(List<SkippedFile> skippedFiles)
 {
     if (skippedFiles.Count == 0) return Task.CompletedTask;
 
+    var config = ConfigurationService.LoadConfiguration();
     Console.WriteLine("\n📋 Skipped files:");
-    foreach (var skipped in skippedFiles.Take(10))
+    foreach (var skipped in skippedFiles.Take(config.MaxSkippedFilesDisplayed))
     {
         Console.WriteLine($"  • {Path.GetFileName(skipped.FilePath)}: {skipped.Reason}");
     }
     
-    if (skippedFiles.Count > 10)
+    if (skippedFiles.Count > config.MaxSkippedFilesDisplayed)
     {
-        Console.WriteLine($"  ... and {skippedFiles.Count - 10} more files");
+        Console.WriteLine($"  ... and {skippedFiles.Count - config.MaxSkippedFilesDisplayed} more files");
     }
     
     return Task.CompletedTask;
@@ -3626,15 +3630,16 @@ private static Task DisplayFailedFiles(List<FailedFile> failedFiles)
 {
     if (failedFiles.Count == 0) return Task.CompletedTask;
 
+    var config = ConfigurationService.LoadConfiguration();
     Console.WriteLine("\n❌ Failed files:");
-    foreach (var failed in failedFiles.Take(10))
+    foreach (var failed in failedFiles.Take(config.MaxOperationFailedFilesDisplayed))
     {
         Console.WriteLine($"  • {Path.GetFileName(failed.FilePath)}: {failed.Error}");
     }
     
-    if (failedFiles.Count > 10)
+    if (failedFiles.Count > config.MaxOperationFailedFilesDisplayed)
     {
-        Console.WriteLine($"  ... and {failedFiles.Count - 10} more files");
+        Console.WriteLine($"  ... and {failedFiles.Count - config.MaxOperationFailedFilesDisplayed} more files");
     }
     
     return Task.CompletedTask;
@@ -4988,7 +4993,7 @@ private static Task WaitForKeyPress()
                     var models = await provider.GetModelsAsync();
                     if (models.Count > 0)
                     {
-                        Console.WriteLine($"Available models ({models.Count}): {string.Join(", ", models.Take(5))}{(models.Count > 5 ? "..." : "")}");
+                        Console.WriteLine($"Available models ({models.Count}): {string.Join(", ", models.Take(config.MaxModelsDisplayed))}{(models.Count > config.MaxModelsDisplayed ? "..." : "")}");
                         
                         // Validate current model is available
                         if (!string.IsNullOrEmpty(config.LastModel) && !models.Contains(config.LastModel))

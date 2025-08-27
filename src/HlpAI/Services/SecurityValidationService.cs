@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -11,13 +12,10 @@ namespace HlpAI.Services;
 public class SecurityValidationService
 {
     private readonly ILogger<SecurityValidationService>? _logger;
+    private readonly AppConfiguration _config;
     
     // Security patterns for validation
-    private static readonly Regex ApiKeyPattern = new(@"^[a-zA-Z0-9_-]{20,}$", RegexOptions.Compiled);
     private static readonly Regex UrlPattern = new(@"^https?:\/\/[a-zA-Z0-9.-]+(?::[0-9]+)?(?:\/[^\s]*)?$", RegexOptions.Compiled);
-    private static readonly Regex ModelNamePattern = new(@"^[a-zA-Z0-9._-]{1,100}$", RegexOptions.Compiled);
-    private static readonly Regex ProviderNamePattern = new(@"^[a-zA-Z0-9_-]{1,50}$", RegexOptions.Compiled);
-    private static readonly Regex FilePathPattern = new(@"^[a-zA-Z0-9\\/:._-]{1,260}$", RegexOptions.Compiled);
     
     // Dangerous characters and patterns
     private static readonly char[] DangerousChars = { '<', '>', '"', '&', '\0', '\r', '\n' };
@@ -35,8 +33,9 @@ public class SecurityValidationService
         "C:\\ProgramData\\", "C:\\Program Files\\", "C:\\Program Files (x86)\\"
     };
     
-    public SecurityValidationService(ILogger<SecurityValidationService>? logger = null)
+    public SecurityValidationService(AppConfiguration config, ILogger<SecurityValidationService>? logger = null)
     {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
     }
     
@@ -54,14 +53,15 @@ public class SecurityValidationService
         apiKey = apiKey.Trim();
         
         // Check length constraints
-        if (apiKey.Length < 20 || apiKey.Length > 200)
+        if (apiKey.Length < _config.ApiKeyMinLength || apiKey.Length > _config.ApiKeyMaxLength)
         {
             _logger?.LogWarning("Invalid API key length for provider {Provider}: {Length}", providerName, apiKey.Length);
-            return new ValidationResult(false, "API key must be between 20 and 200 characters");
+            return new ValidationResult(false, $"API key must be between {_config.ApiKeyMinLength} and {_config.ApiKeyMaxLength} characters");
         }
-        
-        // Validate pattern
-        if (!ApiKeyPattern.IsMatch(apiKey))
+
+        // Create dynamic pattern based on configuration
+        var apiKeyPattern = new Regex($@"^[a-zA-Z0-9_-]{{{_config.ApiKeyMinLength},}}$", RegexOptions.Compiled);
+        if (!apiKeyPattern.IsMatch(apiKey))
         {
             _logger?.LogWarning("Invalid API key format for provider {Provider}", providerName);
             return new ValidationResult(false, "API key contains invalid characters");
@@ -136,14 +136,15 @@ public class SecurityValidationService
         modelName = modelName.Trim();
         
         // Check length
-        if (modelName.Length > 100)
+        if (modelName.Length > _config.ModelNameMaxLength)
         {
             _logger?.LogWarning("Model name too long: {Length}", modelName.Length);
-            return new ValidationResult(false, "Model name must be 100 characters or less");
+            return new ValidationResult(false, $"Model name must be {_config.ModelNameMaxLength} characters or less");
         }
-        
-        // Validate pattern
-        if (!ModelNamePattern.IsMatch(modelName))
+
+        // Create dynamic pattern based on configuration
+        var modelNamePattern = new Regex($@"^[a-zA-Z0-9._-]{{1,{_config.ModelNameMaxLength}}}$", RegexOptions.Compiled);
+        if (!modelNamePattern.IsMatch(modelName))
         {
             _logger?.LogWarning("Invalid model name format: {ModelName}", modelName);
             return new ValidationResult(false, "Model name contains invalid characters");
@@ -166,14 +167,15 @@ public class SecurityValidationService
         providerName = providerName.Trim();
         
         // Check length
-        if (providerName.Length > 50)
+        if (providerName.Length > _config.ProviderNameMaxLength)
         {
             _logger?.LogWarning("Provider name too long: {Length}", providerName.Length);
-            return new ValidationResult(false, "Provider name must be 50 characters or less");
+            return new ValidationResult(false, $"Provider name must be {_config.ProviderNameMaxLength} characters or less");
         }
-        
-        // Validate pattern
-        if (!ProviderNamePattern.IsMatch(providerName))
+
+        // Create dynamic pattern based on configuration
+        var providerNamePattern = new Regex($@"^[a-zA-Z0-9_-]{{1,{_config.ProviderNameMaxLength}}}$", RegexOptions.Compiled);
+        if (!providerNamePattern.IsMatch(providerName))
         {
             _logger?.LogWarning("Invalid provider name format: {ProviderName}", providerName);
             return new ValidationResult(false, "Provider name contains invalid characters");
@@ -196,10 +198,10 @@ public class SecurityValidationService
         filePath = filePath.Trim();
         
         // Check length
-        if (filePath.Length > 260)
+        if (filePath.Length > _config.FilePathMaxLength)
         {
             _logger?.LogWarning("File path too long: {Length}", filePath.Length);
-            return new ValidationResult(false, "File path must be 260 characters or less");
+            return new ValidationResult(false, $"File path must be {_config.FilePathMaxLength} characters or less");
         }
         
         // Check for dangerous characters
@@ -209,8 +211,9 @@ public class SecurityValidationService
             return new ValidationResult(false, "File path contains invalid characters");
         }
         
-        // Validate pattern
-        if (!FilePathPattern.IsMatch(filePath))
+        // Create dynamic pattern based on configuration
+        var filePathPattern = new Regex($@"^[a-zA-Z0-9\\/:._-]{{1,{_config.FilePathMaxLength}}}$", RegexOptions.Compiled);
+        if (!filePathPattern.IsMatch(filePath))
         {
             _logger?.LogWarning("Invalid file path format: {FilePath}", filePath);
             return new ValidationResult(false, "File path format is invalid");

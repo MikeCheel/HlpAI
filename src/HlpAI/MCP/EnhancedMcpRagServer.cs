@@ -23,6 +23,7 @@ namespace HlpAI.MCP
     private readonly EmbeddingService _embeddingService;
     public readonly IVectorStore _vectorStore;
     public readonly OperationMode _operationMode;
+    private readonly AppConfiguration _config;
     
     public string RootPath => _rootPath;
     private bool _disposed = false;
@@ -34,18 +35,18 @@ namespace HlpAI.MCP
         _operationMode = mode;
         
         // Load configuration to get provider settings
-        var config = ConfigurationService.LoadConfiguration(logger);
+        _config = ConfigurationService.LoadConfiguration(logger);
         
         // Create AI provider based on configuration
         _aiProvider = AiProviderFactory.CreateProvider(
-            config.LastProvider,
+            _config.LastProvider,
             aiModel,
-            GetProviderUrl(config, config.LastProvider),
+            GetProviderUrl(_config, _config.LastProvider),
             logger,
-            config
+            _config
         );
         
-        _embeddingService = new EmbeddingService(logger: logger, config: config);
+        _embeddingService = new EmbeddingService(logger: logger, config: _config);
 
             // Use optimized SQLite-backed vector store with MD5 checksum optimization
             var dbPath = Path.Combine(_rootPath, "vectors.db");
@@ -297,14 +298,14 @@ namespace HlpAI.MCP
                 foreach (var group in groupedSkipped.OrderByDescending(g => g.Count()))
                 {
                     _logger?.LogInformation("{Reason}: {Count} files", group.Key, group.Count());
-                    foreach (var file in group.Take(5)) // Show first 5 files in each category
+                    foreach (var file in group.Take(_config.MaxFilesPerCategoryDisplayed)) // Show first files in each category
                     {
                         _logger?.LogInformation("  - {FileName} ({FileSize:N0} bytes)",
                             Path.GetFileName(file.FilePath), file.FileSize);
                     }
-                    if (group.Count() > 5)
+                    if (group.Count() > _config.MaxFilesPerCategoryDisplayed)
                     {
-                        _logger?.LogInformation("  ... and {MoreCount} more files", group.Count() - 5);
+                        _logger?.LogInformation("  ... and {MoreCount} more files", group.Count() - _config.MaxFilesPerCategoryDisplayed);
                     }
                 }
             }
@@ -312,14 +313,14 @@ namespace HlpAI.MCP
             if (result.FailedFiles.Count > 0)
             {
                 _logger?.LogWarning("\n=== FAILED FILES ===");
-                foreach (var failed in result.FailedFiles.Take(10)) // Show first 10 failures
+                foreach (var failed in result.FailedFiles.Take(_config.MaxFailedFilesDisplayed))
                 {
                     _logger?.LogWarning("❌ {FileName}: {Error}",
                         Path.GetFileName(failed.FilePath), failed.Error);
                 }
-                if (result.FailedFiles.Count > 10)
+                if (result.FailedFiles.Count > _config.MaxFailedFilesDisplayed)
                 {
-                    _logger?.LogWarning("... and {MoreFailures} more failures", result.FailedFiles.Count - 10);
+                    _logger?.LogWarning("... and {MoreFailures} more failures", result.FailedFiles.Count - _config.MaxFailedFilesDisplayed);
                 }
             }
 
@@ -639,7 +640,7 @@ namespace HlpAI.MCP
             {
                 report.AppendLine("❌ NOT INDEXED FILES:");
 
-                foreach (var file in notIndexedFiles.Take(20)) // Limit to first 20
+                foreach (var file in notIndexedFiles.Take(_config.MaxNotIndexedFilesDisplayed))
                 {
                     var fileInfo = new FileInfo(file);
                     var reason = "Unknown";
@@ -660,9 +661,9 @@ namespace HlpAI.MCP
                     report.AppendLine($"  📄 {Path.GetFileName(file)} - {reason}");
                 }
 
-                if (notIndexedFiles.Count > 20)
+                if (notIndexedFiles.Count > _config.MaxNotIndexedFilesDisplayed)
                 {
-                    report.AppendLine($"  ... and {notIndexedFiles.Count - 20} more files\n");
+                    report.AppendLine($"  ... and {notIndexedFiles.Count - _config.MaxNotIndexedFilesDisplayed} more files\n");
                 }
 
                 // Group not-indexed files by reason

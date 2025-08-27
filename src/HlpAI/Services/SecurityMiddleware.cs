@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Text;
 using HlpAI.Attributes;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -18,10 +19,11 @@ public class SecurityMiddleware
     public SecurityMiddleware(ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
     {
         _logger = logger;
-        _validationService = new SecurityValidationService();
+        var appConfig = ConfigurationService.LoadConfiguration(logger);
+        _validationService = new SecurityValidationService(appConfig, logger as ILogger<SecurityValidationService>);
         _auditService = new SecurityAuditService(logger as ILogger<SecurityAuditService>);
         _config = config ?? new SecurityConfiguration();
-        _dataProtection = new CrossPlatformDataProtection(logger);
+        _dataProtection = new CrossPlatformDataProtection(appConfig, logger);
     }
     
     public SecurityMiddleware(SecurityValidationService validationService, ILogger<SecurityMiddleware>? logger = null)
@@ -30,7 +32,8 @@ public class SecurityMiddleware
         _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
         _auditService = new SecurityAuditService(logger as ILogger<SecurityAuditService>);
         _config = new SecurityConfiguration();
-        _dataProtection = new CrossPlatformDataProtection(logger);
+        var appConfig = ConfigurationService.LoadConfiguration(logger);
+        _dataProtection = new CrossPlatformDataProtection(appConfig, logger);
     }
     
     public SecurityMiddleware(SecurityValidationService validationService, SecurityAuditService auditService, ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
@@ -39,7 +42,8 @@ public class SecurityMiddleware
         _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
         _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
         _config = config ?? new SecurityConfiguration();
-        _dataProtection = new CrossPlatformDataProtection(logger);
+        var appConfig = ConfigurationService.LoadConfiguration(logger);
+        _dataProtection = new CrossPlatformDataProtection(appConfig, logger);
     }
     
     /// <summary>

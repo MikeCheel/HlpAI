@@ -3,6 +3,7 @@ using TUnit.Assertions;
 using TUnit.Core;
 using HlpAI.Services;
 using HlpAI.Attributes;
+using HlpAI.Models;
 
 namespace HlpAI.Tests.Services;
 
@@ -11,12 +12,14 @@ public class SecurityValidationServiceTests : IDisposable
     private readonly SecurityValidationService _service;
     private readonly ILogger<SecurityValidationService> _logger;
     private readonly LoggerFactory _loggerFactory;
+    private readonly AppConfiguration _config;
     
     public SecurityValidationServiceTests()
     {
         _loggerFactory = new LoggerFactory();
         _logger = _loggerFactory.CreateLogger<SecurityValidationService>();
-        _service = new SecurityValidationService(_logger);
+        _config = new AppConfiguration(); // Use default configuration values
+        _service = new SecurityValidationService(_config, _logger);
     }
     
     [After(Test)]

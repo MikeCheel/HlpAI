@@ -1,13 +1,23 @@
 using Microsoft.Extensions.Logging;
 using HlpAI.FileExtractors;
 using HlpAI.Models;
+using HlpAI.Services;
 
 namespace HlpAI.Utilities
 {
     // File Audit Utility
-    public static class FileAuditUtility
+    public class FileAuditUtility
     {
-        public static void AuditDirectory(string rootPath, ILogger? logger = null, TextWriter? output = null, long maxFileSizeBytes = 100 * 1024 * 1024)
+        private readonly ILogger<FileAuditUtility>? _logger;
+        private readonly AppConfiguration _config;
+        
+        public FileAuditUtility(ILogger<FileAuditUtility>? logger = null)
+        {
+            _logger = logger;
+            _config = ConfigurationService.LoadConfiguration(logger);
+        }
+        
+        public void AuditDirectory(string rootPath, TextWriter? output = null, long maxFileSizeBytes = 100 * 1024 * 1024)
         {
             var writer = output ?? Console.Out;
             writer.WriteLine($"🔍 Auditing directory: {rootPath}");
@@ -25,7 +35,7 @@ namespace HlpAI.Utilities
                 new TextFileExtractor(),
                 new HtmlFileExtractor(),
                 new PdfFileExtractor(),
-                new ChmFileExtractor(logger),
+                new ChmFileExtractor(_logger),
                 new HhcFileExtractor()
             };
 
@@ -103,13 +113,13 @@ namespace HlpAI.Utilities
             {
                 writer.WriteLine("\n❌ UNSUPPORTED FILES (sample)");
                 writer.WriteLine("=============================");
-                foreach (var (file, reason) in results.Unsupported.Take(10))
+                foreach (var (file, reason) in results.Unsupported.Take(_config.MaxUnsupportedFilesDisplayed))
                 {
                     writer.WriteLine($"📄 {Path.GetFileName(file)} - {reason}");
                 }
-                if (results.Unsupported.Count > 10)
+                if (results.Unsupported.Count > _config.MaxUnsupportedFilesDisplayed)
                 {
-                    writer.WriteLine($"... and {results.Unsupported.Count - 10} more files");
+                    writer.WriteLine($"... and {results.Unsupported.Count - _config.MaxUnsupportedFilesDisplayed} more files");
                 }
             }
 
@@ -117,7 +127,7 @@ namespace HlpAI.Utilities
             {
                 writer.WriteLine($"\n📦 LARGE FILES (>{maxFileSizeBytes / (1024 * 1024)}MB)");
                 writer.WriteLine("=======================");
-                foreach (var (file, size) in results.TooLarge.OrderByDescending(x => x.size).Take(5))
+                foreach (var (file, size) in results.TooLarge.OrderByDescending(x => x.size).Take(_config.MaxLargeFilesDisplayed))
                 {
                     writer.WriteLine($"📄 {Path.GetFileName(file)} - {size / (1024 * 1024):F1} MB");
                 }
@@ -133,7 +143,7 @@ namespace HlpAI.Utilities
                 .Where(g => g.Count() > 1)
                 .OrderByDescending(g => g.Count());
 
-            foreach (var extGroup in unsupportedExtensions.Take(3))
+            foreach (var extGroup in unsupportedExtensions.Take(_config.MaxUnsupportedExtensionGroupsDisplayed))
             {
                 var ext = extGroup.Key;
                 writer.WriteLine($"• Consider adding support for {ext} files ({extGroup.Count()} files found)");
@@ -157,7 +167,7 @@ namespace HlpAI.Utilities
             writer.WriteLine($"\n✨ Audit completed in {DateTime.Now:HH:mm:ss}");
         }
 
-        private static bool ShouldSkipFileAudit(string filePath, FileInfo fileInfo, long maxFileSizeBytes, out string reason)
+        private bool ShouldSkipFileAudit(string filePath, FileInfo fileInfo, long maxFileSizeBytes, out string reason)
         {
             var fileName = Path.GetFileName(filePath);
             var fileExtension = Path.GetExtension(filePath);
@@ -216,6 +226,15 @@ namespace HlpAI.Utilities
 
             reason = "";
             return false;
+        }
+        
+        /// <summary>
+        /// Static method for auditing a directory - creates an instance and calls the instance method
+        /// </summary>
+        public static void AuditDirectory(string rootPath, ILogger? logger = null, TextWriter? output = null, long maxFileSizeBytes = 100 * 1024 * 1024)
+        {
+            var utility = new FileAuditUtility(logger as ILogger<FileAuditUtility>);
+            utility.AuditDirectory(rootPath, output, maxFileSizeBytes);
         }
     }
 }

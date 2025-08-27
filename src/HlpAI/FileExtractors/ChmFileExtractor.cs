@@ -8,9 +8,10 @@ using SystemPath = System.IO.Path;
 
 namespace HlpAI.FileExtractors;
 
-public class ChmFileExtractor(ILogger? logger = null) : IFileExtractor, IDisposable
+public class ChmFileExtractor(ILogger? logger = null, AppConfiguration? config = null) : IFileExtractor, IDisposable
 {
     private readonly ILogger? _logger = logger;
+    private readonly AppConfiguration _config = config ?? ConfigurationService.LoadConfiguration(logger);
     private readonly string _tempDir = SystemPath.Combine(SystemPath.GetTempPath(), "CHMExtractor", Guid.NewGuid().ToString());
 
     public bool CanHandle(string filePath)
@@ -86,7 +87,7 @@ public class ChmFileExtractor(ILogger? logger = null) : IFileExtractor, IDisposa
                 {
                     var files = Directory.GetFiles(_tempDir, "*", SearchOption.AllDirectories);
                     _logger?.LogDebug("Found {FileCount} files in temp directory {TempDir}: {Files}", 
-                        files.Length, _tempDir, string.Join(", ", files.Take(10)));
+                        files.Length, _tempDir, string.Join(", ", files.Take(_config.MaxChmExtractorFilesDisplayed)));
                 }
                 else
                 {

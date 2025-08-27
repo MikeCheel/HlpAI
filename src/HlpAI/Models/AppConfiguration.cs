@@ -221,6 +221,122 @@ public class AppConfiguration
     public int ChunkOverlap { get; set; } = 200;
 
     /// <summary>
+    /// Minimum API key length for validation (default: 20 characters)
+    /// </summary>
+    public int ApiKeyMinLength { get; set; } = 20;
+
+    /// <summary>
+    /// Maximum API key length for validation (default: 200 characters)
+    /// </summary>
+    public int ApiKeyMaxLength { get; set; } = 200;
+
+    /// <summary>
+    /// Maximum model name length for validation (default: 100 characters)
+    /// </summary>
+    public int ModelNameMaxLength { get; set; } = 100;
+
+    /// <summary>
+    /// Maximum provider name length for validation (default: 50 characters)
+    /// </summary>
+    public int ProviderNameMaxLength { get; set; } = 50;
+
+    /// <summary>
+    /// Maximum file path length for validation (default: 260 characters)
+    /// </summary>
+    public int FilePathMaxLength { get; set; } = 260;
+
+    /// <summary>
+    /// Maximum number of unsupported files to display in audit reports
+    /// </summary>
+    public int MaxUnsupportedFilesDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of recent logs to retrieve by default
+    /// </summary>
+    public int MaxRecentLogsDisplayed { get; set; } = 50;
+
+    /// <summary>
+    /// Maximum number of cleanup history records to display (default: 20)
+    /// </summary>
+    public int MaxCleanupHistoryRecords { get; set; } = 20;
+
+    /// <summary>
+    /// Maximum number of top violations to display in security audit reports (default: 10)
+    /// </summary>
+    public int MaxTopViolationsDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of failed files to display in indexing reports (default: 10)
+    /// </summary>
+    public int MaxFailedFilesDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of not-indexed files to display in reports (default: 20)
+    /// </summary>
+    public int MaxNotIndexedFilesDisplayed { get; set; } = 20;
+
+    /// <summary>
+    /// Maximum number of files to display in CHM extractor logs (default: 10)
+    /// </summary>
+    public int MaxChmExtractorFilesDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of large files to display in audit reports (default: 5)
+    /// </summary>
+    public int MaxLargeFilesDisplayed { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of unsupported extension groups to display in audit reports (default: 3)
+    /// </summary>
+    public int MaxUnsupportedExtensionGroupsDisplayed { get; set; } = 3;
+
+    /// <summary>
+    /// Maximum number of files to display per category in MCP server reports (default: 5)
+    /// </summary>
+    public int MaxFilesPerCategoryDisplayed { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of recent history items to display (default: 10)
+    /// </summary>
+    public int MaxRecentHistoryDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of models to display in lists (default: 5)
+    /// </summary>
+    public int MaxModelsDisplayed { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of skipped files to display in reports (default: 10)
+    /// </summary>
+    public int MaxSkippedFilesDisplayed { get; set; } = 10;
+
+    /// <summary>
+    /// Maximum number of failed files to display in operation reports (default: 10)
+    /// </summary>
+    public int MaxOperationFailedFilesDisplayed { get; set; } = 10;
+
+    // Encryption Configuration
+    /// <summary>
+    /// AES key size in bits for encryption (default: 256 for AES-256)
+    /// </summary>
+    public int EncryptionKeySize { get; set; } = 256;
+
+    /// <summary>
+    /// AES initialization vector size in bits (default: 128)
+    /// </summary>
+    public int EncryptionIvSize { get; set; } = 128;
+
+    /// <summary>
+    /// Salt size in bytes for key derivation (default: 32 for 256-bit salt)
+    /// </summary>
+    public int EncryptionSaltSize { get; set; } = 32;
+
+    /// <summary>
+    /// Number of PBKDF2 iterations for key derivation (default: 100000)
+    /// </summary>
+    public int EncryptionPbkdf2Iterations { get; set; } = 100000;
+
+    /// <summary>
     /// When this configuration was last updated
     /// </summary>
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;

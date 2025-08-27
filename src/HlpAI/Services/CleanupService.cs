@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -10,12 +11,14 @@ public class CleanupService : IDisposable
 {
     private readonly ILogger? _logger;
     private readonly SqliteConfigurationService _configService;
+    private readonly AppConfiguration _config;
     private bool _disposed = false;
 
     public CleanupService(ILogger? logger = null, SqliteConfigurationService? configService = null)
     {
         _logger = logger;
         _configService = configService ?? new SqliteConfigurationService(logger);
+        _config = ConfigurationService.LoadConfiguration(logger);
     }
 
     /// <summary>
@@ -549,14 +552,15 @@ public class CleanupService : IDisposable
     /// <summary>
     /// Get cleanup history
     /// </summary>
-    public async Task<List<CleanupResult>> GetCleanupHistoryAsync(int maxRecords = 20)
+    public async Task<List<CleanupResult>> GetCleanupHistoryAsync(int? maxRecords = null)
     {
         try
         {
             var cleanupLogs = await _configService.GetCategoryConfigurationAsync("cleanup_logs");
             var results = new List<CleanupResult>();
 
-            foreach (var log in cleanupLogs.OrderByDescending(kvp => kvp.Key).Take(maxRecords))
+            var actualMaxRecords = maxRecords ?? _config.MaxCleanupHistoryRecords;
+            foreach (var log in cleanupLogs.OrderByDescending(kvp => kvp.Key).Take(actualMaxRecords))
             {
                 try
                 {
