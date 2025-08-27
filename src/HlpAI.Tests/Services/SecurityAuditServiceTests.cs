@@ -381,6 +381,7 @@ public class SecurityAuditServiceTests : IDisposable
         
         // Act & Assert
         _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, "Test with large details", largeDetails);
+        await Task.CompletedTask;
         // No exception should be thrown - test passes if no exception is thrown
     }
     
@@ -388,12 +389,13 @@ public class SecurityAuditServiceTests : IDisposable
     public async Task LogApiKeyUsage_WithNullApiKey_ShouldHandleGracefully()
     {
         // Act & Assert
-        _auditService.LogApiKeyUsage(null, "test-operation", true);
+        _auditService.LogApiKeyUsage(null!, "test-operation", true);
+        await Task.CompletedTask;
         // No exception should be thrown - test passes if no exception is thrown
     }
     
     [Test]
-    public async Task LogDataAccessEvent_WithComplexData_ShouldLogCorrectly()
+    public void LogDataAccessEvent_WithComplexData_ShouldLogCorrectly()
     {
         // Arrange
         var resource = "user_database";
@@ -512,6 +514,7 @@ public class SecurityAuditServiceTests : IDisposable
         
         // Act & Assert
         _auditService.LogAuthenticationEvent(action, success, userId, "Mobile authentication with detailed context");
+        await Task.CompletedTask;
         // No exception should be thrown - test passes if no exception is thrown
     }
     
@@ -532,6 +535,7 @@ public class SecurityAuditServiceTests : IDisposable
         
         // Act & Assert
         _auditService.LogAuthorizationEvent(resource, action, allowed, userId);
+        await Task.CompletedTask;
         // No exception should be thrown - test passes if no exception is thrown
     }
     

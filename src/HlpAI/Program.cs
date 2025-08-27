@@ -61,7 +61,8 @@ public static class Program
         // Handle AI provider management commands
         if (cmdArgs.IsAiProviderManagementCommand())
         {
-            await cmdArgs.ApplyAiProviderConfigurationAsync();
+            using var configService = new SqliteConfigurationService(logger);
+            await cmdArgs.ApplyAiProviderConfigurationAsync(configService);
             return;
         }
 
@@ -1250,11 +1251,11 @@ public static class Program
                         var resetConfirm = await resetPromptService.PromptYesNoDefaultNoAsync("Are you sure you want to reset all settings to defaults?");
                         if (resetConfirm)
                         {
-                            // Reset JSON config
+                            // Reset configuration to defaults and save to SQLite
                             config = new AppConfiguration();
                             ConfigurationService.SaveConfiguration(config);
                             
-                            // Reset SQLite config
+                            // Clear SQLite categories
                             await sqliteConfig.ClearCategoryAsync("system");
                             await sqliteConfig.ClearCategoryAsync("application");
                             await sqliteConfig.ClearCategoryAsync("logging");
@@ -1541,13 +1542,13 @@ public static class Program
     {
         try
         {
-            // Update both JSON and SQLite configuration
+            // Update SQLite configuration
             var success = ConfigurationService.UpdateAiProviderConfiguration(config.LastProvider, newModel);
             
             if (success)
             {
                 Console.WriteLine($"✅ Model updated successfully: {newModel}");
-                Console.WriteLine($"✅ Configuration saved to both JSON and SQLite database");
+                Console.WriteLine($"✅ Configuration saved to SQLite database");
             }
             else
             {

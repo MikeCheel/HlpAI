@@ -95,8 +95,8 @@ public class TimeoutTokenConfigurationTests
         config.DeepSeekTimeoutMinutes = 18;
         
         // Save and reload configuration
-        ConfigurationService.SaveConfiguration(config);
-        var reloadedConfig = ConfigurationService.LoadConfiguration();
+        await _configService.SaveAppConfigurationAsync(config);
+        var reloadedConfig = await _configService.LoadAppConfigurationAsync();
 
         // Assert - Verify modified values persist
         await Assert.That(reloadedConfig.AiProviderTimeoutMinutes).IsEqualTo(15);

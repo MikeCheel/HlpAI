@@ -39,7 +39,9 @@ public class ProgramWorkflowTests
         // Redirect console output
         _stringWriter = new StringWriter();
         _originalOut = Console.Out;
+#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
         Console.SetOut(_stringWriter);
+#pragma warning restore TUnit0055
         
         // Store original input
         _originalIn = Console.In;
@@ -54,7 +56,9 @@ public class ProgramWorkflowTests
     public async Task Cleanup()
     {
         // Restore console output
+#pragma warning disable TUnit0055 // Overwriting the Console writer can break TUnit logging
         Console.SetOut(_originalOut);
+#pragma warning restore TUnit0055
         _stringWriter?.Dispose();
         
         // Restore console input

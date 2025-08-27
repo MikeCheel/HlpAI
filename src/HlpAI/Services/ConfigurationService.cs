@@ -4,19 +4,26 @@ using Microsoft.Extensions.Logging;
 
 namespace HlpAI.Services;
 
-/// <summary>
-/// Service for managing application configuration persistence
-/// </summary>
-public static class ConfigurationService
+public class ConfigurationService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() 
-    { 
+    private readonly ILogger<ConfigurationService>? _logger;
+    private readonly SqliteConfigurationService _sqliteConfigurationService;
+    
+    // Thread-local storage for config file path override (used in tests)
+    private static readonly ThreadLocal<string?> _configFilePathOverride = new();
+    
+    public static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNameCaseInsensitive = true
     };
 
-    // Thread-local storage for test override support
-    private static readonly ThreadLocal<string?> _configFilePathOverride = new();
+    public ConfigurationService(ILogger<ConfigurationService>? logger = null, SqliteConfigurationService? sqliteConfigurationService = null)
+    {
+        _logger = logger;
+        _sqliteConfigurationService = sqliteConfigurationService ?? new SqliteConfigurationService(logger);
+    }
 
     /// <summary>
     /// Gets the path to the configuration file
@@ -36,7 +43,7 @@ public static class ConfigurationService
     }
 
     /// <summary>
-    /// Loads the application configuration from disk
+    /// Loads the application configuration from SQLite database
     /// </summary>
     /// <param name="logger">Optional logger for diagnostics</param>
     /// <returns>The loaded configuration or a new default configuration</returns>
@@ -44,35 +51,18 @@ public static class ConfigurationService
     {
         try
         {
-            var configPath = ConfigFilePath;
-            
-            if (!File.Exists(configPath))
-            {
-                logger?.LogInformation("Configuration file not found at {ConfigPath}. Using default configuration.", configPath);
-                return new AppConfiguration();
-            }
-
-            var json = File.ReadAllText(configPath);
-            var config = JsonSerializer.Deserialize<AppConfiguration>(json, JsonOptions);
-            
-            if (config == null)
-            {
-                logger?.LogWarning("Failed to deserialize configuration file. Using default configuration.");
-                return new AppConfiguration();
-            }
-
-            logger?.LogInformation("Configuration loaded successfully from {ConfigPath}", configPath);
-            return config;
+            using var sqliteConfig = new SqliteConfigurationService(logger);
+            return sqliteConfig.LoadAppConfigurationAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error loading configuration. Using default configuration.");
+            logger?.LogError(ex, "Error loading configuration from SQLite. Using default configuration.");
             return new AppConfiguration();
         }
     }
 
     /// <summary>
-    /// Saves the application configuration to disk
+    /// Saves the application configuration to SQLite database
     /// </summary>
     /// <param name="config">The configuration to save</param>
     /// <param name="logger">Optional logger for diagnostics</param>
@@ -83,25 +73,13 @@ public static class ConfigurationService
         
         try
         {
-            var configPath = ConfigFilePath;
-            var configDir = Path.GetDirectoryName(configPath);
-            
-            if (configDir != null && !Directory.Exists(configDir))
-            {
-                Directory.CreateDirectory(configDir);
-                logger?.LogInformation("Created configuration directory: {ConfigDir}", configDir);
-            }
-
+            using var sqliteConfig = new SqliteConfigurationService(logger);
             config.LastUpdated = DateTime.UtcNow;
-            var json = JsonSerializer.Serialize(config, JsonOptions);
-            File.WriteAllText(configPath, json);
-
-            logger?.LogInformation("Configuration saved successfully to {ConfigPath}", configPath);
-            return true;
+            return sqliteConfig.SaveAppConfigurationAsync(config).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error saving configuration to {ConfigPath}", ConfigFilePath);
+            logger?.LogError(ex, "Error saving configuration to SQLite");
             return false;
         }
     }
@@ -134,31 +112,16 @@ public static class ConfigurationService
         var config = LoadConfiguration(logger);
         config.LastModel = model;
         
-        // Also save to SQLite for consistency
-        try
-        {
-            using var sqliteConfig = new SqliteConfigurationService(logger);
-            var providerConfig = sqliteConfig.GetAiProviderConfigurationAsync().GetAwaiter().GetResult();
-            if (providerConfig.HasValue)
-            {
-                sqliteConfig.SetAiProviderConfigurationAsync(providerConfig.Value.ProviderType, model).GetAwaiter().GetResult();
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to update model in SQLite configuration (falling back to JSON only)");
-        }
-        
         return SaveConfiguration(config, logger);
     }
 
     /// <summary>
-    /// Updates the AI provider configuration in both JSON and SQLite
+    /// Updates the AI provider configuration in SQLite
     /// </summary>
     /// <param name="providerType">The AI provider type</param>
     /// <param name="model">The model name</param>
     /// <param name="logger">Optional logger for diagnostics</param>
-    /// <returns>True if updated successfully in both stores</returns>
+    /// <returns>True if updated successfully</returns>
     public static bool UpdateAiProviderConfiguration(AiProviderType providerType, string model, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -167,7 +130,7 @@ public static class ConfigurationService
         config.LastProvider = providerType;
         config.LastModel = model;
         
-        // Save to SQLite first (primary storage)
+        // Save to SQLite (primary storage)
         bool sqliteSuccess = false;
         try
         {
@@ -184,15 +147,10 @@ public static class ConfigurationService
             sqliteSuccess = false;
         }
         
-        // Always save to JSON for backward compatibility
-        var jsonSuccess = SaveConfiguration(config, logger);
+        // Also save the complete configuration to SQLite
+        var configSuccess = SaveConfiguration(config, logger);
         
-        if (jsonSuccess)
-        {
-            logger?.LogInformation("AI provider configuration saved to JSON: {Provider} with model {Model}", providerType, model);
-        }
-        
-        return sqliteSuccess && jsonSuccess;
+        return sqliteSuccess && configSuccess;
     }
 
     /// <summary>
@@ -365,35 +323,63 @@ public static class ConfigurationService
     }
 
     /// <summary>
-    /// Gets the configuration file status for display purposes
+    /// Gets the configuration status for display purposes
     /// </summary>
-    /// <returns>A string describing the configuration file status</returns>
-    public static string GetConfigurationStatus()
+    /// <param name="sqliteConfigService">Optional SQLite configuration service for testing purposes</param>
+    /// <returns>A string describing the configuration status</returns>
+    public static string GetConfigurationStatus(SqliteConfigurationService? sqliteConfigService = null)
     {
-        var configPath = ConfigFilePath;
-        
-        if (!File.Exists(configPath))
-        {
-            return $"Configuration file: Not found\nWill be created at: {configPath}";
-        }
-
         try
         {
-            var fileInfo = new FileInfo(configPath);
-            var config = LoadConfiguration();
+            var dbPath = sqliteConfigService?.DatabasePath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
             
-            return $"Configuration file: {configPath}\n" +
-                   $"Last updated: {config.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC\n" +
-                   $"File size: {fileInfo.Length} bytes\n" +
-                   $"Remember last directory: {(config.RememberLastDirectory ? "Yes" : "No")}\n" +
-                   $"Remember last model: {(config.RememberLastModel ? "Yes" : "No")}\n" +
-                   $"Remember last operation mode: {(config.RememberLastOperationMode ? "Yes" : "No")}\n" +
-                   $"hh.exe path: {(string.IsNullOrEmpty(config.HhExePath) ? "Auto-detect" : config.HhExePath)}\n" +
-                   $"Auto-detect hh.exe: {(config.AutoDetectHhExe ? "Yes" : "No")}";
+            // Check if database file exists
+            if (!File.Exists(dbPath))
+            {
+                return $"Configuration file: Not found\n" +
+                       $"Will be created at: {dbPath}";
+            }
+            
+            SqliteConfigurationService configToUse;
+            bool shouldDispose = false;
+            
+            if (sqliteConfigService != null)
+            {
+                configToUse = sqliteConfigService;
+            }
+            else
+            {
+                configToUse = new SqliteConfigurationService();
+                shouldDispose = true;
+            }
+            
+            try
+            {
+                var config = configToUse.LoadAppConfigurationAsync().GetAwaiter().GetResult();
+                var stats = configToUse.GetStatsAsync().GetAwaiter().GetResult();
+                
+                return $"Configuration database: {dbPath}\n" +
+                       $"Last updated: {config.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC\n" +
+                       $"Total configurations: {stats.TotalItems}\n" +
+                       $"Categories: {stats.TotalCategories}\n" +
+                       $"Remember last directory: {(config.RememberLastDirectory ? "Yes" : "No")}\n" +
+                       $"Remember last model: {(config.RememberLastModel ? "Yes" : "No")}\n" +
+                       $"Remember last operation mode: {(config.RememberLastOperationMode ? "Yes" : "No")}\n" +
+                       $"hh.exe path: {(string.IsNullOrEmpty(config.HhExePath) ? "Auto-detect" : config.HhExePath)}\n" +
+                       $"Auto-detect hh.exe: {(config.AutoDetectHhExe ? "Yes" : "No")}";
+            }
+            finally
+            {
+                if (shouldDispose)
+                {
+                    configToUse.Dispose();
+                }
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            return $"Configuration file: {configPath} (Error reading file)";
+            var dbPath = sqliteConfigService?.DatabasePath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
+            return $"Configuration database: Error reading configuration - {ex.Message}";
         }
     }
 }

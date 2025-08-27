@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
+using System.Globalization;
 
 namespace HlpAI.Services;
 
@@ -53,8 +55,64 @@ public class SqliteConfigurationService : IDisposable
         // Initialize connection and database with better connection settings
         var connectionString = $"Data Source={_dbPath};Cache=Shared;";
         _connection = new SqliteConnection(connectionString);
-        _connection.Open();
-        InitializeDatabase();
+        
+        try
+        {
+            _connection.Open();
+            InitializeDatabase();
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 26) // SQLITE_NOTADB
+        {
+            _logger?.LogWarning("Database file appears to be corrupted, recreating: {DbPath}", _dbPath);
+            
+            // Close and dispose the connection
+            _connection?.Close();
+            _connection?.Dispose();
+            
+            // Clear connection pool to release file handles
+            SqliteConnection.ClearAllPools();
+            
+            // Delete the corrupted database file with retry logic
+            if (File.Exists(_dbPath))
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    try
+                    {
+                        File.Delete(_dbPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 2)
+                    {
+                        Thread.Sleep(100 * (i + 1));
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                    }
+                    catch (UnauthorizedAccessException) when (i < 2)
+                    {
+                        // Try to remove read-only attribute if present
+                        try
+                        {
+                            var attributes = File.GetAttributes(_dbPath);
+                            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+                            {
+                                File.SetAttributes(_dbPath, attributes & ~FileAttributes.ReadOnly);
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore attribute modification errors
+                        }
+                        Thread.Sleep(100 * (i + 1));
+                    }
+                }
+            }
+            
+            // Create a new connection and initialize
+            _connection = new SqliteConnection(connectionString);
+            _connection.Open();
+            InitializeDatabase();
+        }
         
         _logger?.LogInformation("SqliteConfigurationService initialized with database at {DbPath}", _dbPath);
     }
@@ -470,6 +528,323 @@ public class SqliteConfigurationService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Saves a complete AppConfiguration object to SQLite
+    /// </summary>
+    /// <param name="config">The configuration to save</param>
+    /// <returns>True if successful</returns>
+    public async Task<bool> SaveAppConfigurationAsync(AppConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        
+        try
+        {
+            // Update timestamp
+            config.LastUpdated = DateTime.UtcNow;
+            
+            // Save all configuration properties to appropriate categories
+            await SetConfigurationAsync("LastDirectory", config.LastDirectory, "general");
+            await SetConfigurationBoolAsync("RememberLastDirectory", config.RememberLastDirectory, "general");
+            await SetConfigurationAsync("LastProvider", config.LastProvider.ToString(), "ai_provider");
+            await SetConfigurationAsync("LastModel", config.LastModel, "ai_provider");
+            await SetConfigurationBoolAsync("RememberLastModel", config.RememberLastModel, "ai_provider");
+            await SetConfigurationBoolAsync("RememberLastProvider", config.RememberLastProvider, "ai_provider");
+            
+            // Provider URLs
+            await SetConfigurationAsync("OllamaUrl", config.OllamaUrl, "provider_urls");
+            await SetConfigurationAsync("LmStudioUrl", config.LmStudioUrl, "provider_urls");
+            await SetConfigurationAsync("OpenWebUiUrl", config.OpenWebUiUrl, "provider_urls");
+            await SetConfigurationAsync("OpenAiUrl", config.OpenAiUrl, "provider_urls");
+            await SetConfigurationAsync("AnthropicUrl", config.AnthropicUrl, "provider_urls");
+            await SetConfigurationAsync("DeepSeekUrl", config.DeepSeekUrl, "provider_urls");
+            
+            // Default models
+            await SetConfigurationAsync("OllamaDefaultModel", config.OllamaDefaultModel, "default_models");
+            await SetConfigurationAsync("LmStudioDefaultModel", config.LmStudioDefaultModel, "default_models");
+            await SetConfigurationAsync("OpenWebUiDefaultModel", config.OpenWebUiDefaultModel, "default_models");
+            await SetConfigurationAsync("OpenAiDefaultModel", config.OpenAiDefaultModel, "default_models");
+            await SetConfigurationAsync("AnthropicDefaultModel", config.AnthropicDefaultModel, "default_models");
+            await SetConfigurationAsync("DeepSeekDefaultModel", config.DeepSeekDefaultModel, "default_models");
+            
+            // Timeouts
+            await SetConfigurationAsync("AiProviderTimeoutMinutes", config.AiProviderTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("OllamaTimeoutMinutes", config.OllamaTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("LmStudioTimeoutMinutes", config.LmStudioTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("OpenWebUiTimeoutMinutes", config.OpenWebUiTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("EmbeddingTimeoutMinutes", config.EmbeddingTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("OpenAiTimeoutMinutes", config.OpenAiTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("AnthropicTimeoutMinutes", config.AnthropicTimeoutMinutes.ToString(), "timeouts");
+            await SetConfigurationAsync("DeepSeekTimeoutMinutes", config.DeepSeekTimeoutMinutes.ToString(), "timeouts");
+            
+            // Max tokens
+            await SetConfigurationAsync("OpenAiMaxTokens", config.OpenAiMaxTokens.ToString(), "max_tokens");
+            await SetConfigurationAsync("AnthropicMaxTokens", config.AnthropicMaxTokens.ToString(), "max_tokens");
+            await SetConfigurationAsync("DeepSeekMaxTokens", config.DeepSeekMaxTokens.ToString(), "max_tokens");
+            await SetConfigurationAsync("LmStudioMaxTokens", config.LmStudioMaxTokens.ToString(), "max_tokens");
+            await SetConfigurationAsync("OpenWebUiMaxTokens", config.OpenWebUiMaxTokens.ToString(), "max_tokens");
+            
+            // Security settings
+            await SetConfigurationBoolAsync("UseSecureApiKeyStorage", config.UseSecureApiKeyStorage, "security");
+            await SetConfigurationBoolAsync("ValidateApiKeysOnStartup", config.ValidateApiKeysOnStartup, "security");
+            await SetConfigurationAsync("MaxRequestSizeBytes", config.MaxRequestSizeBytes.ToString(), "security");
+            await SetConfigurationAsync("MaxContentLengthBytes", config.MaxContentLengthBytes.ToString(), "security");
+            await SetConfigurationAsync("MaxFileAuditSizeBytes", config.MaxFileAuditSizeBytes.ToString(), "security");
+            
+            // Operation mode
+            await SetConfigurationAsync("LastOperationMode", config.LastOperationMode.ToString(), "general");
+            await SetConfigurationBoolAsync("RememberLastOperationMode", config.RememberLastOperationMode, "general");
+            
+            // CHM settings
+            await SetConfigurationAsync("HhExePath", config.HhExePath, "chm");
+            await SetConfigurationBoolAsync("AutoDetectHhExe", config.AutoDetectHhExe, "chm");
+            
+            // Processing settings
+            await SetConfigurationAsync("ChunkSize", config.ChunkSize.ToString(), "processing");
+            await SetConfigurationAsync("ChunkOverlap", config.ChunkOverlap.ToString(), "processing");
+            
+            // Validation limits
+            await SetConfigurationAsync("ApiKeyMaxLength", config.ApiKeyMaxLength.ToString(), "validation");
+            await SetConfigurationAsync("ModelNameMaxLength", config.ModelNameMaxLength.ToString(), "validation");
+            await SetConfigurationAsync("ProviderNameMaxLength", config.ProviderNameMaxLength.ToString(), "validation");
+            await SetConfigurationAsync("FilePathMaxLength", config.FilePathMaxLength.ToString(), "validation");
+            
+            // Display limits
+            // Save additional display limits - using actual properties from AppConfiguration
+            await SetConfigurationAsync("MaxUnsupportedExtensionGroupsDisplayed", config.MaxUnsupportedExtensionGroupsDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxFilesPerCategoryDisplayed", config.MaxFilesPerCategoryDisplayed.ToString(), "display");
+            // Save additional display limits - using actual properties from AppConfiguration
+            await SetConfigurationAsync("MaxNotIndexedFilesDisplayed", config.MaxNotIndexedFilesDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxChmExtractorFilesDisplayed", config.MaxChmExtractorFilesDisplayed.ToString(), "display");
+            // Save display limits - using actual properties from AppConfiguration
+            await SetConfigurationAsync("MaxUnsupportedFilesDisplayed", config.MaxUnsupportedFilesDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxRecentLogsDisplayed", config.MaxRecentLogsDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxRecentHistoryDisplayed", config.MaxRecentHistoryDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxCleanupHistoryRecords", config.MaxCleanupHistoryRecords.ToString(), "display");
+            await SetConfigurationAsync("MaxTopViolationsDisplayed", config.MaxTopViolationsDisplayed.ToString(), "display");
+            await SetConfigurationAsync("MaxFailedFilesDisplayed", config.MaxFailedFilesDisplayed.ToString(), "display");
+            
+            // Encryption settings
+            await SetConfigurationAsync("EncryptionKeySize", config.EncryptionKeySize.ToString(), "encryption");
+            await SetConfigurationAsync("EncryptionIvSize", config.EncryptionIvSize.ToString(), "encryption");
+            await SetConfigurationAsync("EncryptionSaltSize", config.EncryptionSaltSize.ToString(), "encryption");
+            await SetConfigurationAsync("EncryptionPbkdf2Iterations", config.EncryptionPbkdf2Iterations.ToString(), "encryption");
+            
+            // Metadata
+            await SetConfigurationAsync("LastUpdated", config.LastUpdated.ToString("O"), "metadata");
+            await SetConfigurationAsync("ConfigVersion", config.ConfigVersion.ToString(), "metadata");
+            
+            // Menu context
+            await SetConfigurationAsync("CurrentMenuContext", config.CurrentMenuContext.ToString(), "menu");
+            await SetConfigurationBoolAsync("RememberMenuContext", config.RememberMenuContext, "menu");
+            if (config.MenuHistory != null && config.MenuHistory.Any())
+            {
+                await SetConfigurationAsync("MenuHistory", string.Join("|", config.MenuHistory), "menu");
+            }
+            
+            _logger?.LogInformation("Complete application configuration saved to SQLite");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error saving complete application configuration to SQLite");
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Loads a complete AppConfiguration object from SQLite
+    /// </summary>
+    /// <returns>The loaded configuration or a default configuration if not found</returns>
+    public async Task<AppConfiguration> LoadAppConfigurationAsync()
+    {
+        try
+        {
+            var config = new AppConfiguration();
+            
+            // Load general settings
+            config.LastDirectory = await GetConfigurationAsync("LastDirectory", "general") ?? config.LastDirectory;
+            config.RememberLastDirectory = await GetConfigurationBoolAsync("RememberLastDirectory", "general", config.RememberLastDirectory);
+            
+            // Load AI provider settings
+            var lastProviderStr = await GetConfigurationAsync("LastProvider", "ai_provider");
+            if (!string.IsNullOrEmpty(lastProviderStr) && Enum.TryParse<AiProviderType>(lastProviderStr, out var lastProvider))
+            {
+                config.LastProvider = lastProvider;
+            }
+            config.LastModel = await GetConfigurationAsync("LastModel", "ai_provider") ?? config.LastModel;
+            config.RememberLastModel = await GetConfigurationBoolAsync("RememberLastModel", "ai_provider", config.RememberLastModel);
+            config.RememberLastProvider = await GetConfigurationBoolAsync("RememberLastProvider", "ai_provider", config.RememberLastProvider);
+            
+            // Load provider URLs
+            config.OllamaUrl = await GetConfigurationAsync("OllamaUrl", "provider_urls") ?? config.OllamaUrl;
+            config.LmStudioUrl = await GetConfigurationAsync("LmStudioUrl", "provider_urls") ?? config.LmStudioUrl;
+            config.OpenWebUiUrl = await GetConfigurationAsync("OpenWebUiUrl", "provider_urls") ?? config.OpenWebUiUrl;
+            config.OpenAiUrl = await GetConfigurationAsync("OpenAiUrl", "provider_urls") ?? config.OpenAiUrl;
+            config.AnthropicUrl = await GetConfigurationAsync("AnthropicUrl", "provider_urls") ?? config.AnthropicUrl;
+            config.DeepSeekUrl = await GetConfigurationAsync("DeepSeekUrl", "provider_urls") ?? config.DeepSeekUrl;
+            
+            // Load default models
+            config.OllamaDefaultModel = await GetConfigurationAsync("OllamaDefaultModel", "default_models") ?? config.OllamaDefaultModel;
+            config.LmStudioDefaultModel = await GetConfigurationAsync("LmStudioDefaultModel", "default_models") ?? config.LmStudioDefaultModel;
+            config.OpenWebUiDefaultModel = await GetConfigurationAsync("OpenWebUiDefaultModel", "default_models") ?? config.OpenWebUiDefaultModel;
+            config.OpenAiDefaultModel = await GetConfigurationAsync("OpenAiDefaultModel", "default_models") ?? config.OpenAiDefaultModel;
+            config.AnthropicDefaultModel = await GetConfigurationAsync("AnthropicDefaultModel", "default_models") ?? config.AnthropicDefaultModel;
+            config.DeepSeekDefaultModel = await GetConfigurationAsync("DeepSeekDefaultModel", "default_models") ?? config.DeepSeekDefaultModel;
+            
+            // Load timeouts
+            if (int.TryParse(await GetConfigurationAsync("AiProviderTimeoutMinutes", "timeouts"), out var aiProviderTimeout))
+                config.AiProviderTimeoutMinutes = aiProviderTimeout;
+            if (int.TryParse(await GetConfigurationAsync("OllamaTimeoutMinutes", "timeouts"), out var ollamaTimeout))
+                config.OllamaTimeoutMinutes = ollamaTimeout;
+            if (int.TryParse(await GetConfigurationAsync("LmStudioTimeoutMinutes", "timeouts"), out var lmStudioTimeout))
+                config.LmStudioTimeoutMinutes = lmStudioTimeout;
+            if (int.TryParse(await GetConfigurationAsync("OpenWebUiTimeoutMinutes", "timeouts"), out var openWebUiTimeout))
+                config.OpenWebUiTimeoutMinutes = openWebUiTimeout;
+            if (int.TryParse(await GetConfigurationAsync("EmbeddingTimeoutMinutes", "timeouts"), out var embeddingTimeout))
+                config.EmbeddingTimeoutMinutes = embeddingTimeout;
+            if (int.TryParse(await GetConfigurationAsync("OpenAiTimeoutMinutes", "timeouts"), out var openAiTimeout))
+                config.OpenAiTimeoutMinutes = openAiTimeout;
+            if (int.TryParse(await GetConfigurationAsync("AnthropicTimeoutMinutes", "timeouts"), out var anthropicTimeout))
+                config.AnthropicTimeoutMinutes = anthropicTimeout;
+            if (int.TryParse(await GetConfigurationAsync("DeepSeekTimeoutMinutes", "timeouts"), out var deepSeekTimeout))
+                config.DeepSeekTimeoutMinutes = deepSeekTimeout;
+            
+            // Load max tokens
+            if (int.TryParse(await GetConfigurationAsync("OpenAiMaxTokens", "max_tokens"), out var openAiMaxTokens))
+                config.OpenAiMaxTokens = openAiMaxTokens;
+            if (int.TryParse(await GetConfigurationAsync("AnthropicMaxTokens", "max_tokens"), out var anthropicMaxTokens))
+                config.AnthropicMaxTokens = anthropicMaxTokens;
+            if (int.TryParse(await GetConfigurationAsync("DeepSeekMaxTokens", "max_tokens"), out var deepSeekMaxTokens))
+                config.DeepSeekMaxTokens = deepSeekMaxTokens;
+            if (int.TryParse(await GetConfigurationAsync("LmStudioMaxTokens", "max_tokens"), out var lmStudioMaxTokens))
+                config.LmStudioMaxTokens = lmStudioMaxTokens;
+            if (int.TryParse(await GetConfigurationAsync("OpenWebUiMaxTokens", "max_tokens"), out var openWebUiMaxTokens))
+                config.OpenWebUiMaxTokens = openWebUiMaxTokens;
+            
+            // Load security settings
+            config.UseSecureApiKeyStorage = await GetConfigurationBoolAsync("UseSecureApiKeyStorage", "security", config.UseSecureApiKeyStorage);
+            config.ValidateApiKeysOnStartup = await GetConfigurationBoolAsync("ValidateApiKeysOnStartup", "security", config.ValidateApiKeysOnStartup);
+            if (long.TryParse(await GetConfigurationAsync("MaxRequestSizeBytes", "security"), out var maxRequestSize))
+                config.MaxRequestSizeBytes = maxRequestSize;
+            if (long.TryParse(await GetConfigurationAsync("MaxContentLengthBytes", "security"), out var maxContentLength))
+                config.MaxContentLengthBytes = (int)maxContentLength;
+            if (long.TryParse(await GetConfigurationAsync("MaxFileAuditSizeBytes", "security"), out var maxFileAuditSize))
+                config.MaxFileAuditSizeBytes = (int)maxFileAuditSize;
+            
+            // Load operation mode
+            var lastOperationModeStr = await GetConfigurationAsync("LastOperationMode", "general");
+            if (!string.IsNullOrEmpty(lastOperationModeStr) && Enum.TryParse<OperationMode>(lastOperationModeStr, out var lastOperationMode))
+            {
+                config.LastOperationMode = lastOperationMode;
+            }
+            config.RememberLastOperationMode = await GetConfigurationBoolAsync("RememberLastOperationMode", "general", config.RememberLastOperationMode);
+            
+            // Load CHM settings
+            config.HhExePath = await GetConfigurationAsync("HhExePath", "chm") ?? config.HhExePath;
+            config.AutoDetectHhExe = await GetConfigurationBoolAsync("AutoDetectHhExe", "chm", config.AutoDetectHhExe);
+            
+            // Load processing settings
+            if (int.TryParse(await GetConfigurationAsync("ChunkSize", "processing"), out var chunkSize))
+                config.ChunkSize = chunkSize;
+            if (int.TryParse(await GetConfigurationAsync("ChunkOverlap", "processing"), out var chunkOverlap))
+                config.ChunkOverlap = chunkOverlap;
+            
+            // Load validation limits
+            if (int.TryParse(await GetConfigurationAsync("ApiKeyMaxLength", "validation"), out var apiKeyMaxLength))
+                config.ApiKeyMaxLength = apiKeyMaxLength;
+            if (int.TryParse(await GetConfigurationAsync("ModelNameMaxLength", "validation"), out var modelNameMaxLength))
+                config.ModelNameMaxLength = modelNameMaxLength;
+            if (int.TryParse(await GetConfigurationAsync("ProviderNameMaxLength", "validation"), out var providerNameMaxLength))
+                config.ProviderNameMaxLength = providerNameMaxLength;
+            if (int.TryParse(await GetConfigurationAsync("FilePathMaxLength", "validation"), out var filePathMaxLength))
+                config.FilePathMaxLength = filePathMaxLength;
+            
+            // Load display limits
+            // Load additional display limits - using actual properties from AppConfiguration
+            if (int.TryParse(await GetConfigurationAsync("MaxUnsupportedExtensionGroupsDisplayed", "display"), out var maxUnsupportedExtensionGroups))
+                config.MaxUnsupportedExtensionGroupsDisplayed = maxUnsupportedExtensionGroups;
+            if (int.TryParse(await GetConfigurationAsync("MaxFilesPerCategoryDisplayed", "display"), out var maxFilesPerCategory))
+                config.MaxFilesPerCategoryDisplayed = maxFilesPerCategory;
+            // Load additional display limits - using actual properties from AppConfiguration
+            if (int.TryParse(await GetConfigurationAsync("MaxNotIndexedFilesDisplayed", "display"), out var maxNotIndexedFiles))
+                config.MaxNotIndexedFilesDisplayed = maxNotIndexedFiles;
+            if (int.TryParse(await GetConfigurationAsync("MaxChmExtractorFilesDisplayed", "display"), out var maxChmExtractorFiles))
+                config.MaxChmExtractorFilesDisplayed = maxChmExtractorFiles;
+            if (int.TryParse(await GetConfigurationAsync("MaxLargeFilesDisplayed", "display"), out var maxLargeFiles))
+                config.MaxLargeFilesDisplayed = maxLargeFiles;
+            if (int.TryParse(await GetConfigurationAsync("MaxModelsDisplayed", "display"), out var maxModels))
+                config.MaxModelsDisplayed = maxModels;
+            // Load additional display limits
+            if (int.TryParse(await GetConfigurationAsync("MaxCleanupHistoryRecords", "display"), out var maxCleanupHistory))
+                config.MaxCleanupHistoryRecords = maxCleanupHistory;
+            if (int.TryParse(await GetConfigurationAsync("MaxTopViolationsDisplayed", "display"), out var maxTopViolations))
+                config.MaxTopViolationsDisplayed = maxTopViolations;
+            if (int.TryParse(await GetConfigurationAsync("MaxFailedFilesDisplayed", "display"), out var maxFailedFiles))
+                config.MaxFailedFilesDisplayed = maxFailedFiles;
+            // Load display limits - using actual properties from AppConfiguration
+            if (int.TryParse(await GetConfigurationAsync("MaxUnsupportedFilesDisplayed", "display"), out var maxUnsupportedFiles))
+                config.MaxUnsupportedFilesDisplayed = maxUnsupportedFiles;
+            if (int.TryParse(await GetConfigurationAsync("MaxRecentLogsDisplayed", "display"), out var maxRecentLogs))
+                config.MaxRecentLogsDisplayed = maxRecentLogs;
+            if (int.TryParse(await GetConfigurationAsync("MaxRecentHistoryDisplayed", "display"), out var maxRecentHistory))
+                config.MaxRecentHistoryDisplayed = maxRecentHistory;
+            
+            // Load encryption settings
+            if (int.TryParse(await GetConfigurationAsync("EncryptionKeySize", "encryption"), out var encryptionKeySize))
+                config.EncryptionKeySize = encryptionKeySize;
+            if (int.TryParse(await GetConfigurationAsync("EncryptionIvSize", "encryption"), out var encryptionIvSize))
+                config.EncryptionIvSize = encryptionIvSize;
+            if (int.TryParse(await GetConfigurationAsync("EncryptionSaltSize", "encryption"), out var encryptionSaltSize))
+                config.EncryptionSaltSize = encryptionSaltSize;
+            if (int.TryParse(await GetConfigurationAsync("EncryptionPbkdf2Iterations", "encryption"), out var encryptionPbkdf2Iterations))
+                config.EncryptionPbkdf2Iterations = encryptionPbkdf2Iterations;
+            
+            // Load metadata
+            var lastUpdatedStr = await GetConfigurationAsync("LastUpdated", "metadata");
+            if (!string.IsNullOrEmpty(lastUpdatedStr) && DateTime.TryParseExact(lastUpdatedStr, "O", null, DateTimeStyles.RoundtripKind, out var lastUpdated))
+            {
+                config.LastUpdated = lastUpdated;
+            }
+            var configVersionStr = await GetConfigurationAsync("ConfigVersion", "metadata");
+            if (!string.IsNullOrEmpty(configVersionStr) && int.TryParse(configVersionStr, out var configVersion))
+            {
+                config.ConfigVersion = configVersion;
+            }
+            
+            // Load menu context
+            var currentMenuContextStr = await GetConfigurationAsync("CurrentMenuContext", "menu");
+            if (!string.IsNullOrEmpty(currentMenuContextStr) && Enum.TryParse<MenuContext>(currentMenuContextStr, out var currentMenuContext))
+            {
+                config.CurrentMenuContext = currentMenuContext;
+            }
+            
+            // GetConfigurationBoolAsync returns bool, not bool?, so we can assign directly
+            config.RememberMenuContext = await GetConfigurationBoolAsync("RememberMenuContext", "menu", config.RememberMenuContext);
+            
+            var menuHistoryStr = await GetConfigurationAsync("MenuHistory", "menu");
+            if (!string.IsNullOrEmpty(menuHistoryStr))
+            {
+                var menuHistoryItems = menuHistoryStr.Split('|', StringSplitOptions.RemoveEmptyEntries);
+                config.MenuHistory = new List<MenuContext>();
+                foreach (var item in menuHistoryItems)
+                {
+                    if (Enum.TryParse<MenuContext>(item, out var menuContext))
+                    {
+                        config.MenuHistory.Add(menuContext);
+                    }
+                }
+            }
+            
+            _logger?.LogInformation("Complete application configuration loaded from SQLite");
+            return config;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error loading complete application configuration from SQLite, returning defaults");
+            return new AppConfiguration();
+        }
+    }
+
     private void InitializeDatabase()
     {
         // Set PRAGMA statements for better transaction handling
@@ -496,13 +871,56 @@ public class SqliteConfigurationService : IDisposable
         _logger?.LogDebug("Database table 'configuration' initialized");
     }
 
+    /// <summary>
+    /// Updates the last directory in the configuration
+    /// </summary>
+    /// <param name="directory">The directory path to save</param>
+    /// <returns>True if updated successfully</returns>
+    public async Task<bool> UpdateLastDirectoryAsync(string directory)
+    {
+        ArgumentNullException.ThrowIfNull(directory);
+        return await SetConfigurationAsync("LastDirectory", directory, "general");
+    }
+
+    /// <summary>
+    /// Updates the last model in the configuration
+    /// </summary>
+    /// <param name="model">The model name to save</param>
+    /// <returns>True if updated successfully</returns>
+    public async Task<bool> UpdateLastModelAsync(string model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return await SetConfigurationAsync("LastModel", model, "ai_provider");
+    }
+
+    /// <summary>
+    /// Updates the last operation mode in the configuration
+    /// </summary>
+    /// <param name="mode">The operation mode to save</param>
+    /// <returns>True if updated successfully</returns>
+    public async Task<bool> UpdateLastOperationModeAsync(OperationMode mode)
+    {
+        return await SetConfigurationAsync("LastOperationMode", mode.ToString(), "general");
+    }
+
     public void Dispose()
     {
         if (!_disposed)
         {
             try
             {
+                // Close the connection explicitly before disposing
+                if (_connection?.State == System.Data.ConnectionState.Open)
+                {
+                    _connection.Close();
+                }
                 _connection?.Dispose();
+                
+                // Clear the connection pool to release file handles
+                if (_connection != null)
+                {
+                    SqliteConnection.ClearPool(_connection);
+                }
             }
             catch (Exception ex)
             {

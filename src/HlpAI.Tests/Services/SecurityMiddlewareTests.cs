@@ -417,7 +417,7 @@ public class SecurityMiddlewareTests : IDisposable
     public async Task EncryptSensitiveData_WithNullData_ShouldReturnEmpty()
     {
         // Act
-        var result = _middleware.EncryptSensitiveData(null, "context");
+        var result = _middleware.EncryptSensitiveData(null!, "context");
         
         // Assert
         await Assert.That(result).IsEqualTo(string.Empty);
@@ -437,7 +437,7 @@ public class SecurityMiddlewareTests : IDisposable
     public async Task DecryptSensitiveData_WithNullData_ShouldReturnEmpty()
     {
         // Act
-        var result = _middleware.DecryptSensitiveData(null, "context");
+        var result = _middleware.DecryptSensitiveData(null!, "context");
         
         // Assert
         await Assert.That(result).IsEqualTo(string.Empty);

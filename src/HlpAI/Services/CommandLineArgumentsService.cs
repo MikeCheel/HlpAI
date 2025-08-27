@@ -936,10 +936,10 @@ public class CommandLineArgumentsService
     /// Apply AI provider configuration from command line arguments
     /// </summary>
     [SupportedOSPlatform("windows")]
-    public async Task<AiProviderConfiguration> ApplyAiProviderConfigurationAsync()
+    public async Task<AiProviderConfiguration> ApplyAiProviderConfigurationAsync(SqliteConfigurationService configService)
     {
         var config = new AiProviderConfiguration();
-        var appConfig = ConfigurationService.LoadConfiguration(_logger);
+        var appConfig = await configService.LoadAppConfigurationAsync();
 
         // Check for --list-providers
         if (HasArgument("list-providers"))
@@ -1196,7 +1196,7 @@ public class CommandLineArgumentsService
         // Save configuration if any changes were made
         if (config.ProviderChanged || config.UrlChanged || config.ModelChanged)
         {
-            ConfigurationService.SaveConfiguration(appConfig, _logger);
+            await configService.SaveAppConfigurationAsync(appConfig);
         }
 
         return config;
@@ -1267,10 +1267,10 @@ public class CommandLineArgumentsService
     /// <summary>
     /// Apply application configuration from command line arguments
     /// </summary>
-    public AppConfigurationResult ApplyAppConfiguration()
+    public async Task<AppConfigurationResult> ApplyAppConfigurationAsync(SqliteConfigurationService configService)
     {
         var result = new AppConfigurationResult();
-        var appConfig = ConfigurationService.LoadConfiguration(_logger);
+        var appConfig = await configService.LoadAppConfigurationAsync();
         bool hasChanges = false;
 
         // Timeout configurations
@@ -1496,7 +1496,7 @@ public class CommandLineArgumentsService
         // Save configuration if any changes were made
         if (hasChanges)
         {
-            ConfigurationService.SaveConfiguration(appConfig, _logger);
+            await configService.SaveAppConfigurationAsync(appConfig);
             result.HasChanges = true;
             Console.WriteLine("✅ Application configuration updated from command line arguments.");
         }

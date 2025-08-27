@@ -183,48 +183,46 @@ public class ChmExtractionVerificationTests
     [Test]
     public async Task VerifyConfigurationService_HhExePathManagement()
     {
-        // Set up test-specific configuration file path
-        var testConfigPath = Path.Combine(_testDirectory, "test_config.json");
-        ConfigurationService.SetConfigFilePathForTesting(testConfigPath);
+        // Set up test-specific SQLite database
+        var testDbPath = Path.Combine(_testDirectory, "test_config.db");
+        using var testConfigService = new SqliteConfigurationService(testDbPath, _logger);
+        
+        // Test configuration service hh.exe path management
+        var originalConfig = await testConfigService.LoadAppConfigurationAsync();
+        var originalPath = originalConfig.HhExePath;
+        var originalAutoDetect = originalConfig.AutoDetectHhExe;
         
         try
         {
-            // Test configuration service hh.exe path management
-            var originalConfig = ConfigurationService.LoadConfiguration(_logger);
-            var originalPath = originalConfig.HhExePath;
-            var originalAutoDetect = originalConfig.AutoDetectHhExe;
+            // Test updating path
+            var testPath = @"C:\Test\hh.exe";
+            var configToUpdate = await testConfigService.LoadAppConfigurationAsync();
+            configToUpdate.HhExePath = testPath;
+            var updateResult = await testConfigService.SaveAppConfigurationAsync(configToUpdate);
+            await Assert.That(updateResult).IsTrue();
             
-            try
-            {
-                // Test updating path
-                var testPath = @"C:\Test\hh.exe";
-                var updateResult = ConfigurationService.UpdateHhExePath(testPath, _logger);
-                await Assert.That(updateResult).IsTrue();
-                
-                // Verify path was saved
-                var updatedConfig = ConfigurationService.LoadConfiguration(_logger);
-                await Assert.That(updatedConfig.HhExePath).IsEqualTo(testPath);
-                
-                // Test clearing path - also disable auto-detection to prevent automatic re-detection
-                ConfigurationService.UpdateAutoDetectHhExe(false, _logger);
-                var clearResult = ConfigurationService.UpdateHhExePath(null, _logger);
-                await Assert.That(clearResult).IsTrue();
-                
-                // Verify path was cleared
-                var clearedConfig = ConfigurationService.LoadConfiguration(_logger);
-                await Assert.That(clearedConfig.HhExePath).IsNull();
-            }
-            finally
-            {
-                // Restore original configuration
-                ConfigurationService.UpdateHhExePath(originalPath, _logger);
-                ConfigurationService.UpdateAutoDetectHhExe(originalAutoDetect, _logger);
-            }
+            // Verify path was saved
+            var updatedConfig = await testConfigService.LoadAppConfigurationAsync();
+            await Assert.That(updatedConfig.HhExePath).IsEqualTo(testPath);
+            
+            // Test clearing path - also disable auto-detection to prevent automatic re-detection
+            var configToClear = await testConfigService.LoadAppConfigurationAsync();
+            configToClear.AutoDetectHhExe = false;
+            configToClear.HhExePath = null;
+            var clearResult = await testConfigService.SaveAppConfigurationAsync(configToClear);
+            await Assert.That(clearResult).IsTrue();
+            
+            // Verify path was cleared
+            var clearedConfig = await testConfigService.LoadAppConfigurationAsync();
+            await Assert.That(clearedConfig.HhExePath).IsNull();
         }
         finally
         {
-            // Reset configuration file path to default
-            ConfigurationService.SetConfigFilePathForTesting(null);
+            // Restore original configuration
+            var restoreConfig = await testConfigService.LoadAppConfigurationAsync();
+            restoreConfig.HhExePath = originalPath;
+            restoreConfig.AutoDetectHhExe = originalAutoDetect;
+            await testConfigService.SaveAppConfigurationAsync(restoreConfig);
         }
     }
 

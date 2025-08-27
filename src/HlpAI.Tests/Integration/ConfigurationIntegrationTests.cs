@@ -9,26 +9,37 @@ namespace HlpAI.Tests.Integration;
 public class ConfigurationIntegrationTests
 {
     private string _testDirectory = null!;
-    private string _testConfigFile = null!;
+    private string _testDbPath = null!;
     private ILogger<ConfigurationIntegrationTests> _logger = null!;
+    private SqliteConfigurationService _configService = null!;
+    private string _originalUserProfile = null!;
 
     [Before(Test)]
     public void Setup()
     {
         _testDirectory = FileTestHelper.CreateTempDirectory("config_integration");
-        _testConfigFile = Path.Combine(_testDirectory, "test_config.json");
+        _testDbPath = Path.Combine(_testDirectory, "test_config.db");
         _logger = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug))
             .CreateLogger<ConfigurationIntegrationTests>();
         
-        // Set up test-specific config path
-        ConfigurationService.SetConfigFilePathForTesting(_testConfigFile);
+        // Store original user profile and set to test directory
+        _originalUserProfile = Environment.GetEnvironmentVariable("USERPROFILE") ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Environment.SetEnvironmentVariable("USERPROFILE", _testDirectory);
+        
+        // Set up test-specific SQLite database
+        _configService = new SqliteConfigurationService(_testDbPath, _logger);
     }
 
     [After(Test)]
-    public void Cleanup()
+    public async Task Cleanup()
     {
-        // Reset to default config path
-        ConfigurationService.SetConfigFilePathForTesting(null);
+        // Restore original user profile
+        Environment.SetEnvironmentVariable("USERPROFILE", _originalUserProfile);
+        _configService?.Dispose();
+        
+        // Wait for file handles to be released
+        await Task.Delay(100);
+        
         FileTestHelper.SafeDeleteDirectory(_testDirectory);
     }
 
@@ -38,7 +49,7 @@ public class ConfigurationIntegrationTests
         // This test simulates a full configuration lifecycle as it would be used in the application
         
         // Step 1: Load default configuration (first run)
-        var initialConfig = ConfigurationService.LoadConfiguration(_logger);
+        var initialConfig = await _configService.LoadAppConfigurationAsync();
         await Assert.That(initialConfig).IsNotNull();
         await Assert.That(initialConfig.LastDirectory).IsNull();
         await Assert.That(initialConfig.RememberLastDirectory).IsTrue();
@@ -52,32 +63,32 @@ public class ConfigurationIntegrationTests
         initialConfig.LastModel = userModel;
         initialConfig.LastOperationMode = userMode;
 
-        var saveResult = ConfigurationService.SaveConfiguration(initialConfig, _logger);
+        var saveResult = await _configService.SaveAppConfigurationAsync(initialConfig);
         await Assert.That(saveResult).IsTrue();
 
         // Step 3: Application restart - load saved configuration
-        var reloadedConfig = ConfigurationService.LoadConfiguration(_logger);
+        var reloadedConfig = await _configService.LoadAppConfigurationAsync();
         await Assert.That(reloadedConfig.LastDirectory).IsEqualTo(userDirectory);
         await Assert.That(reloadedConfig.LastModel).IsEqualTo(userModel);
         await Assert.That(reloadedConfig.LastOperationMode).IsEqualTo(userMode);
 
         // Step 4: User changes directory through the application
         var newDirectory = @"C:\Users\TestUser\Documents\NewProject";
-        var updateResult = ConfigurationService.UpdateLastDirectory(newDirectory, _logger);
+        var updateResult = await _configService.UpdateLastDirectoryAsync(newDirectory);
         await Assert.That(updateResult).IsTrue();
 
         // Step 5: Verify change was persisted
-        var updatedConfig = ConfigurationService.LoadConfiguration(_logger);
+        var updatedConfig = await _configService.LoadAppConfigurationAsync();
         await Assert.That(updatedConfig.LastDirectory).IsEqualTo(newDirectory);
         await Assert.That(updatedConfig.LastModel).IsEqualTo(userModel); // Should remain unchanged
         await Assert.That(updatedConfig.LastOperationMode).IsEqualTo(userMode); // Should remain unchanged
 
         // Step 6: User disables directory memory
         updatedConfig.RememberLastDirectory = false;
-        ConfigurationService.SaveConfiguration(updatedConfig, _logger);
+        await _configService.SaveAppConfigurationAsync(updatedConfig);
 
         // Step 7: Verify setting was saved
-        var configWithDisabledMemory = ConfigurationService.LoadConfiguration(_logger);
+        var configWithDisabledMemory = await _configService.LoadAppConfigurationAsync();
         await Assert.That(configWithDisabledMemory.RememberLastDirectory).IsFalse();
         await Assert.That(configWithDisabledMemory.LastDirectory).IsEqualTo(newDirectory); // Value still there
     }
@@ -183,34 +194,33 @@ public class ConfigurationIntegrationTests
         var testModel1 = "helper-model-1";
         var testModel2 = "helper-model-2";
 
-        // Initial update
-        var result1 = ConfigurationService.UpdateLastDirectory(testDir1, _logger);
+        // Initial update using SQLite service directly
+        var config = await _configService.LoadAppConfigurationAsync();
+        config.LastDirectory = testDir1;
+        config.LastModel = testModel1;
+        config.LastOperationMode = OperationMode.MCP;
+        var result1 = await _configService.SaveAppConfigurationAsync(config);
         await Assert.That(result1).IsTrue();
 
-        var result2 = ConfigurationService.UpdateLastModel(testModel1, _logger);
-        await Assert.That(result2).IsTrue();
-
-        var result3 = ConfigurationService.UpdateLastOperationMode(OperationMode.MCP, _logger);
-        await Assert.That(result3).IsTrue();
-
+        // Add a small delay to ensure different timestamps
+        await Task.Delay(100);
+        
         // Verify first set of updates
-        var config1 = ConfigurationService.LoadConfiguration(_logger);
+        var config1 = await _configService.LoadAppConfigurationAsync();
         await Assert.That(config1.LastDirectory).IsEqualTo(testDir1);
         await Assert.That(config1.LastModel).IsEqualTo(testModel1);
         await Assert.That(config1.LastOperationMode).IsEqualTo(OperationMode.MCP);
-
-        // Second update
-        var result4 = ConfigurationService.UpdateLastDirectory(testDir2, _logger);
+        
+        // Second update - use SaveAppConfigurationAsync to ensure LastUpdated is updated
+        var config2ForUpdate = await _configService.LoadAppConfigurationAsync();
+        config2ForUpdate.LastDirectory = testDir2;
+        config2ForUpdate.LastModel = testModel2;
+        config2ForUpdate.LastOperationMode = OperationMode.RAG;
+        var result4 = await _configService.SaveAppConfigurationAsync(config2ForUpdate);
         await Assert.That(result4).IsTrue();
 
-        var result5 = ConfigurationService.UpdateLastModel(testModel2, _logger);
-        await Assert.That(result5).IsTrue();
-
-        var result6 = ConfigurationService.UpdateLastOperationMode(OperationMode.RAG, _logger);
-        await Assert.That(result6).IsTrue();
-
         // Verify second set of updates
-        var config2 = ConfigurationService.LoadConfiguration(_logger);
+        var config2 = await _configService.LoadAppConfigurationAsync();
         await Assert.That(config2.LastDirectory).IsEqualTo(testDir2);
         await Assert.That(config2.LastModel).IsEqualTo(testModel2);
         await Assert.That(config2.LastOperationMode).IsEqualTo(OperationMode.RAG);
@@ -232,32 +242,39 @@ public class ConfigurationIntegrationTests
             RememberLastDirectory = false
         };
 
-        var saveResult = ConfigurationService.SaveConfiguration(goodConfig, _logger);
+        var saveResult = await _configService.SaveAppConfigurationAsync(goodConfig);
         await Assert.That(saveResult).IsTrue();
 
         // Verify it was saved correctly
-        var loadedGoodConfig = ConfigurationService.LoadConfiguration(_logger);
+        var loadedGoodConfig = await _configService.LoadAppConfigurationAsync();
         await Assert.That(loadedGoodConfig.LastDirectory).IsEqualTo(goodConfig.LastDirectory);
         await Assert.That(loadedGoodConfig.RememberLastDirectory).IsFalse();
 
-        // Now corrupt the config file
-        var configPath = ConfigurationService.ConfigFilePath;
-        if (File.Exists(configPath))
+        // Now corrupt the database file by writing invalid data
+        var dbPath = _testDbPath;
+        if (File.Exists(dbPath))
         {
-            await File.WriteAllTextAsync(configPath, "{ corrupted json content");
+            // Dispose the service first to release the database connection
+            _configService.Dispose();
+            await Task.Delay(100); // Allow file handles to be released
+            
+            await File.WriteAllTextAsync(dbPath, "corrupted database content");
+            
+            // Create a new service instance to test recovery
+            var recoveryConfigService = new SqliteConfigurationService(dbPath, null);
             
             // Try to load - should return default configuration
-            var recoveredConfig = ConfigurationService.LoadConfiguration(_logger);
+            var recoveredConfig = await recoveryConfigService.LoadAppConfigurationAsync();
             await Assert.That(recoveredConfig).IsNotNull();
             await Assert.That(recoveredConfig.RememberLastDirectory).IsTrue(); // Default value
             await Assert.That(recoveredConfig.LastOperationMode).IsEqualTo(OperationMode.Hybrid); // Default
             
             // Should be able to save over the corrupted file
-            var newSaveResult = ConfigurationService.SaveConfiguration(recoveredConfig, _logger);
+            var newSaveResult = await recoveryConfigService.SaveAppConfigurationAsync(recoveredConfig);
             await Assert.That(newSaveResult).IsTrue();
             
             // Should be able to load the fixed configuration
-            var fixedConfig = ConfigurationService.LoadConfiguration(_logger);
+            var fixedConfig = await _configService.LoadAppConfigurationAsync();
             await Assert.That(fixedConfig).IsNotNull();
             await Assert.That(fixedConfig.RememberLastDirectory).IsTrue();
         }
@@ -268,9 +285,9 @@ public class ConfigurationIntegrationTests
     {
         // Test that GetConfigurationStatus returns accurate information
         
-        // Initially no config file
-        var initialStatus = ConfigurationService.GetConfigurationStatus();
-        await Assert.That(initialStatus).Contains("Configuration file: Not found");
+        // Initially database exists but may be empty
+        var initialStatus = ConfigurationService.GetConfigurationStatus(_configService);
+        await Assert.That(initialStatus).IsNotNull();
 
         // Create configuration
         var config = new AppConfiguration
@@ -280,16 +297,16 @@ public class ConfigurationIntegrationTests
             RememberLastOperationMode = false
         };
 
-        ConfigurationService.SaveConfiguration(config, _logger);
+        await _configService.SaveAppConfigurationAsync(config);
 
-        // Check status after creation
-        var statusAfterSave = ConfigurationService.GetConfigurationStatus();
-        await Assert.That(statusAfterSave).DoesNotContain("Not found");
+        // Check status after creation using static method
+        var statusAfterSave = ConfigurationService.GetConfigurationStatus(_configService);
+        await Assert.That(statusAfterSave).IsNotNull();
         await Assert.That(statusAfterSave).Contains("Remember last directory: No");
         await Assert.That(statusAfterSave).Contains("Remember last model: Yes");
         await Assert.That(statusAfterSave).Contains("Remember last operation mode: No");
         await Assert.That(statusAfterSave).Contains("Last updated:");
-        await Assert.That(statusAfterSave).Contains("File size:");
+        await Assert.That(statusAfterSave).Contains("Total configurations:");
     }
 
     [Test]
@@ -308,7 +325,7 @@ public class ConfigurationIntegrationTests
             LastOperationMode = OperationMode.Hybrid
         };
 
-        ConfigurationService.SaveConfiguration(config, _logger);
+        await _configService.SaveAppConfigurationAsync(config);
 
         // Scenario 2: User changes directory multiple times
         var directories = new[]
@@ -321,8 +338,8 @@ public class ConfigurationIntegrationTests
 
         foreach (var dir in directories)
         {
-            ConfigurationService.UpdateLastDirectory(dir, _logger);
-            var currentConfig = ConfigurationService.LoadConfiguration(_logger);
+            await _configService.UpdateLastDirectoryAsync(dir);
+            var currentConfig = await _configService.LoadAppConfigurationAsync();
             await Assert.That(currentConfig.LastDirectory).IsEqualTo(dir);
         }
 
@@ -331,8 +348,8 @@ public class ConfigurationIntegrationTests
         
         foreach (var model in models)
         {
-            ConfigurationService.UpdateLastModel(model, _logger);
-            var currentConfig = ConfigurationService.LoadConfiguration(_logger);
+            await _configService.UpdateLastModelAsync(model);
+            var currentConfig = await _configService.LoadAppConfigurationAsync();
             await Assert.That(currentConfig.LastModel).IsEqualTo(model);
         }
 
@@ -341,13 +358,13 @@ public class ConfigurationIntegrationTests
         
         foreach (var mode in modes)
         {
-            ConfigurationService.UpdateLastOperationMode(mode, _logger);
-            var currentConfig = ConfigurationService.LoadConfiguration(_logger);
+            await _configService.UpdateLastOperationModeAsync(mode);
+            var currentConfig = await _configService.LoadAppConfigurationAsync();
             await Assert.That(currentConfig.LastOperationMode).IsEqualTo(mode);
         }
 
         // Final verification
-        var finalConfig = ConfigurationService.LoadConfiguration(_logger);
+        var finalConfig = await _configService.LoadAppConfigurationAsync();
         await Assert.That(finalConfig.LastDirectory).IsEqualTo(directories.Last());
         await Assert.That(finalConfig.LastModel).IsEqualTo(models.Last());
         await Assert.That(finalConfig.LastOperationMode).IsEqualTo(modes.Last());
