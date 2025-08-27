@@ -173,7 +173,8 @@ public class SecurityValidationServiceTests : IDisposable
     [Arguments(4096, true)]
     [Arguments(0, false)]
     [Arguments(-1, false)]
-    [Arguments(100000, false)]
+    [Arguments(100000, true)]
+    [Arguments(100001, false)]
     public async Task ValidateMaxTokens_ShouldReturnExpectedResult(int maxTokens, bool expected)
     {
         // Act
@@ -256,5 +257,138 @@ public class SecurityValidationServiceTests : IDisposable
         
         // Assert
         await Assert.That(result).IsEqualTo(string.Empty);
+    }
+    
+    [Test]
+    public async Task ContainsDangerousCharacters_WithVariousInputs_ShouldDetectCorrectly()
+    {
+        // Test cases with dangerous characters
+        await Assert.That(_service.ContainsDangerousCharacters("<script>")).IsTrue();
+        await Assert.That(_service.ContainsDangerousCharacters("javascript:")).IsTrue();
+        await Assert.That(_service.ContainsDangerousCharacters("vbscript:")).IsTrue();
+        await Assert.That(_service.ContainsDangerousCharacters("data:")).IsTrue();
+        await Assert.That(_service.ContainsDangerousCharacters("../")).IsTrue();
+        await Assert.That(_service.ContainsDangerousCharacters("..\\")).IsTrue();
+        
+        // Test safe inputs
+        await Assert.That(_service.ContainsDangerousCharacters("normal text")).IsFalse();
+        await Assert.That(_service.ContainsDangerousCharacters("user@example.com")).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateUrl_WithAdvancedCases_ShouldValidateCorrectly()
+    {
+        // Test valid URLs with ports and paths
+        await Assert.That(_service.ValidateUrl("https://example.com:8080").IsValid).IsTrue();
+        await Assert.That(_service.ValidateUrl("https://api.example.com/v1/endpoint").IsValid).IsTrue();
+        
+        // Test invalid URLs
+        await Assert.That(_service.ValidateUrl("ftp://example.com").IsValid).IsFalse();
+        await Assert.That(_service.ValidateUrl("javascript:alert('xss')").IsValid).IsFalse();
+        await Assert.That(_service.ValidateUrl("data:text/html,<script>alert('xss')</script>").IsValid).IsFalse();
+        await Assert.That(_service.ValidateUrl("file:///etc/passwd").IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateModelName_WithEdgeCases_ShouldValidateCorrectly()
+    {
+        // Test valid model names
+        await Assert.That(_service.ValidateModelName("gpt-4").IsValid).IsTrue();
+        await Assert.That(_service.ValidateModelName("claude-3-opus").IsValid).IsTrue();
+        await Assert.That(_service.ValidateModelName("model_name_123").IsValid).IsTrue();
+        
+        // Test invalid model names
+        await Assert.That(_service.ValidateModelName("model<script>").IsValid).IsFalse();
+        await Assert.That(_service.ValidateModelName("model with spaces").IsValid).IsFalse();
+        await Assert.That(_service.ValidateModelName("model/with/slashes").IsValid).IsFalse();
+        await Assert.That(_service.ValidateModelName("model\\with\\backslashes").IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateProviderName_WithEdgeCases_ShouldValidateCorrectly()
+    {
+        // Test valid provider names
+        await Assert.That(_service.ValidateProviderName("openai").IsValid).IsTrue();
+        await Assert.That(_service.ValidateProviderName("anthropic").IsValid).IsTrue();
+        await Assert.That(_service.ValidateProviderName("provider_123").IsValid).IsTrue();
+        
+        // Test invalid provider names
+        await Assert.That(_service.ValidateProviderName("provider<script>").IsValid).IsFalse();
+        await Assert.That(_service.ValidateProviderName("provider with spaces").IsValid).IsFalse();
+        await Assert.That(_service.ValidateProviderName("provider/with/slashes").IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateFilePath_WithEdgeCases_ShouldValidateCorrectly()
+    {
+        // Test valid file paths
+        await Assert.That(_service.ValidateFilePath("C:\\Users\\test\\file.txt").IsValid).IsTrue();
+        await Assert.That(_service.ValidateFilePath("/home/user/file.txt").IsValid).IsTrue();
+        await Assert.That(_service.ValidateFilePath("./relative/path.txt").IsValid).IsTrue();
+        
+        // Test invalid file paths
+        await Assert.That(_service.ValidateFilePath("../../../etc/passwd").IsValid).IsFalse();
+        await Assert.That(_service.ValidateFilePath("..\\..\\..\\windows\\system32").IsValid).IsFalse();
+        await Assert.That(_service.ValidateFilePath("file<script>.txt").IsValid).IsFalse();
+        await Assert.That(_service.ValidateFilePath("file|pipe.txt").IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateTemperature_WithBoundaryValues_ShouldValidateCorrectly()
+    {
+        // Test boundary values
+        await Assert.That(_service.ValidateTemperature(0.0).IsValid).IsTrue();
+        await Assert.That(_service.ValidateTemperature(2.0).IsValid).IsTrue();
+        await Assert.That(_service.ValidateTemperature(1.0).IsValid).IsTrue();
+        
+        // Test invalid values
+        await Assert.That(_service.ValidateTemperature(-0.1).IsValid).IsFalse();
+        await Assert.That(_service.ValidateTemperature(2.1).IsValid).IsFalse();
+        await Assert.That(_service.ValidateTemperature(double.NaN).IsValid).IsFalse();
+        await Assert.That(_service.ValidateTemperature(double.PositiveInfinity).IsValid).IsFalse();
+        await Assert.That(_service.ValidateTemperature(double.NegativeInfinity).IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task ValidateMaxTokens_WithBoundaryValues_ShouldValidateCorrectly()
+    {
+        // Test boundary values
+        await Assert.That(_service.ValidateMaxTokens(1).IsValid).IsTrue();
+        await Assert.That(_service.ValidateMaxTokens(100000).IsValid).IsTrue();
+        await Assert.That(_service.ValidateMaxTokens(50000).IsValid).IsTrue();
+        
+        // Test invalid values
+        await Assert.That(_service.ValidateMaxTokens(0).IsValid).IsFalse();
+        await Assert.That(_service.ValidateMaxTokens(-1).IsValid).IsFalse();
+        await Assert.That(_service.ValidateMaxTokens(100001).IsValid).IsFalse();
+    }
+    
+    [Test]
+    public async Task SanitizeText_WithComplexInput_ShouldSanitizeCorrectly()
+    {
+        // Test complex input with multiple issues
+        var complexInput = "<script>alert('xss')</script>Hello & <b>World</b> with 'quotes' and \"double quotes\"";
+        var result = _service.SanitizeText(complexInput);
+        
+        await Assert.That(result).DoesNotContain("<script>");
+        await Assert.That(result).DoesNotContain("</script>");
+        await Assert.That(result).Contains("Hello");
+        await Assert.That(result).Contains("World");
+    }
+    
+    [Test]
+    public async Task ContainsSqlInjection_WithAdvancedPatterns_ShouldDetectCorrectly()
+    {
+        // Test advanced SQL injection patterns
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("1' OR '1'='1")).IsTrue();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("'; DROP TABLE users; --")).IsTrue();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("1 UNION SELECT * FROM users")).IsTrue();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("admin'--")).IsTrue();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("1; DELETE FROM users")).IsTrue();
+        
+        // Test safe inputs
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("normal user input")).IsFalse();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("user@example.com")).IsFalse();
+        await Assert.That(SecurityValidationService.ContainsSqlInjection("Product Name v1.0")).IsFalse();
     }
 }

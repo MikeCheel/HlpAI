@@ -281,7 +281,7 @@ public class SecurityValidationService
     /// </summary>
     public ValidationResult ValidateTemperature(double temperature)
     {
-        if (temperature < 0.0 || temperature > 2.0)
+        if (double.IsNaN(temperature) || double.IsInfinity(temperature) || temperature < 0.0 || temperature > 2.0)
         {
             _logger?.LogWarning("Invalid temperature value: {Temperature}", temperature);
             return new ValidationResult(false, "Temperature must be between 0.0 and 2.0");
@@ -295,10 +295,10 @@ public class SecurityValidationService
     /// </summary>
     public ValidationResult ValidateMaxTokens(int maxTokens)
     {
-        if (maxTokens < 1 || maxTokens >= 100000)
+        if (maxTokens < 1 || maxTokens > 100000)
         {
             _logger?.LogWarning("Invalid max tokens value: {MaxTokens}", maxTokens);
-            return new ValidationResult(false, "Max tokens must be between 1 and 99,999");
+            return new ValidationResult(false, "Max tokens must be between 1 and 100,000");
         }
         
         return new ValidationResult(true, "Valid max tokens");
@@ -320,11 +320,42 @@ public class SecurityValidationService
             return true;
         }
         
-        // Check for XSS patterns
+        // Check for XSS patterns and path traversal
         var lowerInput = input.ToLowerInvariant();
-        var xssPatterns = new[] { "<script", "javascript:", "onerror=", "onload=", "onclick=" };
+        var dangerousPatterns = new[] { "<script", "javascript:", "vbscript:", "data:", "onerror=", "onload=", "onclick=", "../", "..\\" };
         
-        return xssPatterns.Any(pattern => lowerInput.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+        return dangerousPatterns.Any(pattern => lowerInput.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    /// <summary>
+    /// Checks if input contains path traversal patterns
+    /// </summary>
+    public bool ContainsPathTraversal(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return false;
+        }
+        
+        // Check for path traversal patterns
+        if (input.Contains("..") || input.Contains("~"))
+        {
+            return true;
+        }
+        
+        // Check for sensitive system files
+        var normalizedPath = input.Replace('\\', '/').ToLowerInvariant();
+        foreach (var sensitivePath in SensitiveSystemPaths)
+        {
+            var normalizedSensitivePath = sensitivePath.Replace('\\', '/').ToLowerInvariant();
+            if (normalizedPath.StartsWith(normalizedSensitivePath, StringComparison.OrdinalIgnoreCase) ||
+                normalizedPath.Equals(normalizedSensitivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /// <summary>

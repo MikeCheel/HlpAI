@@ -333,4 +333,213 @@ public class SecurityMiddlewareTests : IDisposable
         await Assert.That(result.IsValid).IsFalse();
         await Assert.That(result.Violations).Contains(v => v.Contains("Missing required header: X-API-Key"));
     }
+    
+    [Test]
+    public async Task ValidateRequest_WithRateLimitExceeded_ShouldReturnViolation()
+    {
+        // Arrange
+        var config = new SecurityConfiguration
+        {
+            EnableRateLimiting = true
+        };
+        var middleware = new SecurityMiddleware(_logger, config);
+        
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content"
+        };
+        
+        // Act - First request should pass
+        var result1 = middleware.ValidateRequest(request);
+        // Second request should fail due to rate limit
+        var result2 = middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result1.IsValid).IsTrue();
+        await Assert.That(result2.IsValid).IsFalse();
+        await Assert.That(result2.Violations).Contains(v => v.Contains("Rate limit exceeded"));
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithSuspiciousParameters_ShouldReturnViolation()
+    {
+        // Arrange
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content",
+            Parameters = new Dictionary<string, string>
+            {
+                { "param1", "../../../etc/passwd" }, // Path traversal
+                { "param2", "normal_value" }
+            }
+        };
+        
+        // Act
+        var result = _middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("suspicious pattern"));
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithInvalidParameterNames_ShouldReturnViolation()
+    {
+        // Arrange
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content",
+            Parameters = new Dictionary<string, string>
+            {
+                { "param<script>", "value1" }, // Invalid parameter name
+                { "normal_param", "value2" }
+            }
+        };
+        
+        // Act
+        var result = _middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("Invalid parameter name"));
+    }
+    
+    [Test]
+    public async Task EncryptSensitiveData_WithNullData_ShouldReturnEmpty()
+    {
+        // Act
+        var result = _middleware.EncryptSensitiveData(null, "context");
+        
+        // Assert
+        await Assert.That(result).IsEqualTo(string.Empty);
+    }
+    
+    [Test]
+    public async Task EncryptSensitiveData_WithEmptyData_ShouldReturnEmpty()
+    {
+        // Act
+        var result = _middleware.EncryptSensitiveData("", "context");
+        
+        // Assert
+        await Assert.That(result).IsEqualTo(string.Empty);
+    }
+    
+    [Test]
+    public async Task DecryptSensitiveData_WithNullData_ShouldReturnEmpty()
+    {
+        // Act
+        var result = _middleware.DecryptSensitiveData(null, "context");
+        
+        // Assert
+        await Assert.That(result).IsEqualTo(string.Empty);
+    }
+    
+    [Test]
+    public async Task DecryptSensitiveData_WithInvalidData_ShouldThrowSecurityException()
+    {
+        // Act & Assert
+        await Assert.That(() => _middleware.DecryptSensitiveData("invalid-encrypted-data", "context"))
+            .Throws<SecurityException>();
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithExcessiveContentLength_ShouldReturnViolation()
+    {
+        // Arrange
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = new string('a', _config.MaxContentLength + 1)
+        };
+        
+        // Act
+        var result = _middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Violations).Contains(v => v.Contains("Content too long"));
+    }
+    
+    [Test]
+    public async Task SanitizeInput_WithDefaultOptions_ShouldUseDefaults()
+    {
+        // Arrange
+        var input = "<script>alert('test')</script>Hello & World";
+        
+        // Act
+        var result = _middleware.SanitizeInput(input);
+        
+        // Assert
+        await Assert.That(result).DoesNotContain("<script>");
+        await Assert.That(result).Contains("Hello");
+    }
+    
+    [Test]
+    public async Task Constructor_WithNullLogger_ShouldNotThrow()
+    {
+        // Act & Assert
+        var middleware = new SecurityMiddleware(null, _config);
+        await Assert.That(middleware).IsNotNull();
+    }
+    
+    [Test]
+    public async Task Constructor_WithNullConfig_ShouldUseDefaults()
+    {
+        // Act & Assert
+        var middleware = new SecurityMiddleware(_logger, null);
+        await Assert.That(middleware).IsNotNull();
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithNullHeaders_ShouldHandleGracefully()
+    {
+        // Arrange
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content",
+            Headers = null
+        };
+        
+        // Act
+        var result = _middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result.SecurityHeaders).IsNotNull();
+    }
+    
+    [Test]
+    public async Task ValidateRequest_WithNullParameters_ShouldHandleGracefully()
+    {
+        // Arrange
+        var request = new SecurityRequest
+        {
+            Endpoint = "/api/test",
+            ClientId = "test-client",
+            ContentLength = 100,
+            Content = "Valid content",
+            Parameters = null
+        };
+        
+        // Act
+        var result = _middleware.ValidateRequest(request);
+        
+        // Assert
+        await Assert.That(result).IsNotNull();
+        await Assert.That(result.SecurityHeaders).IsNotNull();
+    }
 }

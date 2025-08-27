@@ -43,6 +43,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-resources-list",
             Method = "resources/list",
             Params = new { }
         };
@@ -64,6 +65,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.Hybrid);
         var request = new McpRequest
         {
+            Id = "test-tools-list",
             Method = "tools/list",
             Params = new { }
         };
@@ -96,6 +98,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-read-resource",
             Method = "resources/read",
             Params = new ReadResourceRequest { Uri = "read-test.txt" }
         };
@@ -123,6 +126,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
         var request = new McpRequest
         {
+            Id = "test-read-nonexistent",
             Method = "resources/read",
             Params = new ReadResourceRequest { Uri = "non-existent-file.txt" }
         };
@@ -143,6 +147,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
         var request = new McpRequest
         {
+            Id = "test-invalid-method",
             Method = "invalid/method",
             Params = new { }
         };
@@ -179,6 +184,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-search-files",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -206,6 +212,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-invalid-tool",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -231,6 +238,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-missing-tool-name",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -251,6 +259,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.Hybrid);
         var request = new McpRequest
         {
+            Id = "test-hybrid-tools-list",
             Method = "tools/list",
             Params = new { }
         };
@@ -279,6 +288,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.MCP);
         var request = new McpRequest
         {
+            Id = "test-mcp-tools-list",
             Method = "tools/list",
             Params = new { }
         };
@@ -346,6 +356,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath);
         var request = new McpRequest
         {
+            Id = "test-invalid-method-error",
             Method = "invalid/method", // Use invalid method to trigger error
             Params = new { }
         };
@@ -384,6 +395,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-reindex-default",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -430,6 +442,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-reindex-explicit-true",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -474,6 +487,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         
         var request = new McpRequest
         {
+            Id = "test-reindex-explicit-false",
             Method = "tools/call",
             Params = toolCallParams
         };
@@ -516,6 +530,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         // Act - Try to index documents which will trigger file filtering
         var request = new McpRequest
         {
+            Id = "test-index-documents",
             Method = "tools/call",
             Params = new
             {

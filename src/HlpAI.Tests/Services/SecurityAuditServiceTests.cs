@@ -368,6 +368,173 @@ public class SecurityAuditServiceTests : IDisposable
         await Assert.That(service).IsNotNull();
     }
     
+    [Test]
+    public async Task LogSecurityEvent_WithLargeDetails_ShouldHandleGracefully()
+    {
+        // Arrange
+        var largeDetails = new Dictionary<string, object>
+        {
+            { "large_data", new string('a', 10000) },
+            { "nested_object", new { prop1 = "value1", prop2 = "value2" } },
+            { "array_data", new[] { 1, 2, 3, 4, 5 } }
+        };
+        
+        // Act & Assert
+        _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, "Test with large details", largeDetails);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public async Task LogApiKeyUsage_WithNullApiKey_ShouldHandleGracefully()
+    {
+        // Act & Assert
+        _auditService.LogApiKeyUsage(null, "test-operation", true);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public async Task LogDataAccessEvent_WithComplexData_ShouldLogCorrectly()
+    {
+        // Arrange
+        var resource = "user_database";
+        var operation = "SELECT";
+        var userId = "user123";
+        var details = new Dictionary<string, object>
+        {
+            { "query", "SELECT * FROM users WHERE id = @id" },
+            { "parameters", new { id = userId } },
+            { "execution_time_ms", 150 }
+        };
+        
+        // Act & Assert
+        _auditService.LogDataAccessEvent(resource, operation, true, userId);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public async Task GetSecurityEventsAsync_WithMultipleFilters_ShouldFilterCorrectly()
+    {
+        // Arrange
+        var startTime = DateTime.UtcNow.AddHours(-2);
+        var endTime = DateTime.UtcNow;
+        var eventType = SecurityEventType.Authentication;
+        var minSeverity = SecurityLevel.Standard;
+        
+        // Log test events
+        _auditService.LogSecurityEvent(SecurityEventType.Authentication, "Auth event 1", null, SecurityLevel.High);
+        _auditService.LogSecurityEvent(SecurityEventType.Authorization, "Auth event 2", null, SecurityLevel.Low);
+        _auditService.LogSecurityEvent(SecurityEventType.Authentication, "Auth event 3", null, SecurityLevel.Critical);
+        
+        // Act
+        var events = await _auditService.GetSecurityEventsAsync(startTime, endTime, eventType, minSeverity);
+        
+        // Assert
+        await Assert.That(events).IsNotNull();
+        await Assert.That(events.All(e => e.EventType == eventType)).IsTrue();
+        await Assert.That(events.All(e => e.Severity >= minSeverity)).IsTrue();
+        await Assert.That(events.All(e => e.Timestamp >= startTime && e.Timestamp <= endTime)).IsTrue();
+    }
+    
+    [Test]
+    public async Task GenerateAuditReportAsync_WithNoEvents_ShouldReturnEmptyReport()
+    {
+        // Arrange
+        var startTime = DateTime.UtcNow.AddDays(-1);
+        var endTime = DateTime.UtcNow.AddDays(-1).AddHours(1); // 1 hour window in the past
+        
+        // Act
+        var report = await _auditService.GenerateAuditReportAsync(startTime, endTime);
+        
+        // Assert
+        await Assert.That(report).IsNotNull();
+        await Assert.That(report.StartTime).IsEqualTo(startTime);
+        await Assert.That(report.EndTime).IsEqualTo(endTime);
+        await Assert.That(report.EventsByType).IsNotNull();
+        await Assert.That(report.EventsBySeverity).IsNotNull();
+        await Assert.That(report.HighSeverityEvents).IsNotNull();
+        await Assert.That(report.TopViolations).IsNotNull();
+    }
+    
+    [Test]
+    public void FlushEvents_WithNullCallback_ShouldNotThrow()
+    {
+        // Arrange
+        var bufferedConfig = new SecurityAuditConfiguration
+        {
+            EnableBuffering = true,
+            BufferSize = 10
+        };
+        using var bufferedService = new SecurityAuditService(_logger, bufferedConfig);
+        
+        // Log some events
+        bufferedService.LogSecurityEvent(SecurityEventType.Authentication, "Test event");
+        
+        // Act & Assert
+        bufferedService.FlushEvents(null);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public void LogSecurityViolation_WithComplexViolationData_ShouldLogCorrectly()
+    {
+        // Arrange
+        var violationType = "SQL_INJECTION";
+        var description = "Detected SQL injection attempt in user input";
+        var details = new Dictionary<string, object>
+        {
+            { "input_field", "username" },
+            { "malicious_input", "'; DROP TABLE users; --" },
+            { "client_ip", "192.168.1.100" },
+            { "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+            { "timestamp", DateTime.UtcNow },
+            { "blocked", true }
+        };
+        
+        // Act & Assert
+        _auditService.LogSecurityViolation(violationType, description, details);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public async Task LogAuthenticationEvent_WithDetailedContext_ShouldLogCorrectly()
+    {
+        // Arrange
+        var action = "login_attempt";
+        var success = false;
+        var userId = "user123";
+        var details = new Dictionary<string, object>
+        {
+            { "failure_reason", "invalid_password" },
+            { "attempt_count", 3 },
+            { "client_ip", "192.168.1.100" },
+            { "user_agent", "Mobile App v1.0" }
+        };
+        
+        // Act & Assert
+        _auditService.LogAuthenticationEvent(action, success, userId, "Mobile authentication with detailed context");
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
+    [Test]
+    public async Task LogAuthorizationEvent_WithPermissionDetails_ShouldLogCorrectly()
+    {
+        // Arrange
+        var resource = "/api/admin/users";
+        var action = "DELETE";
+        var userId = "admin123";
+        var allowed = false;
+        var details = new Dictionary<string, object>
+        {
+            { "required_permission", "admin.users.delete" },
+            { "user_permissions", new[] { "admin.users.read", "admin.users.write" } },
+            { "denial_reason", "insufficient_permissions" }
+        };
+        
+        // Act & Assert
+        _auditService.LogAuthorizationEvent(resource, action, allowed, userId);
+        // No exception should be thrown - test passes if no exception is thrown
+    }
+    
     [After(Test)]
     public void Dispose()
     {

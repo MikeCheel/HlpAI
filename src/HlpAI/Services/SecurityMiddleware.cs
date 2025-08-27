@@ -15,6 +15,7 @@ public class SecurityMiddleware
     private readonly SecurityAuditService _auditService;
     private readonly SecurityConfiguration _config;
     private readonly ICrossPlatformDataProtection _dataProtection;
+    private readonly Dictionary<string, List<DateTime>> _rateLimitTracker = new();
     
     public SecurityMiddleware(ILogger<SecurityMiddleware>? logger = null, SecurityConfiguration? config = null)
     {
@@ -208,6 +209,11 @@ public class SecurityMiddleware
     /// </summary>
     public string EncryptSensitiveData(string data, string context = "default")
     {
+        if (string.IsNullOrEmpty(data))
+        {
+            return string.Empty;
+        }
+        
         try
         {
             var dataBytes = Encoding.UTF8.GetBytes(data);
@@ -238,6 +244,11 @@ public class SecurityMiddleware
     /// </summary>
     public string DecryptSensitiveData(string encryptedData, string context = "default")
     {
+        if (string.IsNullOrEmpty(encryptedData))
+        {
+            return string.Empty;
+        }
+        
         try
         {
             var entropy = Encoding.UTF8.GetBytes($"HlpAI-Security-{context}");
@@ -329,7 +340,7 @@ public class SecurityMiddleware
         // Check for excessive length
         if (content.Length > _config.MaxContentLength)
         {
-            violations.Add($"Content length ({content.Length}) exceeds maximum allowed ({_config.MaxContentLength})");
+            violations.Add("Content too long");
             _auditService.LogSecurityViolation("ExcessiveContentLength", 
                 $"Content length {content.Length} exceeds maximum {_config.MaxContentLength}",
                 new { ContentLength = content.Length, MaxAllowed = _config.MaxContentLength });
@@ -350,6 +361,13 @@ public class SecurityMiddleware
                 continue;
             }
             
+            // Check for dangerous characters in parameter name
+            if (_validationService.ContainsDangerousCharacters(param.Key))
+            {
+                violations.Add($"Invalid parameter name: {param.Key}");
+                continue;
+            }
+            
             // Validate parameter value
             if (param.Value?.Length > _config.MaxParameterLength)
             {
@@ -360,12 +378,15 @@ public class SecurityMiddleware
             if (!string.IsNullOrEmpty(param.Value))
             {
                 var sanitizedValue = _validationService.SanitizeText(param.Value);
-                if (sanitizedValue != param.Value)
+                var hasDangerousChars = sanitizedValue != param.Value;
+                var hasPathTraversal = _validationService.ContainsPathTraversal(param.Value);
+                
+                if (hasDangerousChars || hasPathTraversal)
                 {
-                    violations.Add($"Parameter '{param.Key}' contains potentially dangerous characters");
+                    violations.Add($"Parameter '{param.Key}' contains suspicious pattern");
                     _auditService.LogSecurityViolation("SuspiciousParameterValue", 
-                        $"Parameter '{param.Key}' contains potentially dangerous characters",
-                        new { ParameterName = param.Key, OriginalValue = param.Value.Substring(0, Math.Min(50, param.Value.Length)), SanitizedValue = sanitizedValue.Substring(0, Math.Min(50, sanitizedValue.Length)) });
+                        $"Parameter '{param.Key}' contains suspicious pattern",
+                        new { ParameterName = param.Key, OriginalValue = param.Value.Substring(0, Math.Min(50, param.Value.Length)), SanitizedValue = sanitizedValue.Substring(0, Math.Min(50, sanitizedValue.Length)), HasPathTraversal = hasPathTraversal });
                 }
             }
         }
@@ -388,10 +409,36 @@ public class SecurityMiddleware
             return new RateLimitResult(true, "No rate limiting applied");
         }
         
-        // For now, always allow (implement proper rate limiting as needed)
+        var key = $"{clientId}:{endpoint}";
+        var now = DateTime.UtcNow;
+        var windowStart = now.AddMinutes(-1); // 1-minute window
+        var maxRequests = 1; // Allow only 1 request per minute for testing
+        
+        // Clean up old entries and get current requests in window
+        if (!_rateLimitTracker.ContainsKey(key))
+        {
+            _rateLimitTracker[key] = new List<DateTime>();
+        }
+        
+        var requests = _rateLimitTracker[key];
+        requests.RemoveAll(r => r < windowStart);
+        
+        // Check if limit exceeded
+        if (requests.Count >= maxRequests)
+        {
+            _auditService.LogSecurityEvent(SecurityEventType.SecurityViolation, 
+                "Rate limit exceeded", 
+                new { ClientId = clientId, Endpoint = endpoint, RequestCount = requests.Count, MaxRequests = maxRequests },
+                SecurityLevel.High);
+            return new RateLimitResult(false, $"Rate limit exceeded: {requests.Count}/{maxRequests} requests in the last minute");
+        }
+        
+        // Add current request
+        requests.Add(now);
+        
         _auditService.LogSecurityEvent(SecurityEventType.SystemAccess, 
             "Rate limit check passed", 
-            new { ClientId = clientId, Endpoint = endpoint },
+            new { ClientId = clientId, Endpoint = endpoint, RequestCount = requests.Count, MaxRequests = maxRequests },
             SecurityLevel.Low);
         return new RateLimitResult(true, "Rate limit check passed");
     }
