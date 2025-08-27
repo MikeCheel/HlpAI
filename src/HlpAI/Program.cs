@@ -364,7 +364,8 @@ public static class Program
                             running = false;
                             break;
                         default:
-                            Console.WriteLine("Invalid command. Please try again.");
+                            Console.WriteLine("❌ Invalid command. Please try again.");
+                            ShowMenu(); // Show menu again after invalid input
                             break;
                     }
                 }
@@ -1358,7 +1359,7 @@ public static class Program
         Console.WriteLine("1. List available models for current provider");
         Console.WriteLine("2. Select a different model");
         Console.WriteLine("3. Change AI provider (opens AI provider menu)");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("b. Back to configuration menu (back)");
         Console.WriteLine();
         
         Console.Write("Select option (1-3, b): ");
@@ -3283,7 +3284,7 @@ public static class Program
                 Console.WriteLine("5. Test file extraction");
                 Console.WriteLine("6. Reset extractor to default configuration");
                 Console.WriteLine("7. View configuration audit");
-                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("b. Back to main menu (back)");
                 Console.WriteLine("q. Quit application");
                 
                 Console.Write("\nEnter your choice (1-7, b, q): ");
@@ -4484,9 +4485,9 @@ private static Task WaitForKeyPress()
         
         // Quick Actions Section
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen", "🖥️"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu", "📋"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit", "🚪"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen (clear)", "🖥️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu (menu)", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit (quit)", "🚪"));
         Console.WriteLine();
     }
 
