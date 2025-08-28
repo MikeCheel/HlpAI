@@ -18,7 +18,7 @@ public class PromptService : IDisposable
     public PromptService(ILogger? logger = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
+        _configService = SqliteConfigurationService.GetInstance(logger);
         var appConfig = ConfigurationService.LoadConfiguration(logger);
         _validationService = new SecurityValidationService(appConfig, logger as ILogger<SecurityValidationService>);
         var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
@@ -49,11 +49,21 @@ public class PromptService : IDisposable
     public PromptService(AppConfiguration appConfig, ILogger? logger = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
+        _configService = SqliteConfigurationService.GetInstance(logger);
         _validationService = new SecurityValidationService(appConfig, logger as ILogger<SecurityValidationService>);
         var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
         _securityMiddleware = new SecurityMiddleware(_validationService, new SecurityAuditService(logger as ILogger<SecurityAuditService>), logger as ILogger<SecurityMiddleware>, securityConfig);
         _ownsConfigService = true;
+    }
+
+    public PromptService(AppConfiguration appConfig, SqliteConfigurationService configService, ILogger? logger = null)
+    {
+        _logger = logger;
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+        _validationService = new SecurityValidationService(appConfig, logger as ILogger<SecurityValidationService>);
+        var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
+        _securityMiddleware = new SecurityMiddleware(_validationService, new SecurityAuditService(logger as ILogger<SecurityAuditService>), logger as ILogger<SecurityMiddleware>, securityConfig);
+        _ownsConfigService = false;
     }
 
     /// <summary>
@@ -383,10 +393,10 @@ public class PromptService : IDisposable
         {
             try
             {
-                // Only dispose the config service if we own it
+                // Only release the singleton instance if we own it
                 if (_ownsConfigService)
                 {
-                    _configService?.Dispose();
+                    SqliteConfigurationService.ReleaseInstance();
                 }
             }
             catch (Exception ex)

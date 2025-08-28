@@ -17,7 +17,7 @@ public class CleanupService : IDisposable
     public CleanupService(ILogger? logger = null, SqliteConfigurationService? configService = null)
     {
         _logger = logger;
-        _configService = configService ?? new SqliteConfigurationService(logger);
+        _configService = configService ?? SqliteConfigurationService.GetInstance(logger);
         _config = ConfigurationService.LoadConfiguration(logger);
     }
 

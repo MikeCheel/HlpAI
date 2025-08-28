@@ -33,6 +33,22 @@ public class SqliteConfigurationService : IDisposable
             {
                 _instance = new SqliteConfigurationService(null, logger, true);
             }
+            else
+            {
+                // Check if the connection is still valid
+                try
+                {
+                    using var testCommand = new SqliteCommand("SELECT 1", _instance._connection);
+                    testCommand.ExecuteScalar();
+                }
+                catch (Exception ex) when (ex is SqliteException || ex is InvalidOperationException)
+                {
+                    // Connection is invalid, recreate the instance
+                    logger?.LogWarning("Connection is invalid, recreating SqliteConfigurationService instance: {Message}", ex.Message);
+                    _instance.Dispose();
+                    _instance = new SqliteConfigurationService(null, logger, true);
+                }
+            }
             _referenceCount++;
             return _instance;
         }
@@ -877,7 +893,7 @@ public class SqliteConfigurationService : IDisposable
                     UNIQUE(category, key)
                 );
                 
-                CREATE INDEX IF NOT EXISTS idx_configuration_category_key 
+                CREATE INDEX IF NOT EXISTS idx_configuration_category_key
                 ON configuration(category, key);
                 """;
 
@@ -927,8 +943,9 @@ public class SqliteConfigurationService : IDisposable
             
             _logger?.LogWarning("Database was corrupted and recreated at {DbPath}.", _dbPath);
             
-            // Don't throw exception - allow service to continue operating
-            return;
+            // Since _connection is readonly, we cannot reassign it. Instead, we'll throw an exception
+            // that will cause the singleton instance to be recreated with a fresh connection
+            throw new InvalidOperationException("Database was corrupted and needs to be recreated. Please recreate the SqliteConfigurationService instance.");
         }
         
         _logger?.LogDebug("Database table 'configuration' initialized");

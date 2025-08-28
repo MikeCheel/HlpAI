@@ -14,7 +14,7 @@ public class HhExeDetectionService : IDisposable
     private bool _disposed = false;
 
     public HhExeDetectionService(ILogger? logger = null)
-        : this(new SqliteConfigurationService(logger), logger)
+        : this(SqliteConfigurationService.GetInstance(logger), logger)
     {
     }
 

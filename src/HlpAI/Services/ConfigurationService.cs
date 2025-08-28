@@ -12,6 +12,12 @@ public class ConfigurationService
     // Thread-local storage for config file path override (used in tests)
     private static readonly ThreadLocal<string?> _configFilePathOverride = new();
     
+    // Static cache for configuration to prevent multiple loads
+    private static AppConfiguration? _cachedConfiguration;
+    private static readonly object _cacheLock = new object();
+    private static DateTime _lastCacheUpdate = DateTime.MinValue;
+    private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
+    
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -22,7 +28,7 @@ public class ConfigurationService
     public ConfigurationService(ILogger<ConfigurationService>? logger = null, SqliteConfigurationService? sqliteConfigurationService = null)
     {
         _logger = logger;
-        _sqliteConfigurationService = sqliteConfigurationService ?? new SqliteConfigurationService(logger);
+        _sqliteConfigurationService = sqliteConfigurationService ?? SqliteConfigurationService.GetInstance(logger);
     }
 
     /// <summary>
@@ -43,29 +49,62 @@ public class ConfigurationService
     }
 
     /// <summary>
-    /// Loads the application configuration from SQLite database
+    /// Loads the application configuration from SQLite database with caching
     /// </summary>
     /// <param name="logger">Optional logger for diagnostics</param>
+    /// <param name="forceReload">Force reload from database, bypassing cache</param>
     /// <returns>The loaded configuration or a new default configuration</returns>
-    public static AppConfiguration LoadConfiguration(ILogger? logger = null)
+    public static AppConfiguration LoadConfiguration(ILogger? logger = null, bool forceReload = false)
     {
-        try
+        lock (_cacheLock)
         {
-            var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
-            var result = sqliteConfig.LoadAppConfigurationAsync().GetAwaiter().GetResult();
-            SqliteConfigurationService.ReleaseInstance();
-            return result;
+            // Return cached configuration if it exists and is not expired
+            if (!forceReload && _cachedConfiguration != null &&
+                (DateTime.UtcNow - _lastCacheUpdate) < CacheExpiration)
+            {
+                logger?.LogDebug("Returning cached configuration (last updated: {LastUpdate})", _lastCacheUpdate);
+                return _cachedConfiguration;
+            }
+
+            try
+            {
+                var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
+                var result = sqliteConfig.LoadAppConfigurationAsync().GetAwaiter().GetResult();
+                SqliteConfigurationService.ReleaseInstance();
+                
+                // Update cache
+                _cachedConfiguration = result;
+                _lastCacheUpdate = DateTime.UtcNow;
+                logger?.LogDebug("Configuration loaded from SQLite and cached (expires in {Minutes} minutes)",
+                    CacheExpiration.TotalMinutes);
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Error loading configuration from SQLite. Using default configuration.");
+                SqliteConfigurationService.ReleaseInstance();
+                
+                // Return default configuration but don't cache errors
+                return new AppConfiguration();
+            }
         }
-        catch (Exception ex)
+    }
+    
+    /// <summary>
+    /// Clears the configuration cache, forcing the next load to read from SQLite
+    /// </summary>
+    public static void ClearCache()
+    {
+        lock (_cacheLock)
         {
-            logger?.LogError(ex, "Error loading configuration from SQLite. Using default configuration.");
-            SqliteConfigurationService.ReleaseInstance();
-            return new AppConfiguration();
+            _cachedConfiguration = null;
+            _lastCacheUpdate = DateTime.MinValue;
         }
     }
 
     /// <summary>
-    /// Saves the application configuration to SQLite database
+    /// Saves the application configuration to SQLite database and updates cache
     /// </summary>
     /// <param name="config">The configuration to save</param>
     /// <param name="logger">Optional logger for diagnostics</param>
@@ -80,6 +119,18 @@ public class ConfigurationService
             config.LastUpdated = DateTime.UtcNow;
             var result = sqliteConfig.SaveAppConfigurationAsync(config).GetAwaiter().GetResult();
             SqliteConfigurationService.ReleaseInstance();
+            
+            if (result)
+            {
+                // Update cache with the saved configuration
+                lock (_cacheLock)
+                {
+                    _cachedConfiguration = config;
+                    _lastCacheUpdate = DateTime.UtcNow;
+                    logger?.LogDebug("Configuration saved to SQLite and cache updated");
+                }
+            }
+            
             return result;
         }
         catch (Exception ex)
@@ -331,7 +382,7 @@ public class ConfigurationService
     }
 
     /// <summary>
-    /// Gets the configuration status for display purposes
+    /// Gets the configuration status for display purposes using cached configuration when available
     /// </summary>
     /// <param name="sqliteConfigService">Optional SQLite configuration service for testing purposes</param>
     /// <returns>A string describing the configuration status</returns>
@@ -344,10 +395,28 @@ public class ConfigurationService
             // Check if database file exists
             if (!File.Exists(dbPath))
             {
-                return $"Configuration file: Not found\n" +
+                return $"Configuration database: Not found\n" +
                        $"Will be created at: {dbPath}";
             }
             
+            // Try to use cached configuration first
+            lock (_cacheLock)
+            {
+                if (_cachedConfiguration != null && (DateTime.UtcNow - _lastCacheUpdate) < CacheExpiration)
+                {
+                    var config = _cachedConfiguration;
+                    return $"Configuration database: {dbPath}\n" +
+                           $"Last updated: {config.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC\n" +
+                           $"Configuration source: Cached (expires in {(CacheExpiration - (DateTime.UtcNow - _lastCacheUpdate)).TotalMinutes:F1} minutes)\n" +
+                           $"Remember last directory: {(config.RememberLastDirectory ? "Yes" : "No")}\n" +
+                           $"Remember last model: {(config.RememberLastModel ? "Yes" : "No")}\n" +
+                           $"Remember last operation mode: {(config.RememberLastOperationMode ? "Yes" : "No")}\n" +
+                           $"hh.exe path: {(string.IsNullOrEmpty(config.HhExePath) ? "Auto-detect" : config.HhExePath)}\n" +
+                           $"Auto-detect hh.exe: {(config.AutoDetectHhExe ? "Yes" : "No")}";
+                }
+            }
+            
+            // Fall back to loading from SQLite if cache is expired or empty
             SqliteConfigurationService configToUse;
             bool shouldDispose = false;
             
@@ -365,6 +434,13 @@ public class ConfigurationService
             {
                 var config = configToUse.LoadAppConfigurationAsync().GetAwaiter().GetResult();
                 var stats = configToUse.GetStatsAsync().GetAwaiter().GetResult();
+                
+                // Update cache with the loaded configuration
+                lock (_cacheLock)
+                {
+                    _cachedConfiguration = config;
+                    _lastCacheUpdate = DateTime.UtcNow;
+                }
                 
                 return $"Configuration database: {dbPath}\n" +
                        $"Last updated: {config.LastUpdated:yyyy-MM-dd HH:mm:ss} UTC\n" +

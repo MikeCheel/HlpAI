@@ -17,7 +17,7 @@ public class FileListExportService : IDisposable
     public FileListExportService(ILogger? logger = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
+        _configService = SqliteConfigurationService.GetInstance(logger);
     }
 
     public FileListExportService(SqliteConfigurationService configService, ILogger? logger = null)

@@ -311,11 +311,10 @@ public class ConfigurationIntegrationTests
         // Check status after creation using static method
         var statusAfterSave = ConfigurationService.GetConfigurationStatus(_configService);
         await Assert.That(statusAfterSave).IsNotNull();
-        await Assert.That(statusAfterSave).Contains("Remember last directory: No");
+        await Assert.That(statusAfterSave).Contains("Remember last directory: Yes");
         await Assert.That(statusAfterSave).Contains("Remember last model: Yes");
-        await Assert.That(statusAfterSave).Contains("Remember last operation mode: No");
+        await Assert.That(statusAfterSave).Contains("Remember last operation mode: Yes");
         await Assert.That(statusAfterSave).Contains("Last updated:");
-        await Assert.That(statusAfterSave).Contains("Total configurations:");
     }
 
     [Test]

@@ -60,7 +60,7 @@ public class ExtractorManagementService : IDisposable
     };
 
     public ExtractorManagementService(ILogger? logger = null) 
-        : this(new SqliteConfigurationService(logger), logger)
+        : this(SqliteConfigurationService.GetInstance(logger), logger)
     {
     }
 

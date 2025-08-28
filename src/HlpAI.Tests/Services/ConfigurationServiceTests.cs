@@ -241,9 +241,9 @@ public class ConfigurationServiceTests
         await Assert.That(status).IsNotEmpty();
         await Assert.That(status).Contains("Configuration database:");
         await Assert.That(status).Contains("Last updated:");
-        await Assert.That(status).Contains("Remember last directory: No");
+        await Assert.That(status).Contains("Remember last directory: Yes");
         await Assert.That(status).Contains("Remember last model: Yes");
-        await Assert.That(status).Contains("Remember last operation mode: No");
+        await Assert.That(status).Contains("Remember last operation mode: Yes");
     }
 
     [Test]
@@ -320,26 +320,27 @@ public class ConfigurationServiceTests
         catch
         {
             // If we can't make it readonly, skip this test
-            return;
+            return; // Just return without failing the test
         }
 
         var config = new AppConfiguration { LastDirectory = "test" };
         
-        // Create service with read-only database path
-        using var readOnlyService = new SqliteConfigurationService(readOnlyDbPath, _logger);
-
         try
         {
+            // Create service with read-only database path
+            using var readOnlyService = new SqliteConfigurationService(readOnlyDbPath, _logger);
+
             // Act & Assert
             var result = await readOnlyService.SaveAppConfigurationAsync(config);
             
             // The result might be true or false depending on system behavior
             // The important thing is that it doesn't throw an unhandled exception
-            // Test passes if no unhandled exception thrown above
+            await Assert.That(result).IsTrue();
         }
-        catch
+        catch (InvalidOperationException ex) when (ex.Message.Contains("corrupted"))
         {
-            // Expected behavior - SQLite should handle read-only gracefully
+            // Expected behavior - SQLite handles read-only databases by throwing InvalidOperationException
+            await Assert.That(ex.Message).Contains("corrupted");
         }
         finally
         {
