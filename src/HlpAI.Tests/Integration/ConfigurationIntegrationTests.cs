@@ -261,7 +261,16 @@ public class ConfigurationIntegrationTests
             await File.WriteAllTextAsync(dbPath, "corrupted database content");
             
             // Create a new service instance to test recovery
-            var recoveryConfigService = new SqliteConfigurationService(dbPath, null);
+            SqliteConfigurationService recoveryConfigService;
+            try
+            {
+                recoveryConfigService = new SqliteConfigurationService(dbPath, null);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Database was corrupted"))
+            {
+                // Database was corrupted and recreated, create a new service instance
+                recoveryConfigService = new SqliteConfigurationService(dbPath, null);
+            }
             
             // Try to load - should return default configuration
             var recoveredConfig = await recoveryConfigService.LoadAppConfigurationAsync();

@@ -106,11 +106,20 @@ public class ConfigurationServiceErrorTests
         await File.WriteAllTextAsync(dbPath, "corrupted database content");
         
         // Create a new service instance with the corrupted database
-        var corruptedConfigService = new SqliteConfigurationService(dbPath, _logger);
+        SqliteConfigurationService corruptedConfigService;
+        try
+        {
+            corruptedConfigService = new SqliteConfigurationService(dbPath, _logger);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Database was corrupted"))
+        {
+            // Database was corrupted and recreated, create a new service instance
+            corruptedConfigService = new SqliteConfigurationService(dbPath, _logger);
+        }
 
         try
         {
-            // Act - This should return default config when database is corrupted
+            // Act - This should return default config when database is recreated
             var loadedConfig = await corruptedConfigService.LoadAppConfigurationAsync();
 
             // Assert
@@ -386,7 +395,16 @@ public class ConfigurationServiceErrorTests
         await File.WriteAllTextAsync(dbPath, "This is not a valid SQLite database file");
         
         // Create a new service instance
-        var corruptedDbService = new SqliteConfigurationService(dbPath, _logger);
+        SqliteConfigurationService corruptedDbService;
+        try
+        {
+            corruptedDbService = new SqliteConfigurationService(dbPath, _logger);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Database was corrupted"))
+        {
+            // Database was corrupted and recreated, create a new service instance
+            corruptedDbService = new SqliteConfigurationService(dbPath, _logger);
+        }
 
         try
         {

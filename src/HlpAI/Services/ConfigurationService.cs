@@ -51,12 +51,15 @@ public class ConfigurationService
     {
         try
         {
-            using var sqliteConfig = new SqliteConfigurationService(logger);
-            return sqliteConfig.LoadAppConfigurationAsync().GetAwaiter().GetResult();
+            var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
+            var result = sqliteConfig.LoadAppConfigurationAsync().GetAwaiter().GetResult();
+            SqliteConfigurationService.ReleaseInstance();
+            return result;
         }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Error loading configuration from SQLite. Using default configuration.");
+            SqliteConfigurationService.ReleaseInstance();
             return new AppConfiguration();
         }
     }
@@ -73,13 +76,16 @@ public class ConfigurationService
         
         try
         {
-            using var sqliteConfig = new SqliteConfigurationService(logger);
+            var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
             config.LastUpdated = DateTime.UtcNow;
-            return sqliteConfig.SaveAppConfigurationAsync(config).GetAwaiter().GetResult();
+            var result = sqliteConfig.SaveAppConfigurationAsync(config).GetAwaiter().GetResult();
+            SqliteConfigurationService.ReleaseInstance();
+            return result;
         }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Error saving configuration to SQLite");
+            SqliteConfigurationService.ReleaseInstance();
             return false;
         }
     }
@@ -134,8 +140,9 @@ public class ConfigurationService
         bool sqliteSuccess = false;
         try
         {
-            using var sqliteConfig = new SqliteConfigurationService(logger);
+            var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
             sqliteSuccess = sqliteConfig.SetAiProviderConfigurationAsync(providerType, model).GetAwaiter().GetResult();
+            SqliteConfigurationService.ReleaseInstance();
             if (sqliteSuccess)
             {
                 logger?.LogInformation("AI provider configuration saved to SQLite: {Provider} with model {Model}", providerType, model);
@@ -144,6 +151,7 @@ public class ConfigurationService
         catch (Exception ex)
         {
             logger?.LogError(ex, "Failed to save AI provider configuration to SQLite");
+            SqliteConfigurationService.ReleaseInstance();
             sqliteSuccess = false;
         }
         
@@ -349,7 +357,7 @@ public class ConfigurationService
             }
             else
             {
-                configToUse = new SqliteConfigurationService();
+                configToUse = SqliteConfigurationService.GetInstance();
                 shouldDispose = true;
             }
             
@@ -372,7 +380,7 @@ public class ConfigurationService
             {
                 if (shouldDispose)
                 {
-                    configToUse.Dispose();
+                    SqliteConfigurationService.ReleaseInstance();
                 }
             }
         }

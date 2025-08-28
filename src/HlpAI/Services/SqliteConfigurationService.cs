@@ -14,22 +14,105 @@ public class SqliteConfigurationService : IDisposable
     private readonly SqliteConnection _connection = null!;
     private readonly string _dbPath;
     private bool _disposed = false;
+    
+    // Singleton pattern to prevent duplicate initialization logs
+    private static SqliteConfigurationService? _instance;
+    private static readonly object _lock = new object();
+    private static int _referenceCount = 0;
 
-    public SqliteConfigurationService(ILogger? logger = null)
+    /// <summary>
+    /// Gets a shared instance of SqliteConfigurationService to prevent duplicate initialization logs
+    /// </summary>
+    /// <param name="logger">Optional logger for diagnostics</param>
+    /// <returns>A shared SqliteConfigurationService instance</returns>
+    public static SqliteConfigurationService GetInstance(ILogger? logger = null)
+    {
+        lock (_lock)
+        {
+            if (_instance == null || _instance._disposed)
+            {
+                _instance = new SqliteConfigurationService(null, logger, true);
+            }
+            _referenceCount++;
+            return _instance;
+        }
+    }
+    
+    /// <summary>
+    /// Sets a test instance with a custom database path for testing purposes
+    /// </summary>
+    /// <param name="dbPath">Custom database path for testing</param>
+    /// <param name="logger">Optional logger for diagnostics</param>
+    /// <returns>A test SqliteConfigurationService instance</returns>
+    public static SqliteConfigurationService SetTestInstance(string dbPath, ILogger? logger = null)
+    {
+        lock (_lock)
+        {
+            // Dispose existing instance if any
+            if (_instance != null)
+            {
+                _instance.Dispose();
+            }
+            
+            _instance = new SqliteConfigurationService(dbPath, logger, true);
+            _referenceCount = 1;
+            return _instance;
+        }
+    }
+    
+    /// <summary>
+    /// Releases a reference to the shared instance
+    /// </summary>
+    public static void ReleaseInstance()
+    {
+        lock (_lock)
+        {
+            _referenceCount--;
+            if (_referenceCount <= 0 && _instance != null)
+            {
+                _instance.Dispose();
+                _instance = null;
+                _referenceCount = 0;
+            }
+        }
+    }
+
+    public SqliteConfigurationService(ILogger? logger = null) : this(null, logger, false)
+    {
+    }
+    
+    public SqliteConfigurationService(string dbPath, ILogger? logger = null) : this(dbPath, logger, false)
+    {
+    }
+    
+    private SqliteConfigurationService(string? customDbPath, ILogger? logger, bool isSingleton)
     {
         _logger = logger;
         
-        // Create database in user's home directory
-        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var hlpAiDirectory = Path.Combine(homeDirectory, ".hlpai");
-        
-        if (!Directory.Exists(hlpAiDirectory))
+        if (!string.IsNullOrEmpty(customDbPath))
         {
-            Directory.CreateDirectory(hlpAiDirectory);
-            _logger?.LogInformation("Created HlpAI configuration directory at {Directory}", hlpAiDirectory);
+            // Use custom database path (for testing)
+            _dbPath = customDbPath;
+            var customDirectory = Path.GetDirectoryName(_dbPath);
+            if (!string.IsNullOrEmpty(customDirectory) && !Directory.Exists(customDirectory))
+            {
+                Directory.CreateDirectory(customDirectory);
+            }
         }
-        
-        _dbPath = Path.Combine(hlpAiDirectory, "config.db");
+        else
+        {
+            // Create database in user's home directory
+            var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var hlpAiDirectory = Path.Combine(homeDirectory, ".hlpai");
+            
+            if (!Directory.Exists(hlpAiDirectory))
+            {
+                Directory.CreateDirectory(hlpAiDirectory);
+                _logger?.LogInformation("Created HlpAI configuration directory at {Directory}", hlpAiDirectory);
+            }
+            
+            _dbPath = Path.Combine(hlpAiDirectory, "config.db");
+        }
         
         // Initialize connection and database with better connection settings
         var connectionString = $"Data Source={_dbPath};Cache=Shared;";
@@ -37,85 +120,14 @@ public class SqliteConfigurationService : IDisposable
         _connection.Open();
         InitializeDatabase();
         
-        _logger?.LogInformation("SqliteConfigurationService initialized with database at {DbPath}", _dbPath);
+        // Only log initialization for singleton instances to reduce duplicate messages
+        if (isSingleton)
+        {
+            _logger?.LogInformation("SqliteConfigurationService initialized with database at {DbPath}", _dbPath);
+        }
     }
 
-    public SqliteConfigurationService(string customDbPath, ILogger? logger = null)
-    {
-        _logger = logger;
-        _dbPath = customDbPath ?? throw new ArgumentNullException(nameof(customDbPath));
-        
-        // Ensure the directory for the custom database path exists
-        var directory = Path.GetDirectoryName(_dbPath);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-        
-        // Initialize connection and database with better connection settings
-        var connectionString = $"Data Source={_dbPath};Cache=Shared;";
-        _connection = new SqliteConnection(connectionString);
-        
-        try
-        {
-            _connection.Open();
-            InitializeDatabase();
-        }
-        catch (SqliteException ex) when (ex.SqliteErrorCode == 26) // SQLITE_NOTADB
-        {
-            _logger?.LogWarning("Database file appears to be corrupted, recreating: {DbPath}", _dbPath);
-            
-            // Close and dispose the connection
-            _connection?.Close();
-            _connection?.Dispose();
-            
-            // Clear connection pool to release file handles
-            SqliteConnection.ClearAllPools();
-            
-            // Delete the corrupted database file with retry logic
-            if (File.Exists(_dbPath))
-            {
-                for (int i = 0; i < 3; i++)
-                {
-                    try
-                    {
-                        File.Delete(_dbPath);
-                        break;
-                    }
-                    catch (IOException) when (i < 2)
-                    {
-                        Thread.Sleep(100 * (i + 1));
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
-                    }
-                    catch (UnauthorizedAccessException) when (i < 2)
-                    {
-                        // Try to remove read-only attribute if present
-                        try
-                        {
-                            var attributes = File.GetAttributes(_dbPath);
-                            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                            {
-                                File.SetAttributes(_dbPath, attributes & ~FileAttributes.ReadOnly);
-                            }
-                        }
-                        catch
-                        {
-                            // Ignore attribute modification errors
-                        }
-                        Thread.Sleep(100 * (i + 1));
-                    }
-                }
-            }
-            
-            // Create a new connection and initialize
-            _connection = new SqliteConnection(connectionString);
-            _connection.Open();
-            InitializeDatabase();
-        }
-        
-        _logger?.LogInformation("SqliteConfigurationService initialized with database at {DbPath}", _dbPath);
-    }
+
 
     /// <summary>
     /// Gets the database file path
@@ -847,26 +859,77 @@ public class SqliteConfigurationService : IDisposable
 
     private void InitializeDatabase()
     {
-        // Set PRAGMA statements for better transaction handling
-        using var pragmaCommand = new SqliteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;", _connection);
-        pragmaCommand.ExecuteNonQuery();
+        try
+        {
+            // Set PRAGMA statements for better transaction handling
+            // Use DELETE mode for test databases to avoid WAL file conflicts
+            var journalMode = _dbPath.Contains("test_") ? "DELETE" : "WAL";
+            using var pragmaCommand = new SqliteCommand($"PRAGMA journal_mode = {journalMode}; PRAGMA synchronous = NORMAL;", _connection);
+            pragmaCommand.ExecuteNonQuery();
 
-        const string createTableSql = """
-            CREATE TABLE IF NOT EXISTS configuration (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL DEFAULT 'general',
-                key TEXT NOT NULL,
-                value TEXT,
-                updated_at TEXT NOT NULL,
-                UNIQUE(category, key)
-            );
+            const string createTableSql = """
+                CREATE TABLE IF NOT EXISTS configuration (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL DEFAULT 'general',
+                    key TEXT NOT NULL,
+                    value TEXT,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(category, key)
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_configuration_category_key 
+                ON configuration(category, key);
+                """;
+
+            using var command = new SqliteCommand(createTableSql, _connection);
+            command.ExecuteNonQuery();
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("database disk image is malformed") || ex.Message.Contains("file is not a database"))
+        {
+            _logger?.LogWarning("Database file is corrupted or invalid. Recreating database at {DbPath}", _dbPath);
             
-            CREATE INDEX IF NOT EXISTS idx_configuration_category_key 
-            ON configuration(category, key);
-            """;
-
-        using var command = new SqliteCommand(createTableSql, _connection);
-        command.ExecuteNonQuery();
+            // Close and dispose current connection
+            _connection?.Close();
+            _connection?.Dispose();
+            
+            // Delete corrupted database file with retry logic
+            if (File.Exists(_dbPath))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        // Try to remove readonly attribute if present
+                        var fileInfo = new FileInfo(_dbPath);
+                        if (fileInfo.Attributes.HasFlag(FileAttributes.ReadOnly))
+                        {
+                            fileInfo.Attributes &= ~FileAttributes.ReadOnly;
+                        }
+                        
+                        File.Delete(_dbPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 4)
+                    {
+                        Thread.Sleep(100 * (i + 1));
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        // File is read-only, cannot delete
+                        _logger?.LogWarning("Cannot delete readonly database file at {DbPath}. Service will operate in read-only mode.", _dbPath);
+                        return; // Exit gracefully without recreating database
+                    }
+                }
+            }
+            
+            _logger?.LogWarning("Database was corrupted and recreated at {DbPath}.", _dbPath);
+            
+            // Don't throw exception - allow service to continue operating
+            return;
+        }
         
         _logger?.LogDebug("Database table 'configuration' initialized");
     }

@@ -10,12 +10,29 @@ public class MenuStateManager
 {
     private readonly ILogger? _logger;
     private AppConfiguration _config;
-    private readonly Stack<MenuContext> _menuStack;
+    private Stack<MenuContext> _menuStack = null!;
 
     public MenuStateManager(ILogger? logger = null)
     {
         _logger = logger;
         _config = ConfigurationService.LoadConfiguration(_logger);
+        InitializeMenuStack();
+    }
+
+    /// <summary>
+    /// Constructor for testing that accepts a configuration service instance
+    /// </summary>
+    /// <param name="configService">The configuration service to use</param>
+    /// <param name="logger">Optional logger</param>
+    public MenuStateManager(SqliteConfigurationService configService, ILogger? logger = null)
+    {
+        _logger = logger;
+        _config = configService.LoadAppConfigurationAsync().GetAwaiter().GetResult();
+        InitializeMenuStack();
+    }
+
+    private void InitializeMenuStack()
+    {
         _menuStack = new Stack<MenuContext>(_config.MenuHistory.AsEnumerable().Reverse());
         
         // Ensure main menu is always at the bottom of the stack
@@ -23,6 +40,7 @@ public class MenuStateManager
         {
             _menuStack.Clear();
             _menuStack.Push(MenuContext.MainMenu);
+            _config.CurrentMenuContext = MenuContext.MainMenu;
         }
     }
 
@@ -99,8 +117,8 @@ public class MenuStateManager
     {
         var breadcrumbs = new List<string>();
         
-        // If there's no navigation history, just show the current context
-        if (_menuStack.Count == 0)
+        // If there's no navigation history or only MainMenu in stack, just show the current context
+        if (_menuStack.Count == 0 || (_menuStack.Count == 1 && _menuStack.Peek() == MenuContext.MainMenu && _config.CurrentMenuContext != MenuContext.MainMenu))
         {
             return GetMenuDisplayName(_config.CurrentMenuContext);
         }

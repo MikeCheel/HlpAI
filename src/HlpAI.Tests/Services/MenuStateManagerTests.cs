@@ -1,5 +1,6 @@
 using HlpAI.Models;
 using HlpAI.Services;
+using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -10,15 +11,101 @@ public class MenuStateManagerTests
 {
     private ILogger? _logger;
     private MenuStateManager _menuStateManager = null!;
+    private string _testDirectory = null!;
+    private string _originalUserProfile = null!;
+    private SqliteConfigurationService _configService = null!;
+    private string _testDbPath = null!;
 
     [Before(Test)]
     public void Setup()
     {
+        // Create isolated test environment
+        _testDirectory = FileTestHelper.CreateTempDirectory($"menu_state_tests_{Guid.NewGuid():N}");
         _logger = null; // Use null logger for tests
-        _menuStateManager = new MenuStateManager(_logger);
         
-        // Reset to clean state for each test
-        _menuStateManager.ResetToMainMenu();
+        // Store original user profile and set to test directory
+        _originalUserProfile = Environment.GetEnvironmentVariable("USERPROFILE") ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Environment.SetEnvironmentVariable("USERPROFILE", _testDirectory);
+        
+        // Create isolated test database and set as singleton instance
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_menu_state_{Guid.NewGuid()}.db");
+        _configService = SqliteConfigurationService.SetTestInstance(_testDbPath, _logger);
+        
+        // Initialize with default configuration to ensure clean state
+        var defaultConfig = new AppConfiguration();
+        // Explicitly set CurrentMenuContext to MainMenu to ensure clean state
+        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        _configService.SaveAppConfigurationAsync(defaultConfig).GetAwaiter().GetResult();
+        
+        _menuStateManager = new MenuStateManager(_configService, _logger);
+    }
+
+    [After(Test)]
+    public void Cleanup()
+    {
+        try
+        {
+            // Dispose the config service first to release database connections
+            _configService?.Dispose();
+            
+            // Release the singleton instance
+            SqliteConfigurationService.ReleaseInstance();
+            
+            // Clear SQLite connection pools to release file handles
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            
+            // Force garbage collection to ensure connections are released
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            
+            // Additional wait to ensure file handles are released
+            Thread.Sleep(500);
+            
+            // Restore original user profile
+            Environment.SetEnvironmentVariable("USERPROFILE", _originalUserProfile);
+            
+            // Clean up test database file with retry logic
+            if (File.Exists(_testDbPath))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        File.Delete(_testDbPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 4)
+                    {
+                        Thread.Sleep(200 * (i + 1));
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                    }
+                }
+            }
+            
+            // Clean up test directory
+            if (Directory.Exists(_testDirectory))
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    try
+                    {
+                        Directory.Delete(_testDirectory, true);
+                        break;
+                    }
+                    catch (IOException) when (i < 2)
+                    {
+                        Thread.Sleep(200 * (i + 1));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log cleanup errors but don't fail the test
+            Console.WriteLine($"Cleanup error: {ex.Message}");
+        }
     }
 
     [Test]

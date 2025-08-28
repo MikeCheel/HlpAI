@@ -396,7 +396,16 @@ public class FileTypeFilterServiceTests
         var corruptDbPath = Path.Combine(_testDirectory, "corrupt.db");
         await File.WriteAllTextAsync(corruptDbPath, "invalid database content");
         
-        var corruptConfigService = new SqliteConfigurationService(corruptDbPath, _logger);
+        SqliteConfigurationService corruptConfigService;
+        try
+        {
+            corruptConfigService = new SqliteConfigurationService(corruptDbPath, _logger);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Database was corrupted"))
+        {
+            // Database was corrupted and recreated, create a new service instance
+            corruptConfigService = new SqliteConfigurationService(corruptDbPath, _logger);
+        }
         var corruptService = new FileTypeFilterService(_logger);
 
         // Act

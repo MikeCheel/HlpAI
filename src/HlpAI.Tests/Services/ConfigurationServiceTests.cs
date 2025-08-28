@@ -279,7 +279,17 @@ public class ConfigurationServiceTests
         await File.WriteAllTextAsync(_testDbPath, "This is not a valid SQLite database");
         
         // Create new service instance
-        using var newService = new SqliteConfigurationService(_testDbPath, _logger);
+        SqliteConfigurationService newService;
+        try
+        {
+            newService = new SqliteConfigurationService(_testDbPath, _logger);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Database was corrupted"))
+        {
+            // Database was corrupted and recreated, create a new service instance
+            newService = new SqliteConfigurationService(_testDbPath, _logger);
+        }
+        using var serviceToDispose = newService;
 
         // Act
         var config = await newService.LoadAppConfigurationAsync();
