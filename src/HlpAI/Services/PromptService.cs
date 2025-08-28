@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using HlpAI.Models;
 
 namespace HlpAI.Services;
 
@@ -43,6 +44,16 @@ public class PromptService : IDisposable
         _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
         _securityMiddleware = securityMiddleware ?? throw new ArgumentNullException(nameof(securityMiddleware));
         _ownsConfigService = false;
+    }
+
+    public PromptService(AppConfiguration appConfig, ILogger? logger = null)
+    {
+        _logger = logger;
+        _configService = new SqliteConfigurationService(logger);
+        _validationService = new SecurityValidationService(appConfig, logger as ILogger<SecurityValidationService>);
+        var securityConfig = SecurityConfiguration.FromAppConfiguration(appConfig);
+        _securityMiddleware = new SecurityMiddleware(_validationService, new SecurityAuditService(logger as ILogger<SecurityAuditService>), logger as ILogger<SecurityMiddleware>, securityConfig);
+        _ownsConfigService = true;
     }
 
     /// <summary>

@@ -22,6 +22,7 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
     private readonly IEmbeddingService _embeddingService;
     private readonly IFileChangeDetectionService _changeDetectionService;
     private readonly ILogger<OptimizedSqliteVectorStore>? _logger;
+    private readonly AppConfiguration? _config;
     private bool _disposed;
 
     public OptimizedSqliteVectorStore(
@@ -34,6 +35,24 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
         _embeddingService = embeddingService;
         _changeDetectionService = changeDetectionService;
         _logger = logger;
+        _config = null;
+        
+        _connection.Open();
+        InitializeDatabase();
+    }
+
+    public OptimizedSqliteVectorStore(
+        string connectionString, 
+        IEmbeddingService embeddingService,
+        IFileChangeDetectionService changeDetectionService,
+        AppConfiguration config,
+        ILogger<OptimizedSqliteVectorStore>? logger = null)
+    {
+        _connection = new SqliteConnection(connectionString);
+        _embeddingService = embeddingService;
+        _changeDetectionService = changeDetectionService;
+        _logger = logger;
+        _config = config;
         
         _connection.Open();
         InitializeDatabase();
@@ -109,8 +128,8 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
             // Remove existing chunks for this file
             await RemoveFileChunksAsync(filePath);
 
-            var config = ConfigurationService.LoadConfiguration(_logger);
-                var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
+            var config = _config ?? ConfigurationService.LoadConfiguration(_logger);
+            var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
 
             var insertSql = @"
                 INSERT INTO document_chunks 

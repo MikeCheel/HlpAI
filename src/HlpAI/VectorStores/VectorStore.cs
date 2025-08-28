@@ -5,18 +5,33 @@ using SystemPath = System.IO.Path;
 
 namespace HlpAI.VectorStores
 {
-    public class VectorStore(IEmbeddingService embeddingService, ILogger? logger = null) : IVectorStore
+    public class VectorStore : IVectorStore
     {
         private readonly List<DocumentChunk> _chunks = [];
-        private readonly IEmbeddingService _embeddingService = embeddingService;
-        private readonly ILogger? _logger = logger;
+        private readonly IEmbeddingService _embeddingService;
+        private readonly ILogger? _logger;
+        private readonly AppConfiguration? _config;
         private bool _disposed = false;
+
+        public VectorStore(IEmbeddingService embeddingService, ILogger? logger = null)
+        {
+            _embeddingService = embeddingService;
+            _logger = logger;
+            _config = null;
+        }
+
+        public VectorStore(IEmbeddingService embeddingService, AppConfiguration config, ILogger? logger = null)
+        {
+            _embeddingService = embeddingService;
+            _logger = logger;
+            _config = config;
+        }
 
         public async Task IndexDocumentAsync(string filePath, string content, Dictionary<string, object>? metadata = null)
         {
             try
             {
-                var config = ConfigurationService.LoadConfiguration(_logger);
+                var config = _config ?? ConfigurationService.LoadConfiguration(_logger);
                 var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
 
                 for (int i = 0; i < chunks.Count; i++)

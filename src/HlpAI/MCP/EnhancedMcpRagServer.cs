@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using SystemPath = System.IO.Path;
@@ -17,11 +18,11 @@ namespace HlpAI.MCP
         private static readonly string[] RequiredFileUriAndAnalysisFields = ["file_uri", "analysis_type"];
 
     private readonly ILogger<EnhancedMcpRagServer> _logger;
-    private readonly List<IFileExtractor> _extractors;
+    private List<IFileExtractor>? _extractors;
     private readonly string _rootPath;
     public IAiProvider _aiProvider;
     private readonly EmbeddingService _embeddingService;
-    public readonly IVectorStore _vectorStore;
+    public IVectorStore? _vectorStore;
     public readonly OperationMode _operationMode;
     private readonly AppConfiguration _config;
     
@@ -48,20 +49,52 @@ namespace HlpAI.MCP
         
         _embeddingService = new EmbeddingService(logger: logger, config: _config);
 
-            // Use optimized SQLite-backed vector store with MD5 checksum optimization
-            var dbPath = Path.Combine(_rootPath, "vectors.db");
-            var connectionString = $"Data Source={dbPath}";
-            var changeDetectionService = new FileChangeDetectionService(null);
-            _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, null);
+        InitializeVectorStore();
+        InitializeExtractors();
+    }
 
-            _extractors = [
-                new TextFileExtractor(),
-                new HtmlFileExtractor(),
-                new PdfFileExtractor(),
-                new ChmFileExtractor(logger),
-                new HhcFileExtractor()
-            ];
-        }
+    // Constructor that accepts pre-loaded configuration to avoid duplicate loading
+    public EnhancedMcpRagServer(ILogger<EnhancedMcpRagServer> logger, string rootPath, AppConfiguration config, string aiModel = "llama3.2", OperationMode mode = OperationMode.Hybrid)
+    {
+        _logger = logger;
+        _rootPath = rootPath;
+        _operationMode = mode;
+        _config = config;
+        
+        // Create AI provider based on configuration
+        _aiProvider = AiProviderFactory.CreateProvider(
+            _config.LastProvider,
+            aiModel,
+            GetProviderUrl(_config, _config.LastProvider),
+            logger,
+            _config
+        );
+        
+        _embeddingService = new EmbeddingService(logger: logger, config: _config);
+
+        InitializeVectorStore();
+        InitializeExtractors();
+    }
+
+    private void InitializeVectorStore()
+    {
+        // Use optimized SQLite-backed vector store with MD5 checksum optimization
+        var dbPath = Path.Combine(_rootPath, "vectors.db");
+        var connectionString = $"Data Source={dbPath}";
+        var changeDetectionService = new FileChangeDetectionService(null);
+        _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
+    }
+
+    private void InitializeExtractors()
+    {
+        _extractors = [
+            new TextFileExtractor(),
+            new HtmlFileExtractor(),
+            new PdfFileExtractor(),
+            new ChmFileExtractor(_logger),
+            new HhcFileExtractor()
+        ];
+    }
         
         /// <summary>
         /// Updates the AI provider instance for real-time provider switching
@@ -103,7 +136,7 @@ namespace HlpAI.MCP
                 _logger?.LogInformation("Initializing RAG vector store...");
                 var result = await IndexAllDocumentsAsync();
                 _logger?.LogInformation("RAG initialization complete. Indexed {ChunkCount} chunks from {FileCount} files in {Duration}.",
-                    await _vectorStore.GetChunkCountAsync(), result.IndexedFiles.Count, result.Duration);
+                    await _vectorStore!.GetChunkCountAsync(), result.IndexedFiles.Count, result.Duration);
             }
         }
 
@@ -139,7 +172,7 @@ namespace HlpAI.MCP
                     }
 
                     // Find appropriate extractor
-                    var extractor = _extractors.FirstOrDefault(e => e.CanHandle(file));
+                    var extractor = _extractors?.FirstOrDefault(e => e.CanHandle(file));
                     if (extractor == null)
                     {
                         result.SkippedFiles.Add(new SkippedFile
@@ -175,7 +208,7 @@ namespace HlpAI.MCP
                         ["extractor_type"] = extractor.GetType().Name
                     };
 
-                    await _vectorStore.IndexDocumentAsync(file, content, metadata);
+                    await _vectorStore!.IndexDocumentAsync(file, content, metadata);
                     result.IndexedFiles.Add(file);
 
                     _logger?.LogDebug("Successfully indexed {File} using {Extractor}",
@@ -187,7 +220,7 @@ namespace HlpAI.MCP
                     {
                         FilePath = file,
                         Error = ex.Message,
-                        ExtractorType = _extractors.FirstOrDefault(e => e.CanHandle(file))?.GetType().Name
+                        ExtractorType = _extractors?.FirstOrDefault(e => e.CanHandle(file))?.GetType().Name
                     });
                     _logger?.LogWarning(ex, "Failed to index file {File}", file);
                 }
@@ -368,7 +401,7 @@ namespace HlpAI.MCP
 
             foreach (var file in Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories))
             {
-                var extractor = _extractors.FirstOrDefault(e => e.CanHandle(file));
+                var extractor = _extractors?.FirstOrDefault(e => e.CanHandle(file));
                 if (extractor != null)
                 {
                     var relativePath = SystemPath.GetRelativePath(_rootPath, file);
@@ -409,7 +442,7 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "File not found");
             }
 
-            var extractor = _extractors.FirstOrDefault(e => e.CanHandle(filePath));
+            var extractor = _extractors?.FirstOrDefault(e => e.CanHandle(filePath));
             if (extractor == null)
             {
                 return CreateErrorResponse(request.Id, "Unsupported file type");
@@ -602,8 +635,8 @@ namespace HlpAI.MCP
         // Add the new indexing report method
         private async Task<McpResponse> ShowIndexingReportAsync(McpRequest request, JsonElement _)
         {
-            var chunkCount = await _vectorStore.GetChunkCountAsync();
-            var indexedFiles = await _vectorStore.GetIndexedFilesAsync();
+            var chunkCount = await _vectorStore!.GetChunkCountAsync();
+            var indexedFiles = await _vectorStore!.GetIndexedFilesAsync();
 
             var allFiles = Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories);
             var notIndexedFiles = allFiles.Where(f => !indexedFiles.Any(indexed =>
@@ -649,7 +682,7 @@ namespace HlpAI.MCP
                     {
                         reason = GetSkipReason(file, fileInfo);
                     }
-                    else if (_extractors.All(e => !e.CanHandle(file)))
+                    else if (_extractors?.All(e => !e.CanHandle(file)) == true)
                     {
                         reason = $"No extractor for {Path.GetExtension(file)}";
                     }
@@ -677,7 +710,7 @@ namespace HlpAI.MCP
                     {
                         reason = GetSkipReason(file, fileInfo);
                     }
-                    else if (_extractors.All(e => !e.CanHandle(file)))
+                    else if (_extractors!.All(e => !e.CanHandle(file)))
                     {
                         reason = $"Unsupported file type";
                     }
@@ -736,7 +769,7 @@ namespace HlpAI.MCP
 
             foreach (var file in Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories))
             {
-                var extractor = _extractors.FirstOrDefault(e => e.CanHandle(file));
+                var extractor = _extractors?.FirstOrDefault(e => e.CanHandle(file));
                 if (extractor != null)
                 {
                     try
@@ -820,11 +853,11 @@ namespace HlpAI.MCP
                     MinSimilarity = 0.1f
                 };
 
-                var searchResults = await _vectorStore.SearchAsync(ragQuery);
+                var searchResults = await _vectorStore!.SearchAsync(ragQuery);
                 if (searchResults.Count > 0)
                 {
                     var ragContext = string.Join("\n\n", searchResults.Select(r =>
-                        $"[From {SystemPath.GetFileName(r.Chunk.SourceFile)}] {r.Chunk.Content}"));
+                        $"[From {SystemPath.GetFileName(r.Chunk.SourceFile ?? "Unknown")}] {r.Chunk.Content}"));
 
                     context = string.IsNullOrEmpty(explicitContext)
                         ? ragContext
@@ -920,12 +953,12 @@ namespace HlpAI.MCP
                     MinSimilarity = 0.2f
                 };
 
-                var searchResults = await _vectorStore.SearchAsync(ragQuery);
+                var searchResults = await _vectorStore!.SearchAsync(ragQuery);
                 if (searchResults.Count > 0)
                 {
                     var ragContext = string.Join("\n\n", searchResults
-                        .Where(r => !r.Chunk.SourceFile.EndsWith(fileUri.Replace("file:///", ""), StringComparison.OrdinalIgnoreCase))
-                        .Select(r => $"[Related content from {SystemPath.GetFileName(r.Chunk.SourceFile)}] {r.Chunk.Content}"));
+                        .Where(r => r.Chunk.SourceFile != null && !r.Chunk.SourceFile.EndsWith(fileUri.Replace("file:///", ""), StringComparison.OrdinalIgnoreCase))
+                        .Select(r => $"[Related content from {SystemPath.GetFileName(r.Chunk.SourceFile ?? "Unknown")}] {r.Chunk.Content}"));
 
                     if (!string.IsNullOrEmpty(ragContext))
                     {
@@ -1001,7 +1034,7 @@ namespace HlpAI.MCP
                 FileFilters = fileFilters
             };
 
-            var searchResults = await _vectorStore.SearchAsync(ragQuery);
+            var searchResults = await _vectorStore!.SearchAsync(ragQuery);
 
             var resultText = new StringBuilder();
             resultText.AppendLine($"RAG Search Results for: '{query}'");
@@ -1009,7 +1042,7 @@ namespace HlpAI.MCP
 
             foreach (var result in searchResults)
             {
-                resultText.AppendLine($"📄 {SystemPath.GetFileName(result.Chunk.SourceFile)} (Similarity: {result.Similarity:F3})");
+                resultText.AppendLine($"📄 {SystemPath.GetFileName(result.Chunk.SourceFile ?? "Unknown")} (Similarity: {result.Similarity:F3})");
                 resultText.AppendLine($"   {result.Chunk.Content[..Math.Min(200, result.Chunk.Content.Length)]}...");
                 resultText.AppendLine();
             }
@@ -1069,13 +1102,13 @@ namespace HlpAI.MCP
                 MinSimilarity = 0.1f
             };
 
-            var searchResults = await _vectorStore.SearchAsync(ragQuery);
+            var searchResults = await _vectorStore!.SearchAsync(ragQuery);
             string context = "";
 
             if (searchResults.Count > 0)
             {
                 context = string.Join("\n\n", searchResults.Select(r =>
-                    $"[From {SystemPath.GetFileName(r.Chunk.SourceFile)} - Similarity: {r.Similarity:F3}]\n{r.Chunk.Content}"));
+                    $"[From {SystemPath.GetFileName(r.Chunk.SourceFile ?? "Unknown")} - Similarity: {r.Similarity:F3}]\n{r.Chunk.Content}"));
             }
 
             var aiResponse = await _aiProvider.GenerateAsync(question, context, temperature);
@@ -1112,7 +1145,7 @@ namespace HlpAI.MCP
                 }
 
                 // Always force reindexing by default to prevent system conflicts
-                await _vectorStore.ClearIndexAsync();
+                await _vectorStore!.ClearIndexAsync();
                 var result = await IndexAllDocumentsAsync();
 
                 return new McpResponse
@@ -1159,7 +1192,7 @@ namespace HlpAI.MCP
                 _aiProvider?.Dispose();
                 _embeddingService?.Dispose();
                 _vectorStore?.Dispose();
-                foreach (var extractor in _extractors.OfType<IDisposable>())
+                foreach (var extractor in _extractors?.OfType<IDisposable>() ?? Enumerable.Empty<IDisposable>())
                 {
                     extractor?.Dispose();
                 }

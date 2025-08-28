@@ -111,11 +111,28 @@ public class MenuStateManagerTests
     [Test]
     public async Task Constructor_WithNullLogger_InitializesCorrectly()
     {
-        // Arrange & Act
-        var manager = new MenuStateManager(null);
+        // Arrange
+        // Create a test configuration service with clean state
+        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_{Guid.NewGuid()}.db");
+        using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, null);
+        
+        // Initialize with default configuration to ensure clean state
+        var defaultConfig = new AppConfiguration();
+        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        await testConfigService.SaveAppConfigurationAsync(defaultConfig);
+        
+        // Act
+        var manager = new MenuStateManager(testConfigService, null);
 
         // Assert
         await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
+        
+        // Cleanup
+        testConfigService.Dispose();
+        if (File.Exists(testDbPath))
+        {
+            File.Delete(testDbPath);
+        }
     }
 
     [Test]
@@ -123,12 +140,27 @@ public class MenuStateManagerTests
     {
         // Arrange
         var logger = new TestLogger();
+        // Create a test configuration service with clean state
+        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_logger_{Guid.NewGuid()}.db");
+        using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
+        
+        // Initialize with default configuration to ensure clean state
+        var defaultConfig = new AppConfiguration();
+        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        await testConfigService.SaveAppConfigurationAsync(defaultConfig);
 
         // Act
-        var manager = new MenuStateManager(logger);
+        var manager = new MenuStateManager(testConfigService, logger);
 
         // Assert
         await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
+        
+        // Cleanup
+        testConfigService.Dispose();
+        if (File.Exists(testDbPath))
+        {
+            File.Delete(testDbPath);
+        }
     }
 
     [Test]

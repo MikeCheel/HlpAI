@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using HlpAI.MCP;
@@ -15,13 +16,21 @@ namespace HlpAI;
 public static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private static readonly PromptService _promptService = new();
+    private static PromptService? _promptService;
 
     /// <summary>
     /// Safely prompts for string input with default value handling
     /// </summary>
-    private static string SafePromptForString(string prompt, string defaultValue = "")
+    private static string SafePromptForString(string prompt, string defaultValue = "", AppConfiguration? config = null, ILogger? logger = null)
     {
+        if (config != null && logger != null)
+        {
+            _promptService ??= new PromptService(config, logger);
+        }
+        else
+        {
+            _promptService ??= new PromptService();
+        }
         return _promptService.PromptForString(prompt, defaultValue);
     }
 
@@ -32,6 +41,7 @@ public static class Program
     {
         using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var logger = loggerFactory.CreateLogger<EnhancedMcpRagServer>();
+        using var configService = new SqliteConfigurationService(logger);
 
         // Parse command line arguments
         var cmdArgs = new CommandLineArgumentsService(args, logger);
@@ -61,7 +71,6 @@ public static class Program
         // Handle AI provider management commands
         if (cmdArgs.IsAiProviderManagementCommand())
         {
-            using var configService = new SqliteConfigurationService(logger);
             await cmdArgs.ApplyAiProviderConfigurationAsync(configService);
             return;
         }
@@ -70,8 +79,8 @@ public static class Program
         if (args.Length > 0 && args[0] == "--audit")
         {
             string auditPath = args.Length > 1 ? args[1] : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            var config = ConfigurationService.LoadConfiguration(logger);
-            FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: config.MaxFileAuditSizeBytes);
+            var auditConfig = ConfigurationService.LoadConfiguration(logger);
+            FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: auditConfig.MaxFileAuditSizeBytes);
             return;
         }
 
@@ -82,7 +91,7 @@ public static class Program
         if (args.Length == 0)
         {
             // Interactive setup mode
-            var setupResult = await InteractiveSetupAsync(logger);
+            var setupResult = await InteractiveSetupAsync(logger, configService);
             if (setupResult == null)
             {
                 Console.WriteLine("❌ Setup cancelled. Exiting.");
@@ -118,7 +127,7 @@ public static class Program
             }
             else
             {
-                ollamaModel = await SelectModelAsync(logger);
+                ollamaModel = await SelectModelAsync(logger, null, configService);
                 if (string.IsNullOrEmpty(ollamaModel))
                 {
                     Console.WriteLine("❌ No model selected. Exiting.");
@@ -127,11 +136,14 @@ public static class Program
             }
         }
 
-        currentServer = new EnhancedMcpRagServer(logger, rootPath, ollamaModel, mode);
+        // Load configuration once to avoid duplicate initialization logs
+        var config = ConfigurationService.LoadConfiguration(logger);
+        
+        currentServer = new EnhancedMcpRagServer(logger, rootPath, config, ollamaModel, mode);
         var server = currentServer;
         
-        // Initialize error logging service for main interactive mode
-        using var mainErrorLoggingService = new ErrorLoggingService(logger);
+        // Initialize error logging service for main interactive mode with pre-loaded config
+        using var mainErrorLoggingService = new ErrorLoggingService(logger, config);
         
         // Apply any logging configuration from command line
         await cmdArgs.ApplyLoggingConfigurationAsync(mainErrorLoggingService);
@@ -196,7 +208,7 @@ public static class Program
                         case "2":
                             ClearScreen();
                             if (server != null) 
-                                await DemoReadFile(server);
+                                await DemoReadFile(server, configService, logger);
                             else
                             {
                                 var serverError = "Server not available for read file command";
@@ -208,7 +220,7 @@ public static class Program
                         case "3":
                             ClearScreen();
                             if (server != null) 
-                                await DemoSearchFiles(server);
+                                await DemoSearchFiles(server, configService, logger);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
@@ -216,7 +228,7 @@ public static class Program
                         case "4":
                             ClearScreen();
                             if (server != null) 
-                                await DemoAskAI(server);
+                                await DemoAskAI(server, configService, logger);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
@@ -224,7 +236,7 @@ public static class Program
                         case "5":
                             ClearScreen();
                             if (server != null) 
-                                await DemoAnalyzeFile(server);
+                                await DemoAnalyzeFile(server, configService, logger);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
@@ -232,7 +244,7 @@ public static class Program
                         case "6":
                             ClearScreen();
                             if (server != null) 
-                                await DemoRagSearch(server);
+                                await DemoRagSearch(server, configService, logger);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
@@ -240,7 +252,7 @@ public static class Program
                         case "7":
                             ClearScreen();
                             if (server != null) 
-                                await DemoRagAsk(server);
+                                await DemoRagAsk(server, configService, logger);
                             else
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
@@ -292,7 +304,7 @@ public static class Program
                             ClearScreen();
                             if (server != null)
                             {
-                                server = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
+                                server = await ChangeDirectoryAsync(server, logger, ollamaModel, mode, config);
                                 if (server == null)
                                     running = false;
                                 else
@@ -303,7 +315,7 @@ public static class Program
                         case "config":
                         case "configuration":
                             menuStateManager.NavigateToMenu(MenuContext.Configuration);
-                            await ShowConfigurationMenuAsync(menuStateManager);
+                            await ShowConfigurationMenuAsync(menuStateManager, logger);
                             menuStateManager.NavigateBack();
                             ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
@@ -321,7 +333,7 @@ public static class Program
                         case "extractors":
                         case "extractor-management":
                             menuStateManager.NavigateToMenu(MenuContext.ExtractorManagement);
-                            await ShowExtractorManagementMenuAsync(menuStateManager);
+                            await ShowExtractorManagementMenuAsync(menuStateManager, config, logger);
                             menuStateManager.NavigateBack();
                             ClearScreen();
                             ShowMenu(); // Restore main menu after sub-menu
@@ -390,18 +402,18 @@ public static class Program
     }
 
     [SupportedOSPlatform("windows")]
-    private static async Task RestoreMenuContextAsync(MenuContext context, EnhancedMcpRagServer? _, MenuStateManager menuStateManager)
+    private static async Task RestoreMenuContextAsync(MenuContext context, EnhancedMcpRagServer? _, MenuStateManager menuStateManager, AppConfiguration? config = null, ILogger? logger = null)
     {
         switch (context)
         {
             case MenuContext.Configuration:
-                await ShowConfigurationMenuAsync(menuStateManager);
+                await ShowConfigurationMenuAsync(menuStateManager, logger);
                 break;
             case MenuContext.LogViewer:
                 await ShowLogViewerAsync(menuStateManager);
                 break;
             case MenuContext.ExtractorManagement:
-                await ShowExtractorManagementMenuAsync(menuStateManager);
+                await ShowExtractorManagementMenuAsync(menuStateManager, config, logger);
                 break;
             case MenuContext.AiProviderManagement:
                 await ShowAiProviderMenuAsync(menuStateManager);
@@ -434,7 +446,7 @@ public static class Program
 
     private sealed record SetupResult(string Directory, string Model, OperationMode Mode);
 
-    private static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger)
+    private static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger, SqliteConfigurationService? configService = null)
     {
         Console.WriteLine("🎯 HlpAI - Interactive Setup");
         Console.WriteLine("=============================================");
@@ -442,11 +454,11 @@ public static class Program
         Console.WriteLine("Welcome! Let's configure your document intelligence system.");
         Console.WriteLine();
         
-        // Initialize error logging service for interactive mode
-        using var errorLoggingService = new ErrorLoggingService(logger);
-        
-        // Load saved configuration
+        // Load saved configuration once
         var config = ConfigurationService.LoadConfiguration(logger);
+        
+        // Initialize error logging service for interactive mode with shared config
+        using var errorLoggingService = new ErrorLoggingService(logger, config);
 
         // Step 1: Directory Selection
         Console.WriteLine("📁 Step 1: Document Directory");
@@ -460,7 +472,7 @@ public static class Program
             Console.WriteLine($"💾 Last used directory: {config.LastDirectory}");
             if (Directory.Exists(config.LastDirectory))
             {
-                using var lastDirPromptService = new PromptService();
+                using var lastDirPromptService = new PromptService(config, logger);
                 var useLastDir = await lastDirPromptService.PromptYesNoDefaultYesAsync($"Use last directory '{config.LastDirectory}'?");
                 
                 if (useLastDir)
@@ -479,7 +491,8 @@ public static class Program
         
         while (directory == null)
         {
-            var input = _promptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, "", "directory path").Trim();
+            using var directoryPromptService = new PromptService(config, logger);
+            var input = directoryPromptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, "", "directory path").Trim();
             
             if (string.IsNullOrEmpty(input))
             {
@@ -495,7 +508,7 @@ public static class Program
             if (!Directory.Exists(input))
             {
                 Console.WriteLine($"❌ Directory '{input}' does not exist.");
-                using var createDirPromptService = new PromptService();
+                using var createDirPromptService = new PromptService(config, logger);
                 var createResponse = await createDirPromptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
                 
                 if (createResponse)
@@ -530,7 +543,7 @@ public static class Program
         // Step 2: Model Selection
         Console.WriteLine("🤖 Step 2: AI Model Selection");
         Console.WriteLine("------------------------------");
-        var model = await SelectModelAsync(logger, config);
+        var model = await SelectModelAsync(logger, config, configService);
         if (string.IsNullOrEmpty(model))
         {
             Console.WriteLine("❌ Model selection cancelled.");
@@ -554,7 +567,7 @@ public static class Program
         if (config.RememberLastOperationMode)
         {
             Console.WriteLine($"💾 Last used operation mode: {config.LastOperationMode}");
-            using var modePromptService = new PromptService();
+            using var modePromptService = new PromptService(config, logger);
             var useLastMode = await modePromptService.PromptYesNoDefaultYesAsync("Use last operation mode?");
             
             if (!useLastMode)
@@ -610,7 +623,7 @@ public static class Program
         Console.WriteLine($"Model: {model}");
         Console.WriteLine($"Mode: {selectedMode}");
         Console.WriteLine();
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var confirmResponse = await promptService.PromptYesNoDefaultYesAsync("Continue with this configuration?");
         
         if (!confirmResponse)
@@ -635,7 +648,7 @@ public static class Program
         return new SetupResult(directory, model, selectedMode);
     }
 
-    private static async Task<string> SelectModelAsync(ILogger logger, AppConfiguration? config = null)
+    private static async Task<string> SelectModelAsync(ILogger logger, AppConfiguration? config = null, SqliteConfigurationService? configService = null)
     {
         Console.WriteLine("🤖 Model Selection");
         Console.WriteLine("==================");
@@ -644,7 +657,7 @@ public static class Program
         if (config?.RememberLastModel == true && !string.IsNullOrEmpty(config.LastModel))
         {
             Console.WriteLine($"💾 Last used model: {config.LastModel}");
-            using var promptService = new PromptService();
+            using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
             var useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
             
             if (useLastModel)
@@ -663,7 +676,7 @@ public static class Program
             Console.WriteLine("❌ Ollama is not available. Please ensure Ollama is running on localhost:11434");
             Console.WriteLine("   Install Ollama: https://ollama.ai");
             Console.WriteLine();
-            using var promptService = new PromptService();
+            using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
             var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with the default model anyway?");
             return continueWithDefault ? "llama3.2" : "";
         }
@@ -675,7 +688,7 @@ public static class Program
             Console.WriteLine("❌ No models found in Ollama.");
             Console.WriteLine("   Install a model first: ollama pull llama3.2");
             Console.WriteLine();
-            using var promptService = new PromptService();
+            using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
             var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with 'llama3.2' anyway?");
             return continueWithDefault ? "llama3.2" : "";
         }
@@ -711,7 +724,7 @@ public static class Program
                 }
                 else if (selection == availableModels.Count + 1)
                 {
-                    using var promptService = new PromptService();
+                    using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
                     var customModel = promptService.PromptForValidatedString(
                         "Enter custom model name: ", 
                         InputValidationType.ModelName, 
@@ -823,9 +836,9 @@ public static class Program
         }
     }
 
-    private static async Task DemoReadFile(EnhancedMcpRagServer server)
+    private static async Task DemoReadFile(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var uri = promptService.PromptForValidatedString(
             "Enter file URI (e.g., file:///example.txt)", 
             InputValidationType.Url, 
@@ -849,9 +862,9 @@ public static class Program
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
-    private static async Task DemoSearchFiles(EnhancedMcpRagServer server)
+    private static async Task DemoSearchFiles(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var query = promptService.PromptForValidatedString(
             "Enter search query", 
             InputValidationType.General, 
@@ -875,9 +888,9 @@ public static class Program
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
-    private static async Task DemoAskAI(EnhancedMcpRagServer server)
+    private static async Task DemoAskAI(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var question = promptService.PromptForValidatedString(
             "Enter your question", 
             InputValidationType.General, 
@@ -894,7 +907,7 @@ public static class Program
         var context = SafePromptForString("", "");
 
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
-        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
+        var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -915,9 +928,9 @@ public static class Program
         DisplayResponse(response, "AI Response");
     }
 
-    private static async Task DemoAnalyzeFile(EnhancedMcpRagServer server)
+    private static async Task DemoAnalyzeFile(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var uri = promptService.PromptForValidatedString(
             "Enter file URI (e.g., file:///example.txt)", 
             InputValidationType.Url, 
@@ -940,7 +953,7 @@ public static class Program
         }
 
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
-        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
+        var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -960,9 +973,9 @@ public static class Program
         DisplayResponse(response, "File Analysis");
     }
 
-    private static async Task DemoRagSearch(EnhancedMcpRagServer server)
+    private static async Task DemoRagSearch(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var query = promptService.PromptForValidatedString(
             "Enter search query", 
             InputValidationType.General, 
@@ -986,9 +999,9 @@ public static class Program
         DisplayResponse(response, "RAG Search Results");
     }
 
-    private static async Task DemoRagAsk(EnhancedMcpRagServer server)
+    private static async Task DemoRagAsk(EnhancedMcpRagServer server, SqliteConfigurationService? configService, ILogger? logger)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         var question = promptService.PromptForValidatedString(
             "Enter your question for RAG-enhanced AI", 
             InputValidationType.General, 
@@ -1002,7 +1015,7 @@ public static class Program
         }
 
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
-        var tempInput = _promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature");
+        var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -1124,7 +1137,7 @@ public static class Program
     }
 
     [SupportedOSPlatform("windows")]
-    private static async Task ShowConfigurationMenuAsync(MenuStateManager? menuStateManager = null)
+    private static async Task ShowConfigurationMenuAsync(MenuStateManager? menuStateManager = null, ILogger? logger = null)
     {
         using var sqliteConfig = new SqliteConfigurationService();
         using var hhExeService = new HhExeDetectionService();
@@ -1224,11 +1237,11 @@ public static class Program
                     break;
                     
                 case "5":
-                    await ConfigureHhExePathAsync(hhExeService);
+                    await ConfigureHhExePathAsync(hhExeService, sqliteConfig, logger);
                     break;
                     
                 case "6":
-                    await ConfigurePromptDefaultsAsync();
+                    await ConfigurePromptDefaultsAsync(sqliteConfig);
                     break;
                     
                 case "7":
@@ -1255,7 +1268,7 @@ public static class Program
                     {
                         Console.WriteLine("\n🔄 Reset Settings");
                         Console.WriteLine("==================");
-                        using var resetPromptService = new PromptService();
+                        using var resetPromptService = new PromptService(config, logger);
                         var resetConfirm = await resetPromptService.PromptYesNoDefaultNoAsync("Are you sure you want to reset all settings to defaults?");
                         if (resetConfirm)
                         {
@@ -1283,7 +1296,7 @@ public static class Program
                     {
                         Console.WriteLine("\n🗑️ Delete Configuration Database");
                         Console.WriteLine("=================================");
-                        using var deletePromptService = new PromptService();
+                        using var deletePromptService = new PromptService(config, logger);
                         var deleteConfirm = await deletePromptService.PromptYesNoDefaultNoAsync("Are you sure you want to delete the configuration database?");
                         if (deleteConfirm)
                         {
@@ -1320,11 +1333,11 @@ public static class Program
                     }
                     
                 case "14":
-                    await ChangeAiModelAsync(sqliteConfig, menuStateManager);
+                    await ChangeAiModelAsync(sqliteConfig, menuStateManager, logger);
                     break;
                     
                 case "15":
-                    await ConfigureEmbeddingModelAsync(menuStateManager);
+                    await ConfigureEmbeddingModelAsync(menuStateManager, sqliteConfig, logger);
                     break;
                     
                 case "b":
@@ -1345,7 +1358,7 @@ public static class Program
     }
 
     [SupportedOSPlatform("windows")]
-    private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig, MenuStateManager? menuStateManager = null)
+    private static async Task ChangeAiModelAsync(SqliteConfigurationService sqliteConfig, MenuStateManager? menuStateManager = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > AI Model" ?? "Main Menu > Configuration > AI Model";
         ClearScreenWithHeader("🤖 Change AI Model", breadcrumb);
@@ -1383,7 +1396,7 @@ public static class Program
                 break;
                 
             case "2":
-                await SelectModelFromConfigMenuAsync(config, menuStateManager);
+                await SelectModelFromConfigMenuAsync(config, menuStateManager, sqliteConfig, logger);
                 break;
                 
             case "3":
@@ -1455,7 +1468,7 @@ public static class Program
         }
     }
 
-    private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
+    private static async Task SelectModelFromConfigMenuAsync(AppConfiguration config, MenuStateManager? menuStateManager = null, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Select Model" ?? "Main Menu > Configuration > AI Model > Select Model";
         ClearScreenWithHeader("🎯 Select Model", breadcrumb);
@@ -1485,7 +1498,7 @@ public static class Program
             if (models.Count == 0)
             {
                 Console.WriteLine("⚠️ No models found. You can still enter a model name manually.");
-                using var promptService = new PromptService();
+                using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
                 var manualModel = promptService.PromptForValidatedString(
                     "Enter model name: ", 
                     InputValidationType.ModelName, 
@@ -1521,7 +1534,12 @@ public static class Program
                 }
                 else if (selection == models.Count + 1)
                 {
-                    using var promptService = new PromptService();
+                    if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return;
+        }
+        using var promptService = new PromptService(configService, logger);
                     var customModel = promptService.PromptForValidatedString(
                         "Enter custom model name: ", 
                         InputValidationType.ModelName, 
@@ -1574,7 +1592,7 @@ public static class Program
     }
 
     [SupportedOSPlatform("windows")]
-    private static async Task ConfigureEmbeddingModelAsync(MenuStateManager? menuStateManager = null)
+    private static async Task ConfigureEmbeddingModelAsync(MenuStateManager? menuStateManager = null, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Embedding Model" ?? "Main Menu > Configuration > Embedding Model";
         ClearScreenWithHeader("🧠 Configure Embedding Model", breadcrumb);
@@ -1602,11 +1620,11 @@ public static class Program
         switch (choice)
         {
             case "1":
-                await ChangeEmbeddingModelAsync(config);
+                await ChangeEmbeddingModelAsync(config, configService, logger);
                 break;
                 
             case "2":
-                await ChangeEmbeddingServiceUrlAsync(config);
+                await ChangeEmbeddingServiceUrlAsync(config, configService, logger);
                 break;
                 
             case "3":
@@ -1643,12 +1661,17 @@ public static class Program
         }
     }
 
-    private static Task ChangeEmbeddingModelAsync(AppConfiguration config)
+    private static Task ChangeEmbeddingModelAsync(AppConfiguration config, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         Console.WriteLine("\n🔄 Change Embedding Model");
         Console.WriteLine("==========================\n");
         
-        using var promptService = new PromptService();
+        if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return Task.CompletedTask;
+        }
+        using var promptService = new PromptService(configService, logger);
         var newModel = promptService.PromptForValidatedString(
             $"Enter new embedding model name (current: {config.LastEmbeddingModel ?? config.DefaultEmbeddingModel}): ",
             InputValidationType.ModelName,
@@ -1669,12 +1692,17 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static Task ChangeEmbeddingServiceUrlAsync(AppConfiguration config)
+    private static Task ChangeEmbeddingServiceUrlAsync(AppConfiguration config, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         Console.WriteLine("\n🌐 Change Embedding Service URL");
         Console.WriteLine("===============================\n");
         
-        using var promptService = new PromptService();
+        if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return Task.CompletedTask;
+        }
+        using var promptService = new PromptService(configService, logger);
         var newUrl = promptService.PromptForValidatedString(
             $"Enter new embedding service URL (current: {config.EmbeddingServiceUrl}): ",
             InputValidationType.Url,
@@ -1724,7 +1752,7 @@ public static class Program
         }
     }
 
-    private static async Task ConfigureHhExePathAsync(HhExeDetectionService hhExeService)
+    private static async Task ConfigureHhExePathAsync(HhExeDetectionService hhExeService, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         Console.WriteLine("\n🔧 Configure hh.exe Path (SQLite Database)");
         Console.WriteLine("===========================================");
@@ -1779,7 +1807,7 @@ public static class Program
                 Console.WriteLine("\n📝 Enter Custom Path");
                 Console.WriteLine("====================");
                 Console.Write("Enter the full path to hh.exe: ");
-                var customPath = _promptService.PromptForValidatedString("", InputValidationType.FilePath, "", "hh.exe path").Trim();
+                var customPath = (_promptService?.PromptForValidatedString("", InputValidationType.FilePath, "", "hh.exe path") ?? "").Trim();
                 
                 if (!string.IsNullOrEmpty(customPath))
                 {
@@ -1791,7 +1819,7 @@ public static class Program
                     else
                     {
                         Console.WriteLine("❌ Invalid path or file not found.");
-                        using var savePromptService = new PromptService();
+                        using var savePromptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
                         var saveAnyway = await savePromptService.PromptYesNoDefaultNoAsync("Save anyway?");
                         if (saveAnyway)
                         {
@@ -1966,9 +1994,9 @@ public static class Program
         Console.ReadKey(true);
     }
 
-    private static async Task ConfigurePromptDefaultsAsync()
+    private static async Task ConfigurePromptDefaultsAsync(SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
-        using var promptService = new PromptService();
+        using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(logger);
         
         Console.WriteLine("\n🎯 Configure Prompt Defaults");
         Console.WriteLine("=============================");
@@ -2025,7 +2053,7 @@ public static class Program
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
                 await ShowBriefPauseAsync("Invalid option", 1000);
-                await ConfigurePromptDefaultsAsync();
+                await ConfigurePromptDefaultsAsync(configService, logger);
                 return;
         }
         
@@ -2517,12 +2545,17 @@ public static class Program
         Console.WriteLine($"  Information: {infoCount}");
     }
 
-    private static async Task ClearErrorLogsAsync(ErrorLoggingService loggingService)
+    private static async Task ClearErrorLogsAsync(ErrorLoggingService loggingService, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         Console.WriteLine("\n🗑️ Clear All Error Logs");
         Console.WriteLine("========================");
         
-        using var promptService = new PromptService();
+        if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return;
+        }
+        using var promptService = new PromptService(configService, logger);
         var confirm = await promptService.PromptYesNoDefaultNoAsync("Are you sure you want to delete all error logs? This cannot be undone.");
         
         if (confirm)
@@ -3425,9 +3458,10 @@ public static class Program
         return Task.CompletedTask;
     }
 
-    private static async Task ShowExtractorManagementMenuAsync(MenuStateManager? menuStateManager = null)
+    private static async Task ShowExtractorManagementMenuAsync(MenuStateManager? menuStateManager = null, AppConfiguration? config = null, ILogger? logger = null)
     {
         using var extractorService = new ExtractorManagementService();
+        using var configService = new SqliteConfigurationService(logger);
         
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Extractor Management";
         ClearScreenWithHeader("🔧 File Extractor Management", breadcrumb);
@@ -3461,13 +3495,13 @@ public static class Program
                         await ShowExtractorStatsAsync(extractorService, menuStateManager);
                         break;
                     case "3":
-                        await AddFileExtensionAsync(extractorService, menuStateManager);
+                        await AddFileExtensionAsync(extractorService, menuStateManager, configService, logger);
                         break;
                     case "4":
-                        await RemoveFileExtensionAsync(extractorService, menuStateManager);
+                        await RemoveFileExtensionAsync(extractorService, menuStateManager, configService, logger);
                         break;
                     case "5":
-                        await TestFileExtractionAsync(extractorService, menuStateManager);
+                        await TestFileExtractionAsync(extractorService, menuStateManager, config, logger);
                         break;
                     case "6":
                         await ResetExtractorAsync(extractorService, menuStateManager);
@@ -4083,7 +4117,7 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task AddFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
+    static async Task AddFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Add Extension" ?? "Main Menu > Extractor Management > Add Extension";
         ClearScreenWithHeader("➕ Add File Extension to Extractor", breadcrumb);
@@ -4112,7 +4146,12 @@ private static Task WaitForKeyPress()
         
         var selectedExtractor = extractorList[extractorIndex - 1];
         
-        using var promptService = new PromptService();
+        if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return;
+        }
+        using var promptService = new PromptService(configService, logger);
         var extensionsInput = promptService.PromptForValidatedString(
             "Enter file extension(s) to add (e.g., '.docx' or 'docx,rtf')", 
             InputValidationType.General, 
@@ -4149,7 +4188,7 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task RemoveFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
+    static async Task RemoveFileExtensionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null, SqliteConfigurationService? configService = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Remove Extension" ?? "Main Menu > Extractor Management > Remove Extension";
         ClearScreenWithHeader("➖ Remove File Extension from Extractor", breadcrumb);
@@ -4186,7 +4225,12 @@ private static Task WaitForKeyPress()
             return;
         }
         
-        using var promptService = new PromptService();
+        if (configService == null)
+        {
+            logger?.LogError("Configuration service is not available");
+            return;
+        }
+        using var promptService = new PromptService(configService, logger);
         var extensionsInput = promptService.PromptForValidatedString(
             "Enter file extension(s) to remove (e.g., '.docx' or 'docx,rtf')", 
             InputValidationType.General, 
@@ -4223,12 +4267,12 @@ private static Task WaitForKeyPress()
         Console.ReadKey(true);
     }
 
-    static async Task TestFileExtractionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null)
+    static async Task TestFileExtractionAsync(ExtractorManagementService service, MenuStateManager? menuStateManager = null, AppConfiguration? config = null, ILogger? logger = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Test Extraction" ?? "Main Menu > Extractor Management > Test Extraction";
         ClearScreenWithHeader("🧪 Test File Extraction", breadcrumb);
         
-        using var promptService = new PromptService();
+        using var promptService = config != null && logger != null ? new PromptService(config, logger) : new PromptService();
         var filePath = promptService.PromptForValidatedString(
             "Enter file path to test", 
             InputValidationType.FilePath, 
@@ -4476,14 +4520,15 @@ private static Task WaitForKeyPress()
         EnhancedMcpRagServer currentServer, 
         ILogger<EnhancedMcpRagServer> logger, 
         string ollamaModel, 
-        OperationMode mode)
+        OperationMode mode,
+        AppConfiguration? config = null)
     {
         Console.WriteLine("\n📁 Change Document Directory");
         Console.WriteLine("=============================");
         Console.WriteLine($"Current directory: {currentServer.RootPath}");
         Console.WriteLine();
         
-        using var promptService = new PromptService();
+        using var promptService = config != null ? new PromptService(config, logger) : new PromptService();
         var newPath = promptService.PromptForValidatedString(
             "Enter new document directory path (or 'cancel' to abort)", 
             InputValidationType.FilePath, 
@@ -4500,7 +4545,7 @@ private static Task WaitForKeyPress()
         if (!Directory.Exists(newPath))
         {
             Console.WriteLine($"❌ Error: Directory '{newPath}' does not exist.");
-            using var createPromptService = new PromptService();
+            using var createPromptService = config != null ? new PromptService(config, logger) : new PromptService();
             var createResponse = await createPromptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
             
             if (createResponse)
@@ -4534,7 +4579,7 @@ private static Task WaitForKeyPress()
         if (files.Count == 0)
         {
             Console.WriteLine("⚠️  Warning: No supported files found in the directory.");
-            using var continuePromptService = new PromptService();
+            using var continuePromptService = config != null ? new PromptService(config, logger) : new PromptService();
             var continueResponse = await continuePromptService.PromptYesNoDefaultYesAsync("Continue anyway?");
             
             if (!continueResponse)
@@ -4574,8 +4619,8 @@ private static Task WaitForKeyPress()
                 Console.WriteLine("Initializing RAG system...");
                 await newServer.InitializeAsync();
                 
-                var chunkCount = await newServer._vectorStore.GetChunkCountAsync();
-                var indexedFiles = await newServer._vectorStore.GetIndexedFilesAsync();
+                var chunkCount = await newServer._vectorStore!.GetChunkCountAsync();
+                var indexedFiles = await newServer._vectorStore!.GetIndexedFilesAsync();
                 Console.WriteLine($"✅ RAG initialization complete. Indexed {chunkCount} chunks from {indexedFiles.Count} files.");
             }
             
@@ -4892,40 +4937,40 @@ private static Task WaitForKeyPress()
             switch (input)
             {
                 case "1":
-                    ConfigureProviderUrl("Ollama", url => config.OllamaUrl = url);
+                    ConfigureProviderUrl("Ollama", url => config.OllamaUrl = url, config);
                     break;
                 case "2":
-                    ConfigureProviderUrl("LM Studio", url => config.LmStudioUrl = url);
+                    ConfigureProviderUrl("LM Studio", url => config.LmStudioUrl = url, config);
                     break;
                 case "3":
-                    ConfigureProviderUrl("Open Web UI", url => config.OpenWebUiUrl = url);
+                    ConfigureProviderUrl("Open Web UI", url => config.OpenWebUiUrl = url, config);
                     break;
                 case "4":
-                    ConfigureProviderUrl("OpenAI", url => config.OpenAiUrl = url);
+                    ConfigureProviderUrl("OpenAI", url => config.OpenAiUrl = url, config);
                     break;
                 case "5":
-                    ConfigureProviderUrl("Anthropic", url => config.AnthropicUrl = url);
+                    ConfigureProviderUrl("Anthropic", url => config.AnthropicUrl = url, config);
                     break;
                 case "6":
-                    ConfigureProviderUrl("DeepSeek", url => config.DeepSeekUrl = url);
+                    ConfigureProviderUrl("DeepSeek", url => config.DeepSeekUrl = url, config);
                     break;
                 case "7":
-                    ConfigureDefaultModel("Ollama", model => config.OllamaDefaultModel = model);
+                    ConfigureDefaultModel("Ollama", model => config.OllamaDefaultModel = model, config);
                     break;
                 case "8":
-                    ConfigureDefaultModel("LM Studio", model => config.LmStudioDefaultModel = model);
+                    ConfigureDefaultModel("LM Studio", model => config.LmStudioDefaultModel = model, config);
                     break;
                 case "9":
-                    ConfigureDefaultModel("Open Web UI", model => config.OpenWebUiDefaultModel = model);
+                    ConfigureDefaultModel("Open Web UI", model => config.OpenWebUiDefaultModel = model, config);
                     break;
                 case "10":
-                    ConfigureDefaultModel("OpenAI", model => config.OpenAiDefaultModel = model);
+                    ConfigureDefaultModel("OpenAI", model => config.OpenAiDefaultModel = model, config);
                     break;
                 case "11":
-                    ConfigureDefaultModel("Anthropic", model => config.AnthropicDefaultModel = model);
+                    ConfigureDefaultModel("Anthropic", model => config.AnthropicDefaultModel = model, config);
                     break;
                 case "12":
-                    ConfigureDefaultModel("DeepSeek", model => config.DeepSeekDefaultModel = model);
+                    ConfigureDefaultModel("DeepSeek", model => config.DeepSeekDefaultModel = model, config);
                     break;
                 case "13":
                     await ConfigureApiKeysAsync(config);
@@ -4970,12 +5015,12 @@ private static Task WaitForKeyPress()
         ConfigurationService.SaveConfiguration(config);
     }
 
-    static void ConfigureProviderUrl(string providerName, Action<string> setUrlAction)
+    static void ConfigureProviderUrl(string providerName, Action<string> setUrlAction, AppConfiguration? config = null, ILogger? logger = null)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} URL");
         Console.WriteLine("==============================");
         
-        using var promptService = new PromptService();
+        using var promptService = config != null && logger != null ? new PromptService(config, logger) : new PromptService();
         var url = promptService.PromptForValidatedString(
             $"Enter {providerName} URL (press Enter to keep current)", 
             InputValidationType.Url, 
@@ -4993,12 +5038,12 @@ private static Task WaitForKeyPress()
         }
     }
 
-    static void ConfigureDefaultModel(string providerName, Action<string> setModelAction)
+    static void ConfigureDefaultModel(string providerName, Action<string> setModelAction, AppConfiguration? config = null, ILogger? logger = null)
     {
         Console.WriteLine($"\n🔧 Configure {providerName} Default Model");
         Console.WriteLine("========================================");
         
-        using var promptService = new PromptService();
+        using var promptService = config != null && logger != null ? new PromptService(config, logger) : new PromptService();
         var model = promptService.PromptForValidatedString(
             $"Enter {providerName} default model (press Enter to keep current): ", 
             InputValidationType.ModelName, 

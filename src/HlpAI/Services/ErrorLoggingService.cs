@@ -18,8 +18,8 @@ public class ErrorLoggingService : IDisposable
     public ErrorLoggingService(ILogger? logger = null)
     {
         _logger = logger;
-        _configService = new SqliteConfigurationService(logger);
-        _ownsConfigService = true;
+        _configService = SqliteConfigurationService.GetInstance(logger);
+        _ownsConfigService = false; // Don't dispose singleton instance
         _config = ConfigurationService.LoadConfiguration(logger);
     }
 
@@ -29,6 +29,22 @@ public class ErrorLoggingService : IDisposable
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _ownsConfigService = false;
         _config = ConfigurationService.LoadConfiguration(logger);
+    }
+
+    public ErrorLoggingService(AppConfiguration config, ILogger? logger = null)
+    {
+        _logger = logger;
+        _configService = SqliteConfigurationService.GetInstance(logger);
+        _ownsConfigService = false;
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+    }
+
+    public ErrorLoggingService(ILogger? logger, AppConfiguration config)
+    {
+        _logger = logger;
+        _configService = SqliteConfigurationService.GetInstance(logger);
+        _ownsConfigService = false; // Don't dispose singleton instance
+        _config = config ?? throw new ArgumentNullException(nameof(config));
     }
 
     /// <summary>
