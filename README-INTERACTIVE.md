@@ -497,30 +497,114 @@ Select provider (1-3): 3
 **Provider Switching Features:**
 - 🔄 **Hot-swappable**: Change providers without restarting the application
 - 🔍 **Auto-detection**: Automatically detects available providers and their status
-- ⚡ **Instant switching**: Changes take effect immediately
-- 📊 **Provider status**: Shows availability and connection status for each provider
+- ⚡ **Instant switching**: Changes take effect immediately for all operations
+- 📊 **Provider status**: Shows real-time availability and connection status
 - 🎯 **Model compatibility**: Automatically handles model compatibility between providers
 - 💾 **Configuration persistence**: Provider changes are saved and restored on restart
+- 🔒 **Safe switching**: Validates new provider before switching, with automatic rollback on failure
+- 🚀 **Live server updates**: Running MCP servers are updated in real-time without restart
 
 **Supported AI Providers:**
-- **Ollama** (default): Local AI models running via Ollama (http://localhost:11434)
-- **LM Studio**: Local models via LM Studio API (http://localhost:1234)
-- **Open WebUI**: Web-based AI interface (http://localhost:3000)
 
-**Switching Process:**
-1. Select "Change AI Provider" from configuration menu
-2. View available providers with their connection status
-3. Select the desired provider
-4. System automatically validates the new provider connection
-5. Configuration is updated and saved immediately
-6. All subsequent AI operations use the new provider
+**Local Providers:**
+- **Ollama** (default): Local AI models running via Ollama
+  - Default URL: http://localhost:11434
+  - Default Model: llama3.2
+  - Requirements: Ollama installed and running with models
 
-**Provider Requirements:**
-- **Ollama**: Must have Ollama installed and running with desired models
-- **LM Studio**: Must have LM Studio running with API enabled
-- **Open WebUI**: Must have Open WebUI instance accessible
+- **LM Studio**: Local models via LM Studio API
+  - Default URL: http://localhost:1234
+  - Default Model: default
+  - Requirements: LM Studio running with API enabled
 
-**Note**: Some providers may have different model capabilities. The system will automatically handle model compatibility and may suggest appropriate models when switching providers.
+- **Open WebUI**: Web-based AI interface
+  - Default URL: http://localhost:3000
+  - Default Model: default
+  - Requirements: Open WebUI instance accessible
+
+**Cloud Providers:**
+- **OpenAI**: GPT models via OpenAI API
+  - Default Model: gpt-4o-mini
+  - Requirements: Valid API key
+
+- **Anthropic**: Claude models via Anthropic API
+  - Default Model: claude-3-5-haiku-20241022
+  - Requirements: Valid API key
+
+- **DeepSeek**: DeepSeek models via DeepSeek API
+  - Default Model: deepseek-chat
+  - Requirements: Valid API key
+
+**Detailed Switching Process:**
+
+1. **Access Provider Menu**
+   - Navigate to Configuration → Change AI Provider
+   - Current provider and model are displayed
+
+2. **View Provider Status**
+   - System shows all available providers with real-time status
+   - ✅ Available providers are ready for immediate use
+   - ❌ Unavailable providers show connection issues
+
+3. **Select New Provider**
+   - Choose from numbered list of providers
+   - System prevents switching to the same provider
+
+4. **Pre-Switch Validation**
+   - Configuration validation (URLs, API keys, etc.)
+   - Connection testing with timeout and retry logic
+   - Model availability verification
+
+5. **Safe Provider Switch**
+   - Temporary configuration update for testing
+   - Connection test with the new provider
+   - Automatic rollback if connection fails
+
+6. **Live Server Update**
+   - Running MCP servers are updated in real-time
+   - New provider instance replaces old one seamlessly
+   - No restart required for active sessions
+
+7. **Configuration Persistence**
+   - Successful switches are saved to configuration
+   - Settings persist across application restarts
+
+**Advanced Features:**
+
+**Quick Switch to Available Provider:**
+- Automatically detects and switches to any available provider
+- Useful when current provider becomes unavailable
+- Includes provider health validation
+
+**Model Compatibility Handling:**
+- Warns if configured model is not available on new provider
+- Suggests available models for the selected provider
+- Automatically sets appropriate default models
+
+**Connection Testing:**
+- Response time measurement
+- Comprehensive error reporting
+- Network connectivity validation
+- Firewall and configuration troubleshooting tips
+
+**Troubleshooting Provider Switching:**
+
+**Common Issues:**
+- **Provider not available**: Ensure the service is running and accessible
+- **Model not found**: Check if the model is loaded/available on the provider
+- **Connection timeout**: Verify network connectivity and firewall settings
+- **API key issues**: Ensure valid API keys are configured for cloud providers
+- **URL configuration**: Verify provider URLs are correct and accessible
+
+**Validation Errors:**
+- Configuration validation prevents switching to misconfigured providers
+- Detailed error messages guide troubleshooting
+- Automatic rollback protects against failed switches
+
+**Performance Considerations:**
+- Provider switching is typically completed in under 2 seconds
+- Connection testing includes timeout handling
+- Live server updates maintain session continuity
 =========================
 1. Change AI Provider (Current: Ollama)
 2. Change AI Model (Current: llama3.2)

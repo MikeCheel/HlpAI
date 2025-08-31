@@ -4661,7 +4661,7 @@ private static Task WaitForKeyPress()
         
         // Header with styled box
         Console.WriteLine();
-        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Enhanced MCP RAG Server"), MenuStyler.HeaderColor);
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
         
         // AI Provider Status
         var providerStatus = GetProviderStatusDisplay(config);

@@ -46,6 +46,42 @@ dotnet run "/home/user/documents" "codellama" "mcp"
 dotnet run "~/Documents" "mcp"  # Prompts for model selection
 ```
 
+#### AI Provider Configuration
+
+**Timeout Settings:**
+Each AI provider has configurable timeout settings (default: 5 minutes):
+- **OpenAI**: `OpenAiTimeoutMinutes`
+- **Anthropic**: `AnthropicTimeoutMinutes`
+- **DeepSeek**: `DeepSeekTimeoutMinutes`
+- **LM Studio**: `LmStudioTimeoutMinutes`
+- **OpenWebUI**: `OpenWebUiTimeoutMinutes`
+
+**Max Tokens Settings:**
+Token limits can be configured per provider:
+- **OpenAI**: `OpenAiMaxTokens` (default: 4000)
+- **Anthropic**: `AnthropicMaxTokens` (default: 4000)
+- **DeepSeek**: `DeepSeekMaxTokens` (default: 4000)
+- **LM Studio**: `LmStudioMaxTokens` (default: 4096)
+- **OpenWebUI**: `OpenWebUiMaxTokens` (default: 4096)
+
+**Configuration Methods:**
+1. **Interactive Mode**: Use the provider switching menu to configure settings
+2. **Command Line**: Pass configuration arguments during startup
+3. **Configuration File**: Settings are persisted in SQLite database
+4. **Environment Variables**: Can be set via system environment
+
+**Example Configuration:**
+```bash
+# Set custom timeout and token limits
+dotnet run "C:\Docs" "gpt-4" "mcp" --openai-timeout 10 --openai-max-tokens 8000
+```
+
+**Configuration Validation:**
+- Timeout values must be positive integers (minutes)
+- Max tokens must be within provider limits
+- Invalid configurations will use default values
+- Settings are validated during provider switching
+
 ### Server Initialization
 
 **Typical Startup Output:**
