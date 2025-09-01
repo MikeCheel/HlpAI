@@ -10,7 +10,7 @@
 4. [Completed] Implement standardized error handling middleware for AI operations
 5. [Completed] Extend AiProviderFactory to support additional provider types - Deferred for later implementation
 6. [Completed] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
-7. [Pending] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
+7. [Completed] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
 8. [Pending] Add ask_ai and analyze_file functionality documentation
 9. [Pending] Document RAG-enhanced questioning features
 10. [Pending] Add semantic search API documentation

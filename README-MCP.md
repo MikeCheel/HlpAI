@@ -144,7 +144,7 @@ List all available document resources in the current directory.
   "result": {
     "resources": [
       {
-        "uri": "file:///user-manual.pdf",
+        "file_uri": "file:///user-manual.pdf",
         "name": "user-manual.pdf",
         "description": "PDF document - User Manual",
         "type": "document",
@@ -215,34 +215,53 @@ List all available AI tools.
     "tools": [
       {
         "name": "search_files",
-        "description": "Search files by text content",
+        "description": "Search for files containing specific text",
         "inputSchema": {
           "type": "object",
           "properties": {
             "query": {"type": "string", "description": "Search query"},
-            "maxResults": {"type": "number", "description": "Maximum results to return", "default": 10}
+            "fileTypes": {"type": "array", "items": {"type": "string"}, "description": "File extensions to search"}
           },
           "required": ["query"]
         }
       },
       {
         "name": "ask_ai",
-        "description": "Ask AI questions with optional RAG enhancement",
+        "description": "Ask AI a question about file contents using the configured AI provider",
         "inputSchema": {
           "type": "object",
           "properties": {
-            "question": {"type": "string", "description": "Question to ask"},
-            "context": {"type": "string", "description": "Additional context for the AI"},
-            "temperature": {"type": "number", "description": "Creativity level (0.0-1.0)", "default": 0.7},
-            "useRag": {"type": "boolean", "description": "Use RAG enhancement", "default": false}
+            "question": {"type": "string", "description": "Question to ask the AI"},
+            "context": {"type": "string", "description": "Optional context or file content to provide to the AI"},
+            "temperature": {"type": "number", "description": "Temperature for AI response (0.0-1.0)", "default": 0.7},
+            "use_rag": {"type": "boolean", "description": "Whether to use RAG for context retrieval", "default": true}
           },
           "required": ["question"]
         }
-      }
+      },
+      {
+         "name": "analyze_file",
+         "description": "Analyze a specific file using AI",
+         "inputSchema": {
+           "type": "object",
+           "properties": {
+             "file_uri": {"type": "string", "description": "URI of the file to analyze"},
+             "analysis_type": {"type": "string", "description": "Type of analysis (summary, key_points, questions, etc.)"},
+             "use_rag": {"type": "boolean", "description": "Whether to use RAG for enhanced context", "default": true}
+           },
+           "required": ["file_uri", "analysis_type"]
+         }
+       }
     ]
   }
 }
 ```
+
+**Note:** In RAG or Hybrid modes, additional tools are available:
+- `rag_search` - Semantic search using RAG vector store
+- `rag_ask` - Ask AI with RAG-enhanced context retrieval  
+- `reindex_documents` - Rebuild the RAG vector store index
+- `indexing_report` - Get detailed report of indexed and non-indexed files
 
 #### **tools/call**
 Execute an AI tool with specific parameters.
@@ -258,7 +277,7 @@ Execute an AI tool with specific parameters.
     "arguments": {
       "question": "How do I configure the database?",
       "temperature": 0.3,
-      "useRag": true
+      "use_rag": true
     }
   }
 }
@@ -326,14 +345,53 @@ Search files by text content with configurable result limits.
 }
 ```
 
-### **ask_ai** - AI Question Answering
-Ask questions with full customization options.
+### **search_files**
+Search for files containing specific text.
+
+**Parameters:**
+- `query` (string, required): Search query
+- `fileTypes` (array, optional): File extensions to search
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "11",
+  "method": "tools/call",
+  "params": {
+    "name": "search_files",
+    "arguments": {
+      "query": "authentication",
+      "fileTypes": [".md", ".txt", ".cs"]
+    }
+  }
+}
+```
+
+**Example Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "11",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Found 3 files containing 'authentication':\n\n1. docs/security.md - Line 15: 'User authentication is required'\n2. src/Auth.cs - Line 42: 'public class AuthenticationService'\n3. README.md - Line 8: 'Authentication setup instructions'"
+      }
+    ]
+  }
+}
+```
+
+### **ask_ai**
+Ask AI a question about file contents using the configured AI provider.
 
 **Parameters:**
 - `question` (required): Question to ask the AI
-- `context` (optional): Additional context to guide the AI response
-- `temperature` (optional): Creativity level (0.0 = factual, 1.0 = creative, default: 0.7)
-- `useRag` (optional): Use RAG enhancement (default: false)
+- `context` (optional): Optional context or file content to provide to the AI
+- `temperature` (optional): Temperature for AI response (0.0-1.0, default: 0.7)
+- `use_rag` (optional): Whether to use RAG for context retrieval (default: true)
 
 **Example Request:**
 ```json
@@ -386,9 +444,9 @@ Analyze specific files with multiple analysis types.
     "name": "analyze_file",
     "arguments": {
       "uri": "file:///user-manual.pdf",
-      "analysisType": "key_points",
+      "analysis_type": "key_points",
       "temperature": 0.4,
-      "useRag": true
+      "use_rag": true
     }
   }
 }
@@ -426,8 +484,8 @@ Search using vector embeddings for meaning-based results.
 
 **Parameters:**
 - `query` (required): Search query
-- `topK` (optional): Number of top results to return (default: 5)
-- `minSimilarity` (optional): Minimum similarity score (0.0-1.0, default: 0.5)
+- `top_k` (optional): Number of top results to return (default: 5)
+- `min_similarity` (optional): Minimum similarity score (0.0-1.0, default: 0.5)
 
 **Example Request:**
 ```json
@@ -438,8 +496,8 @@ Search using vector embeddings for meaning-based results.
     "name": "rag_search",
     "arguments": {
       "query": "authentication setup",
-      "topK": 3,
-      "minSimilarity": 0.6
+      "top_k": 3,
+      "min_similarity": 0.6
     }
   }
 }
@@ -478,7 +536,7 @@ Ask questions enhanced with document context.
 
 **Parameters:**
 - `question` (required): Question to ask
-- `topK` (optional): Number of context chunks to use (default: 5)
+- `top_k` (optional): Number of context chunks to use (default: 5)
 - `temperature` (optional): Creativity level (0.0-1.0, default: 0.7)
 
 **Example Request:**
@@ -490,7 +548,7 @@ Ask questions enhanced with document context.
     "name": "rag_ask",
     "arguments": {
       "question": "How do I set up SSL certificates?",
-      "topK": 3,
+      "top_k": 3,
       "temperature": 0.3
     }
   }
@@ -554,7 +612,7 @@ Rebuild the vector store index.
 Get comprehensive report of indexed vs. non-indexed files.
 
 **Parameters:**
-- `showDetails` (optional): Include detailed file information (default: false)
+- `show_details` (optional): Include detailed file information (default: true)
 
 **Example Request:**
 ```json
@@ -564,7 +622,7 @@ Get comprehensive report of indexed vs. non-indexed files.
   "params": {
     "name": "indexing_report",
     "arguments": {
-      "showDetails": true
+      "show_details": true
     }
   }
 }
