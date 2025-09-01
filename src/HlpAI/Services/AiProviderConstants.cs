@@ -18,6 +18,7 @@ public static class AiProviderConstants
         public const string Anthropic = "https://api.anthropic.com";
         public const string AnthropicV1 = "https://api.anthropic.com/v1";
         public const string DeepSeek = "https://api.deepseek.com/v1";
+        public const string Generic = "http://localhost:8080";
     }
 
     /// <summary>

@@ -6219,84 +6219,36 @@ private static Task WaitForKeyPress()
             }
         }
         
-        // Show provider selection menu
-        Console.WriteLine("\n✅ Available AI Providers:");
+        // Show provider selection menu with enhanced status information
+        Console.WriteLine("\n🤖 AI Provider Selection:");
         Console.WriteLine();
         
         var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
         var providers = providerDescriptions.Keys.ToList();
-        var availabilityTasks = providers.Select(async provider => 
-        {
-            bool isAvailable = false;
-            
-            if (AiProviderFactory.RequiresApiKey(provider))
-            {
-                // For cloud providers, check if API key is stored
-                var apiKeyStorage = new SecureApiKeyStorage();
-                if (apiKeyStorage.HasApiKey(provider.ToString()))
-                {
-                    try
-                    {
-                        var apiKey = apiKeyStorage.RetrieveApiKey(provider.ToString());
-                        if (!string.IsNullOrEmpty(apiKey))
-                        {
-                            var tempProvider = AiProviderFactory.CreateProvider(
-                                provider,
-                                "default",
-                                GetProviderUrl(config, provider) ?? string.Empty,
-                                apiKey,
-                                logger,
-                                config
-                            );
-                            isAvailable = await tempProvider.IsAvailableAsync();
-                            tempProvider.Dispose();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger?.LogDebug(ex, "Failed to check availability for {Provider}: {Error}", provider, ex.Message);
-                        isAvailable = false;
-                    }
-                }
-            }
-            else
-            {
-                // For local providers, check availability normally
-                try
-                {
-                    var tempProvider = AiProviderFactory.CreateProvider(
-                        provider,
-                        "default",
-                        GetProviderUrl(config, provider) ?? string.Empty,
-                        logger,
-                        config
-                    );
-                    isAvailable = await tempProvider.IsAvailableAsync();
-                    tempProvider.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogDebug(ex, "Failed to check availability for {Provider}: {Error}", provider, ex.Message);
-                    isAvailable = false;
-                }
-            }
-            
-            return new { Provider = provider, IsAvailable = isAvailable };
-        }).ToArray();
         
-        var availabilityResults = await Task.WhenAll(availabilityTasks);
+        // Use the enhanced DetectAvailableProvidersAsync method
+        var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync(logger);
         
         for (int i = 0; i < providers.Count; i++)
         {
             var provider = providers[i];
-            var result = availabilityResults.First(r => r.Provider == provider);
-            var status = result.IsAvailable ? "✅ Available" : "❌ Not available";
+            var connectivityResult = availableProviders[provider];
             var currentIndicator = (provider == config.LastProvider) ? " (current)" : "";
-            Console.WriteLine($"  {i + 1}. {providerDescriptions[provider]} - {status}{currentIndicator}");
+            
+            if (connectivityResult.IsAvailable)
+            {
+                Console.WriteLine($"  {i + 1}. {providerDescriptions[provider]} - ✅ Available ({connectivityResult.ResponseTime}ms){currentIndicator}");
+            }
+            else
+            {
+                Console.WriteLine($"  {i + 1}. {providerDescriptions[provider]} - ❌ {connectivityResult.ErrorMessage}{currentIndicator}");
+            }
         }
         
         Console.WriteLine();
-        Console.Write($"Select a provider (1-{providers.Count}, or 'q' to quit): ");
+        Console.WriteLine($"  {providers.Count + 1}. 🔧 Configure a provider (set API keys, URLs, etc.)");
+        Console.WriteLine();
+        Console.Write($"Select an option (1-{providers.Count + 1}, or 'q' to quit): ");
         var input = SafePromptForString("", "b").Trim();
         
         if (input?.ToLower() == "q")
@@ -6304,35 +6256,287 @@ private static Task WaitForKeyPress()
             return null; // User cancelled
         }
         
-        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+        if (int.TryParse(input, out int selection))
         {
-            var selectedProvider = providers[selection - 1];
-            
-            if (selectedProvider == config.LastProvider)
+            // Handle provider configuration option
+            if (selection == providers.Count + 1)
             {
-                Console.WriteLine("✅ That's already your current provider.");
-                return false; // No change needed
+                return await ConfigureProviderAsync(config, configService, logger);
             }
             
-            // Update configuration with new provider
-            config.LastProvider = selectedProvider;
-            config.LastModel = selectedProvider switch
+            // Handle provider selection
+            if (selection >= 1 && selection <= providers.Count)
             {
-                AiProviderType.Ollama => config.OllamaDefaultModel,
-                AiProviderType.LmStudio => config.LmStudioDefaultModel,
-                AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
-                AiProviderType.OpenAI => config.OpenAiDefaultModel,
-                AiProviderType.Anthropic => config.AnthropicDefaultModel,
-                AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
-                _ => "default"
-            };
-            
-            Console.WriteLine($"✅ Selected provider: {selectedProvider}");
-            return true; // Provider changed
+                var selectedProvider = providers[selection - 1];
+                var connectivityResult = availableProviders[selectedProvider];
+                
+                if (selectedProvider == config.LastProvider)
+                {
+                    Console.WriteLine("✅ That's already your current provider.");
+                    return false; // No change needed
+                }
+                
+                // Check if the selected provider is available
+                if (!connectivityResult.IsAvailable)
+                {
+                    Console.WriteLine($"\n❌ {providerDescriptions[selectedProvider]} is not currently available.");
+                    Console.WriteLine($"Error: {connectivityResult.ErrorMessage}");
+                    Console.WriteLine();
+                    
+                    using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+                    var continueAnyway = await promptService.PromptYesNoDefaultNoAsync("Continue with setup anyway?");
+                    
+                    if (!continueAnyway)
+                    {
+                        Console.WriteLine("Setup cancelled.");
+                        return null;
+                    }
+                }
+                
+                // Update configuration with new provider
+                config.LastProvider = selectedProvider;
+                config.LastModel = selectedProvider switch
+                {
+                    AiProviderType.Ollama => config.OllamaDefaultModel,
+                    AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                    AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                    AiProviderType.OpenAI => config.OpenAiDefaultModel,
+                    AiProviderType.Anthropic => config.AnthropicDefaultModel,
+                    AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
+                    _ => "default"
+                };
+                
+                Console.WriteLine($"✅ Selected provider: {selectedProvider}");
+                return true; // Provider changed
+            }
         }
         
         Console.WriteLine("❌ Invalid selection.");
         return null; // Invalid selection, treat as cancelled
+    }
+    
+    /// <summary>
+    /// Configure a provider (set API keys, URLs, etc.)
+    /// </summary>
+    private static async Task<bool?> ConfigureProviderAsync(AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    {
+        Console.WriteLine("\n🔧 Provider Configuration");
+        Console.WriteLine("=========================");
+        Console.WriteLine();
+        
+        var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
+        var providers = providerDescriptions.Keys.ToList();
+        
+        Console.WriteLine("Select a provider to configure:");
+        for (int i = 0; i < providers.Count; i++)
+        {
+            var provider = providers[i];
+            var requiresApiKey = AiProviderFactory.RequiresApiKey(provider);
+            var configType = requiresApiKey ? "API Key" : "URL";
+            Console.WriteLine($"  {i + 1}. {providerDescriptions[provider]} ({configType})");
+        }
+        
+        Console.WriteLine();
+        Console.Write($"Select a provider (1-{providers.Count}, or 'q' to quit): ");
+        var input = SafePromptForString("", "b").Trim();
+        
+        if (input.Equals("q", StringComparison.OrdinalIgnoreCase))
+        {
+            return null; // User chose to quit
+        }
+        
+        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+        {
+            var selectedProvider = providers[selection - 1];
+            
+            if (AiProviderFactory.RequiresApiKey(selectedProvider))
+            {
+                return await ConfigureApiKeyAsync(selectedProvider, config, configService, logger);
+            }
+            else
+            {
+                return await ConfigureProviderUrlAsync(selectedProvider, config, configService, logger);
+            }
+        }
+        
+        Console.WriteLine("❌ Invalid selection.");
+        return await ConfigureProviderAsync(config, configService, logger);
+    }
+    
+    /// <summary>
+    /// Configure API key for a cloud provider
+    /// </summary>
+    private static async Task<bool?> ConfigureApiKeyAsync(AiProviderType provider, AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    {
+        Console.WriteLine($"\n🔑 Configure API Key for {provider}");
+        Console.WriteLine("====================================");
+        Console.WriteLine();
+        
+        var apiKeyStorage = new SecureApiKeyStorage();
+        var hasExistingKey = apiKeyStorage.HasApiKey(provider.ToString());
+        
+        if (hasExistingKey)
+        {
+            Console.WriteLine("✅ API key is already configured for this provider.");
+            Console.WriteLine();
+            
+            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var updateKey = await promptService.PromptYesNoDefaultNoAsync("Update the existing API key?");
+            
+            if (!updateKey)
+            {
+                Console.WriteLine("Configuration unchanged.");
+                return false;
+            }
+        }
+        
+        Console.WriteLine($"Please enter your {provider} API key:");
+        Console.Write("API Key: ");
+        var apiKey = SafePromptForString("", "s").Trim();
+        
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            Console.WriteLine("❌ API key cannot be empty.");
+            return null;
+        }
+        
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine("❌ Secure API key storage is only supported on Windows.");
+                Console.WriteLine("Please set your API key as an environment variable instead.");
+                return false;
+            }
+            
+            apiKeyStorage.StoreApiKey(provider.ToString(), apiKey);
+            Console.WriteLine($"✅ API key configured successfully for {provider}.");
+            
+            // Test the connection
+            Console.WriteLine("\n🔍 Testing connection...");
+            var testProvider = AiProviderFactory.CreateProvider(
+                provider,
+                "default",
+                GetProviderUrl(config, provider) ?? string.Empty,
+                apiKey,
+                logger,
+                config
+            );
+            
+            var isAvailable = await testProvider.IsAvailableAsync();
+            testProvider.Dispose();
+            
+            if (isAvailable)
+            {
+                Console.WriteLine($"✅ {provider} is now available!");
+                config.LastProvider = provider;
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ {provider} configuration saved, but connection test failed.");
+                Console.WriteLine("Please verify your API key and try again.");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to configure API key: {ex.Message}");
+            logger?.LogError(ex, "Failed to configure API key for {Provider}", provider);
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Configure URL for a local provider
+    /// </summary>
+    private static async Task<bool?> ConfigureProviderUrlAsync(AiProviderType provider, AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    {
+        Console.WriteLine($"\n🌐 Configure URL for {provider}");
+        Console.WriteLine("==============================");
+        Console.WriteLine();
+        
+        var currentUrl = GetProviderUrl(config, provider);
+        if (!string.IsNullOrEmpty(currentUrl))
+        {
+            Console.WriteLine($"Current URL: {currentUrl}");
+            Console.WriteLine();
+        }
+        
+        var defaultUrl = provider switch
+        {
+            AiProviderType.Ollama => AiProviderConstants.DefaultUrls.Ollama,
+            AiProviderType.LmStudio => AiProviderConstants.DefaultUrls.LmStudio,
+            AiProviderType.OpenWebUi => AiProviderConstants.DefaultUrls.OpenWebUi,
+            _ => AiProviderConstants.DefaultUrls.Generic
+        };
+        
+        Console.WriteLine($"Enter the URL for {provider} (default: {defaultUrl}):");
+        Console.Write("URL: ");
+        var url = SafePromptForString("", "s").Trim();
+        
+        if (string.IsNullOrEmpty(url))
+        {
+            url = defaultUrl;
+        }
+        
+        // Validate URL format
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            Console.WriteLine("❌ Invalid URL format. Please enter a valid HTTP or HTTPS URL.");
+            return await ConfigureProviderUrlAsync(provider, config, configService, logger);
+        }
+        
+        // Update configuration
+        switch (provider)
+        {
+            case AiProviderType.Ollama:
+                config.OllamaUrl = url;
+                break;
+            case AiProviderType.LmStudio:
+                config.LmStudioUrl = url;
+                break;
+            case AiProviderType.OpenWebUi:
+                config.OpenWebUiUrl = url;
+                break;
+        }
+        
+        Console.WriteLine($"✅ URL configured successfully for {provider}: {url}");
+        
+        // Test the connection
+        Console.WriteLine("\n🔍 Testing connection...");
+        try
+        {
+            var testProvider = AiProviderFactory.CreateProvider(
+                provider,
+                "default",
+                url,
+                logger,
+                config
+            );
+            
+            var isAvailable = await testProvider.IsAvailableAsync();
+            testProvider.Dispose();
+            
+            if (isAvailable)
+            {
+                Console.WriteLine($"✅ {provider} is now available!");
+                config.LastProvider = provider;
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ {provider} configuration saved, but connection test failed.");
+                Console.WriteLine("Please verify the URL and ensure the service is running.");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Connection test failed: {ex.Message}");
+            logger?.LogError(ex, "Failed to test connection for {Provider} at {Url}", provider, url);
+            return false;
+        }
     }
     
     /// <summary>
