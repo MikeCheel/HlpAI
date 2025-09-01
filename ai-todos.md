@@ -11,7 +11,7 @@
 5. [Completed] Extend AiProviderFactory to support additional provider types - Deferred for later implementation
 6. [Completed] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
 7. [Completed] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
-8. [Pending] Add ask_ai and analyze_file functionality documentation
+8. [Completed] Add ask_ai and analyze_file functionality documentation
 9. [Pending] Document RAG-enhanced questioning features
 10. [Pending] Add semantic search API documentation
 11. [Pending] Document command-line arguments for AI provider timeouts (OpenAI, Anthropic, DeepSeek)
@@ -22,7 +22,6 @@
 16. [Pending] Document provider auto-detection and fallback mechanisms
 17. [Pending] Add documentation for model compatibility handling between providers
 18. [Pending] Document configuration persistence features
-19. [Completed] Fix SonarQube S6667 warnings - logging calls in catch clauses must pass the Exception parameter
 
 ## Archived Content
 

@@ -296,6 +296,29 @@ Execute an AI tool with specific parameters.
 }
 ```
 
+**Error Handling:**
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32602,
+    "message": "Invalid params",
+    "data": "File URI is required"
+  }
+}
+```
+
+**Common Error Scenarios:**
+- Missing required `file_uri` parameter
+- Invalid file URI format (must start with "file:///")
+- File not found or inaccessible
+- Unsupported file type
+- File extraction failure (corrupted file, permission issues)
+- Invalid `analysis_type` (not in supported list)
+- Invalid `temperature` value (outside 0.0-2.0 range)
+- AI provider timeout or unavailability
+- RAG enhancement unavailable when requested
+
 ## 🛠️ Available Tools Reference
 
 ### **search_files** - Text-based File Search
@@ -384,14 +407,23 @@ Search for files containing specific text.
 }
 ```
 
-### **ask_ai**
-Ask AI a question about file contents using the configured AI provider.
+### **ask_ai** - AI-Powered Question Answering
+Ask AI questions about file contents using the configured AI provider with optional RAG enhancement.
 
 **Parameters:**
-- `question` (required): Question to ask the AI
-- `context` (optional): Optional context or file content to provide to the AI
-- `temperature` (optional): Temperature for AI response (0.0-1.0, default: 0.7)
-- `use_rag` (optional): Whether to use RAG for context retrieval (default: true)
+- `question` (required): Question to ask the AI (string)
+- `context` (optional): Additional context or file content to provide to the AI (string)
+- `temperature` (optional): Controls response creativity and randomness (number, 0.0-2.0, default: 0.7)
+  - `0.0-0.3`: Factual, deterministic responses
+  - `0.4-0.7`: Balanced creativity and accuracy
+  - `0.8-2.0`: More creative and varied responses
+- `use_rag` (optional): Enable RAG for enhanced context retrieval from indexed documents (boolean, default: true)
+
+**Validation Rules:**
+- `question`: Must be non-empty string
+- `temperature`: Must be between 0.0 and 2.0
+- `context`: Optional, no length restrictions
+- `use_rag`: Boolean value, automatically enabled in RAG/Hybrid modes
 
 **Example Request:**
 ```json
@@ -404,7 +436,7 @@ Ask AI a question about file contents using the configured AI provider.
       "question": "What are the security best practices?",
       "context": "Focus on authentication and authorization",
       "temperature": 0.2,
-      "useRag": true
+      "use_rag": true
     }
   }
 }
@@ -426,14 +458,54 @@ Ask AI a question about file contents using the configured AI provider.
 }
 ```
 
+**Error Handling:**
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32602,
+    "message": "Invalid params",
+    "data": "Question is required"
+  }
+}
+```
+
+**Common Error Scenarios:**
+- Missing required `question` parameter
+- Invalid `temperature` value (outside 0.0-2.0 range)
+- AI provider timeout or unavailability
+- RAG index not available when `use_rag` is true
+- Network connectivity issues with AI provider
+
 ### **analyze_file** - AI-Powered File Analysis
-Analyze specific files with multiple analysis types.
+Analyze specific files using AI with multiple analysis types and optional RAG enhancement.
 
 **Parameters:**
-- `uri` (required): File URI to analyze (e.g., "file:///user-manual.pdf")
-- `analysisType` (optional): Type of analysis (summary, key_points, questions, topics, technical, explanation, default: summary)
-- `temperature` (optional): Creativity level (0.0-1.0, default: 0.7)
-- `useRag` (optional): Use RAG enhancement (default: false)
+- `file_uri` (required): URI of the file to analyze (string, format: "file:///path/to/file")
+- `analysis_type` (optional): Type of analysis to perform (string, default: "summary")
+- `temperature` (optional): Controls response creativity and randomness (number, 0.0-2.0, default: 0.7)
+- `use_rag` (optional): Enable RAG for enhanced context from related documents (boolean, default: true)
+
+**Supported Analysis Types:**
+- `summary`: Comprehensive overview of file content
+- `key_points`: Extract main points and important information
+- `questions`: Generate relevant questions based on content
+- `topics`: Identify and categorize main topics
+- `technical`: Focus on technical details and specifications
+- `explanation`: Provide detailed explanations of complex concepts
+
+**Supported File Types:**
+- Text files: `.txt`, `.md`, `.log`, `.csv`, `.docx`
+- HTML files: `.html`, `.htm`
+- PDF files: `.pdf`
+- Help files: `.hhc`, `.chm` (Windows only)
+
+**Validation Rules:**
+- `file_uri`: Must be valid URI format starting with "file:///"
+- `analysis_type`: Must be one of the supported analysis types
+- `temperature`: Must be between 0.0 and 2.0
+- File must exist and be readable
+- File type must be supported by configured extractors
 
 **Example Request:**
 ```json
@@ -443,7 +515,7 @@ Analyze specific files with multiple analysis types.
   "params": {
     "name": "analyze_file",
     "arguments": {
-      "uri": "file:///user-manual.pdf",
+      "file_uri": "file:///user-manual.pdf",
       "analysis_type": "key_points",
       "temperature": 0.4,
       "use_rag": true
