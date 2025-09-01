@@ -20,6 +20,8 @@ namespace HlpAI.Services
         public string DefaultModel => "llama3.2";
         public string BaseUrl => _baseUrl;
         public string CurrentModel => _model;
+        public bool SupportsDynamicModelSelection => true;
+        public bool SupportsEmbedding => false;
 
         // Constructor for dependency injection (used in tests)
         public OllamaClient(HttpClient httpClient, string baseUrl = "http://localhost:11434", string model = "llama3.2", ILogger? logger = null, AppConfiguration? config = null)

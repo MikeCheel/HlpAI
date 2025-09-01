@@ -44,6 +44,19 @@ public interface IAiProvider : IDisposable
     /// Currently selected model
     /// </summary>
     string CurrentModel { get; }
+
+    /// <summary>
+    /// Indicates whether this provider supports dynamic model selection
+    /// (i.e., can fetch models from an API vs. using only hardcoded defaults)
+    /// </summary>
+    bool SupportsDynamicModelSelection { get; }
+
+    /// <summary>
+    /// Indicates whether this provider supports embedding models
+    /// Note: Currently embedding functionality is handled separately via EmbeddingService
+    /// This flag is for future extensibility when providers might have integrated embedding support
+    /// </summary>
+    bool SupportsEmbedding { get; }
 }
 
 /// <summary>

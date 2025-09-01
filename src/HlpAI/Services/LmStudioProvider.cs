@@ -25,6 +25,10 @@ public class LmStudioProvider : IAiProvider
     public string DefaultModel => DEFAULT_MODEL;
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _model;
+    
+    // Capability flags
+    public bool SupportsDynamicModelSelection => true; // Can fetch models from API
+    public bool SupportsEmbedding => false; // Embedding handled separately via EmbeddingService
 
     // Constructor for dependency injection (used in tests)
     public LmStudioProvider(HttpClient httpClient, string baseUrl = "http://localhost:1234", string model = DEFAULT_MODEL, ILogger? logger = null, AppConfiguration? config = null)

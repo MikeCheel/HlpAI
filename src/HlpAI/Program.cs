@@ -1206,8 +1206,36 @@ public static class Program
             Console.WriteLine("11. View configuration database details");
             Console.WriteLine("12. Reset all settings to defaults");
             Console.WriteLine("13. Delete configuration database");
-            Console.WriteLine("14. Change AI model");
-            Console.WriteLine("15. Configure embedding model");
+            
+            // Conditionally display AI model options based on provider capabilities
+            try
+            {
+                var provider = AiProviderFactory.CreateProvider(
+                    config.LastProvider,
+                    config.LastModel ?? "default",
+                    AiProviderFactory.GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                    logger: logger,
+                    config: config
+                );
+                
+                if (provider.SupportsDynamicModelSelection)
+                {
+                    Console.WriteLine("14. Change AI model");
+                }
+                
+                // Always show embedding configuration as it's separate from AI providers
+                Console.WriteLine("15. Configure embedding model");
+                
+                provider.Dispose();
+            }
+            catch (Exception ex)
+            {
+                // If provider creation fails, show all options as fallback
+                logger?.LogWarning(ex, "Failed to check provider capabilities: {Message}", ex.Message);
+                Console.WriteLine("14. Change AI model");
+                Console.WriteLine("15. Configure embedding model");
+            }
+            
             Console.WriteLine("b - Back to main menu");
             Console.WriteLine();
             
@@ -1346,7 +1374,34 @@ public static class Program
                     }
                     
                 case "14":
-                    await ChangeAiModelAsync(sqliteConfig, menuStateManager, logger);
+                    // Check if current provider supports dynamic model selection
+                    try
+                    {
+                        var provider = AiProviderFactory.CreateProvider(
+                            config.LastProvider,
+                            config.LastModel ?? "default",
+                            AiProviderFactory.GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                            logger: logger,
+                            config: config
+                        );
+                        
+                        if (provider.SupportsDynamicModelSelection)
+                        {
+                            await ChangeAiModelAsync(sqliteConfig, menuStateManager, logger);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ {provider.ProviderName} does not support dynamic model selection.");
+                            Console.WriteLine("Models are predefined for this provider.");
+                        }
+                        
+                        provider.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogError(ex, "Error checking provider capabilities: {Message}", ex.Message);
+                        Console.WriteLine("❌ Unable to change AI model due to provider configuration error.");
+                    }
                     break;
                     
                 case "15":

@@ -9,7 +9,7 @@
 3. [Completed] Add configuration details for timeout and max tokens settings to README-MCP.md
 4. [Completed] Implement standardized error handling middleware for AI operations
 5. [Completed] Extend AiProviderFactory to support additional provider types - Deferred for later implementation
-6. [Pending] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
+6. [Completed] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
 7. [Pending] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
 8. [Pending] Add ask_ai and analyze_file functionality documentation
 9. [Pending] Document RAG-enhanced questioning features
@@ -22,6 +22,7 @@
 16. [Pending] Document provider auto-detection and fallback mechanisms
 17. [Pending] Add documentation for model compatibility handling between providers
 18. [Pending] Document configuration persistence features
+19. [Completed] Fix SonarQube S6667 warnings - logging calls in catch clauses must pass the Exception parameter
 
 ## Archived Content
 

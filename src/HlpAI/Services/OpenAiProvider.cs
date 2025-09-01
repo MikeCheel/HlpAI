@@ -73,6 +73,8 @@ public class OpenAiProvider : ICloudAiProvider
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _currentModel;
     public string ApiKey => _apiKey;
+    public bool SupportsDynamicModelSelection => true;
+    public bool SupportsEmbedding => false;
 
     public async Task<string> GenerateAsync(string prompt, string? context = null, double temperature = 0.7)
     {

@@ -75,6 +75,10 @@ public class AnthropicProvider : ICloudAiProvider
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _currentModel;
     public string ApiKey => _apiKey;
+    
+    // Capability flags
+    public bool SupportsDynamicModelSelection => false; // Uses hardcoded model list
+    public bool SupportsEmbedding => false; // Embedding handled separately via EmbeddingService
 
     public async Task<string> GenerateAsync(string prompt, string? context = null, double temperature = 0.7)
     {

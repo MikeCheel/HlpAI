@@ -494,6 +494,36 @@ Select provider (1-3): 3
 ✅ Configuration updated successfully!
 ```
 
+**Adaptive Menu Display:**
+The configuration menu intelligently adapts based on your current AI provider's capabilities:
+
+- **Change AI Model (Option 2)**: Only displayed when the current provider supports dynamic model selection
+  - ✅ **Available for**: Ollama, LM Studio, Open WebUI, OpenAI, DeepSeek
+  - ❌ **Hidden for**: Anthropic (uses fixed model configuration)
+  - 💡 **Behavior**: If you attempt to change models on Anthropic, you'll see: "Dynamic model selection is not supported by the current AI provider (Anthropic)."
+
+- **Configure Embedding Model (Option 15)**: Always displayed as all providers support embedding configuration
+  - ✅ **Available for**: All providers (Ollama, LM Studio, Open WebUI, OpenAI, Anthropic, DeepSeek)
+  - 🎯 **Purpose**: Configure vector embedding models for RAG functionality
+
+**Provider Capability Examples:**
+```
+# With Ollama (supports dynamic model selection)
+⚙️ Configuration Settings
+1. Change AI Provider (Current: Ollama)
+2. Change AI Model (Current: llama3.2)        ← Visible
+3. Change Operation Mode (Current: Hybrid)
+...
+15. Configure embedding model                  ← Always visible
+
+# With Anthropic (fixed model configuration)
+⚙️ Configuration Settings
+1. Change AI Provider (Current: Anthropic)
+3. Change Operation Mode (Current: Hybrid)     ← Option 2 skipped
+...
+15. Configure embedding model                  ← Always visible
+```
+
 **Provider Switching Features:**
 - 🔄 **Hot-swappable**: Change providers without restarting the application
 - 🔍 **Auto-detection**: Automatically detects available providers and their status

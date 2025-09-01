@@ -25,6 +25,8 @@ public class OpenWebUiProvider : IAiProvider
     public string DefaultModel => DEFAULT_MODEL;
     public string BaseUrl => _baseUrl;
     public string CurrentModel => _model;
+    public bool SupportsDynamicModelSelection => true;
+    public bool SupportsEmbedding => false;
 
     // Constructor for dependency injection (used in tests)
     public OpenWebUiProvider(HttpClient httpClient, string baseUrl = "http://localhost:3000", string model = DEFAULT_MODEL, ILogger? logger = null, AppConfiguration? config = null)
