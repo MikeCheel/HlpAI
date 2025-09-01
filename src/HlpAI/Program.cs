@@ -448,10 +448,10 @@ public static class Program
         };
     }
 
-    private sealed record SetupResult(string Directory, string Model, OperationMode Mode);
+    internal sealed record SetupResult(string Directory, string Model, OperationMode Mode);
 
     [SupportedOSPlatform("windows")]
-    private static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger, SqliteConfigurationService? configService = null)
+    internal static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger, SqliteConfigurationService? configService = null)
     {
         Console.WriteLine("🎯 HlpAI - Interactive Setup");
         Console.WriteLine("=============================================");
@@ -539,11 +539,28 @@ public static class Program
             return null;
         }
         
-        // Then proceed with model selection
+        // Then proceed with model selection with enhanced validation
         var model = await SelectModelForProviderAsync(logger, config, configService);
         if (string.IsNullOrEmpty(model))
         {
-            Console.WriteLine("❌ Model selection cancelled.");
+            Console.WriteLine("❌ Model selection cancelled or no valid model available.");
+            Console.WriteLine("   A valid model is required to continue. Please:");
+            Console.WriteLine("   • Ensure your AI provider is running and accessible");
+            Console.WriteLine("   • Install models if using Ollama (e.g., 'ollama pull llama3.2')");
+            Console.WriteLine("   • Check your API keys for cloud providers");
+            Console.WriteLine("   • Verify provider configuration");
+            Console.WriteLine();
+            
+            using var retryPromptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var retrySetup = await retryPromptService.PromptYesNoDefaultYesAsync("Would you like to retry the setup process?");
+            
+            if (retrySetup)
+            {
+                Console.WriteLine("🔄 Restarting setup process...");
+                Console.WriteLine();
+                return await InteractiveSetupAsync(logger, configService);
+            }
+            
             return null;
         }
         Console.WriteLine();
@@ -1555,7 +1572,27 @@ public static class Program
             var models = await provider.GetModelsAsync();
             if (models.Count == 0)
             {
-                Console.WriteLine("⚠️ No models found. You can still enter a model name manually.");
+                Console.WriteLine($"⚠️ No models found in {provider.ProviderName}.");
+                
+                if (provider.ProviderType == AiProviderType.Ollama)
+                {
+                    Console.WriteLine("   To install models, run:");
+                    Console.WriteLine("   • ollama pull llama3.2 (recommended)");
+                    Console.WriteLine("   • ollama pull llama3.2:8b (smaller model)");
+                    Console.WriteLine("   • ollama list (to see installed models)");
+                }
+                else if (provider.ProviderType == AiProviderType.LmStudio)
+                {
+                    Console.WriteLine("   • Download models through LM Studio interface");
+                    Console.WriteLine("   • Ensure models are loaded and running");
+                }
+                else if (provider.ProviderType == AiProviderType.OpenWebUi)
+                {
+                    Console.WriteLine("   • Install models through Open WebUI interface");
+                    Console.WriteLine("   • Check if models are properly configured");
+                }
+                
+                Console.WriteLine("\nYou can still enter a model name manually, but it may not work until models are properly installed.");
                 using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
                 var manualModel = promptService.PromptForValidatedString(
                     "Enter model name: ", 
@@ -6554,10 +6591,35 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
             Console.WriteLine($"   Make sure {provider.ProviderName} is running and accessible.");
+            
+            if (provider.ProviderType == AiProviderType.Ollama)
+            {
+                Console.WriteLine("   • Start Ollama: 'ollama serve'");
+                Console.WriteLine("   • Install a model: 'ollama pull llama3.2'");
+            }
+            else if (AiProviderFactory.RequiresApiKey(provider.ProviderType))
+            {
+                Console.WriteLine("   • Verify your API key is configured correctly");
+                Console.WriteLine("   • Check your internet connection");
+            }
+            else
+            {
+                Console.WriteLine($"   • Ensure {provider.ProviderName} server is running");
+                Console.WriteLine($"   • Verify the URL: {provider.BaseUrl}");
+            }
+            
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
-            return continueWithDefault ? provider.DefaultModel : "";
+            var continueWithDefault = await promptService.PromptYesNoDefaultNoAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+            
+            if (!continueWithDefault)
+            {
+                Console.WriteLine("⚠️  Model selection cancelled. Cannot proceed without a valid model.");
+                return "";
+            }
+            
+            Console.WriteLine($"⚠️  Using default model '{provider.DefaultModel}' - this may cause errors if the provider becomes available later.");
+            return provider.DefaultModel;
         }
         
         var availableModels = await provider.GetModelsAsync();
@@ -6565,14 +6627,38 @@ private static Task WaitForKeyPress()
         if (availableModels.Count == 0)
         {
             Console.WriteLine($"❌ No models found in {provider.ProviderName}.");
+            
             if (provider.ProviderType == AiProviderType.Ollama)
             {
-                Console.WriteLine("   Install a model first: ollama pull llama3.2");
+                Console.WriteLine("   To install models, run:");
+                Console.WriteLine("   • ollama pull llama3.2 (recommended)");
+                Console.WriteLine("   • ollama pull llama3.2:8b (smaller model)");
+                Console.WriteLine("   • ollama pull codellama (for coding tasks)");
+                Console.WriteLine("   • ollama list (to see installed models)");
             }
+            else if (provider.ProviderType == AiProviderType.LmStudio)
+            {
+                Console.WriteLine("   • Download models through LM Studio interface");
+                Console.WriteLine("   • Ensure models are loaded and running");
+            }
+            else if (provider.ProviderType == AiProviderType.OpenWebUi)
+            {
+                Console.WriteLine("   • Install models through Open WebUI interface");
+                Console.WriteLine("   • Check if models are properly configured");
+            }
+            
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with '{provider.DefaultModel}' anyway?");
-            return continueWithDefault ? provider.DefaultModel : "";
+            var continueWithDefault = await promptService.PromptYesNoDefaultNoAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
+            
+            if (!continueWithDefault)
+            {
+                Console.WriteLine("⚠️  Model selection cancelled. Please install models and try again.");
+                return "";
+            }
+            
+            Console.WriteLine($"⚠️  Using default model '{provider.DefaultModel}' - this may not work until models are installed.");
+            return provider.DefaultModel;
         }
         
         Console.WriteLine($"✅ {provider.ProviderName} connected! Available models:");
