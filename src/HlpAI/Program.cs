@@ -726,10 +726,10 @@ public static class Program
         
         while (true)
         {
-            Console.Write($"Select a model (1-{availableModels.Count + 1}, or 'q' to quit): ");
+            Console.Write($"Select a model (1-{availableModels.Count + 1}, 'b' to go back, or 'q' to quit): ");
             var input = SafePromptForString("", "b").Trim();
             
-            if (input?.ToLower() == "q")
+            if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
             {
                 return "";
             }
@@ -798,8 +798,13 @@ public static class Program
             Console.WriteLine("5. Skip export");
             Console.WriteLine();
             
-            Console.Write("Select option (1-5): ");
+            Console.Write("Select option (1-5, or 'b' to go back): ");
             var choice = SafePromptForString("", "b").Trim();
+            
+            if (string.Equals(choice, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(choice, "back", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
             
             if (!string.IsNullOrEmpty(choice) && choice != "5")
             {
@@ -2554,8 +2559,13 @@ public static class Program
         Console.WriteLine();
         
         var currentRetention = await loggingService.GetLogRetentionDaysAsync();
-        Console.Write($"Enter retention days (current: {currentRetention}): ");
+        Console.Write($"Enter retention days (current: {currentRetention}, or 'b' to go back): ");
         var input = SafePromptForString("", "b").Trim();
+        
+        if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
         
         if (int.TryParse(input, out var days) && days > 0)
         {
@@ -3076,6 +3086,7 @@ public static class Program
                 case "q":
                 case "quit":
                 case "back":
+                case "b":
                     running = false;
                     break;
                     
@@ -3419,7 +3430,7 @@ public static class Program
         Console.WriteLine("4. Cancel (no filter)");
         Console.WriteLine();
         
-        Console.Write("Enter choice (1-4): ");
+        Console.Write("Enter choice (1-4, or 'b' to go back): ");
         var choice = SafePromptForString("", "b").Trim();
         
         return Task.FromResult(choice switch
@@ -3427,6 +3438,8 @@ public static class Program
             "1" => "Error",
             "2" => "Warning",
             "3" => "Information",
+            "b" => "",
+            "back" => "",
             _ => ""
         });
     }
@@ -5175,8 +5188,13 @@ private static Task WaitForKeyPress()
             Console.WriteLine($"{i + 1}. {providerDescriptions[provider]}{currentIndicator}");
         }
         
-        Console.Write($"\nSelect provider (1-{providers.Count}): ");
+        Console.Write($"\nSelect provider (1-{providers.Count}) or 'b' to go back: ");
         var input = SafePromptForString("", "b").Trim();
+        
+        if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+        {
+            return; // Return to parent menu
+        }
         
         if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
         {
@@ -5195,8 +5213,31 @@ private static Task WaitForKeyPress()
             if (!validationResult.IsValid)
             {
                 Console.WriteLine($"❌ Validation failed: {validationResult.ErrorMessage}");
-                Console.WriteLine("Please fix the configuration before switching providers.");
-                return;
+                Console.WriteLine("This provider is not configured.");
+                Console.Write("Would you like to configure it now? (Y/N): ");
+                var configureChoice = SafePromptForString("", "n").Trim().ToLowerInvariant();
+                
+                if (configureChoice == "y" || configureChoice == "yes")
+                {
+                    Console.WriteLine($"\n🔧 Configuring {selectedProvider}...");
+                    var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("HlpAI.Program");
+                    await ConfigureSpecificProviderAsync(selectedProvider, config, null, logger);
+                    
+                    // Re-validate after configuration
+                    var revalidationResult = ValidateProviderConfiguration(selectedProvider, config);
+                    if (!revalidationResult.IsValid)
+                    {
+                        Console.WriteLine($"❌ Configuration incomplete: {revalidationResult.ErrorMessage}");
+                        Console.WriteLine("Returning to provider selection.");
+                        return;
+                    }
+                    Console.WriteLine("✅ Configuration completed successfully!");
+                }
+                else
+                {
+                    Console.WriteLine("Returning to provider selection.");
+                    return;
+                }
             }
             
             var previousProvider = config.LastProvider;
@@ -5440,7 +5481,7 @@ private static Task WaitForKeyPress()
     }
 
     [SupportedOSPlatform("windows")]
-    static async Task QuickSwitchToAvailableProviderAsync(AppConfiguration config)
+    public static async Task QuickSwitchToAvailableProviderAsync(AppConfiguration config)
     {
         Console.WriteLine("\n⚡ Quick Switch to Available Provider");
         Console.WriteLine("=====================================");
@@ -5483,8 +5524,13 @@ private static Task WaitForKeyPress()
                 Console.WriteLine($"{i + 1}. {info.Name}{currentIndicator} - {url} ({connectivityResult.ResponseTime}ms)");
             }
             
-            Console.Write($"\nSelect provider to switch to (1-{providersList.Count}): ");
+            Console.Write($"\nSelect provider to switch to (1-{providersList.Count}) or 'b' to go back: ");
             var input = SafePromptForString("", "b").Trim();
+            
+            if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+            {
+                return; // Return to parent menu
+            }
             
             if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providersList.Count)
             {
@@ -5506,7 +5552,39 @@ private static Task WaitForKeyPress()
                 if (!validationResult.IsValid)
                 {
                     Console.WriteLine($"❌ Validation failed: {validationResult.ErrorMessage}");
-                    return;
+                    
+                    // Check if this is a configuration issue that can be resolved
+                    if (validationResult.ErrorMessage.Contains("No URL configured") || 
+                        validationResult.ErrorMessage.Contains("No default model configured"))
+                    {
+                        using var promptService = new PromptService(config);
+                        var shouldConfigure = await promptService.PromptYesNoDefaultNoAsync(
+                            $"This provider is not configured. Would you like to configure it now?");
+                        
+                        if (shouldConfigure)
+                        {
+                            var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("HlpAI.Program");
+                            await ConfigureSpecificProviderAsync(selectedProvider, config, null, logger);
+                            
+                            // Re-validate after configuration
+                            var revalidationResult = ValidateProviderConfiguration(selectedProvider, config);
+                            if (!revalidationResult.IsValid)
+                            {
+                                Console.WriteLine($"❌ Configuration still invalid: {revalidationResult.ErrorMessage}");
+                                return;
+                            }
+                            Console.WriteLine("✅ Provider configured successfully. Continuing with switch...");
+                        }
+                        else
+                        {
+                            Console.WriteLine("❌ Cannot switch to unconfigured provider.");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
                 
                 // Temporarily update configuration for testing
@@ -5618,7 +5696,7 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Validates provider configuration before attempting connection
     /// </summary>
-    static ValidationResult ValidateProviderConfiguration(AiProviderType providerType, AppConfiguration config)
+    public static ValidationResult ValidateProviderConfiguration(AiProviderType providerType, AppConfiguration config)
     {
         try
         {
@@ -5668,7 +5746,7 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Tests provider connectivity with enhanced error reporting and timing
     /// </summary>
-    static async Task<ConnectivityResult> TestProviderConnectivityAsync(IAiProvider provider)
+    public static async Task<ConnectivityResult> TestProviderConnectivityAsync(IAiProvider provider)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
@@ -6264,10 +6342,10 @@ private static Task WaitForKeyPress()
         Console.WriteLine();
         Console.WriteLine($"  {providers.Count + 1}. 🔧 Configure a provider (set API keys, URLs, etc.)");
         Console.WriteLine();
-        Console.Write($"Select an option (1-{providers.Count + 1}, or 'q' to quit): ");
+        Console.Write($"Select an option (1-{providers.Count + 1}, 'q' to quit, or 'b' to go back): ");
         var input = SafePromptForString("", "b").Trim();
         
-        if (input?.ToLower() == "q")
+        if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
         {
             return null; // User cancelled
         }
@@ -6392,10 +6470,10 @@ private static Task WaitForKeyPress()
         }
         
         Console.WriteLine();
-        Console.Write($"Select a provider (1-{providers.Count}, or 'q' to quit): ");
+        Console.Write($"Select a provider (1-{providers.Count}, 'q' to quit, or 'b' to go back): ");
         var input = SafePromptForString("", "b").Trim();
         
-        if (input.Equals("q", StringComparison.OrdinalIgnoreCase))
+        if (input.Equals("q", StringComparison.OrdinalIgnoreCase) || input.Equals("b", StringComparison.OrdinalIgnoreCase) || input.Equals("back", StringComparison.OrdinalIgnoreCase))
         {
             return null; // User chose to quit
         }
@@ -6731,10 +6809,10 @@ private static Task WaitForKeyPress()
         
         while (true)
         {
-            Console.Write($"Select a model (1-{availableModels.Count + 1}, or 'q' to quit): ");
+            Console.Write($"Select a model (1-{availableModels.Count + 1}, 'q' to quit, or 'b' to go back): ");
             var input = SafePromptForString("", "b").Trim();
             
-            if (input?.ToLower() == "q")
+            if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
             {
                 return "";
             }
