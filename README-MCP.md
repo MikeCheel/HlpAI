@@ -477,6 +477,98 @@ Ask AI questions about file contents using the configured AI provider with optio
 - RAG index not available when `use_rag` is true
 - Network connectivity issues with AI provider
 
+## 🧠 RAG-Enhanced Questioning Features
+
+RAG (Retrieval-Augmented Generation) enhances AI responses by incorporating relevant context from your indexed documents. This section covers the comprehensive RAG capabilities available in HlpAI.
+
+### **RAG Architecture Overview**
+
+**Components:**
+1. **Vector Store**: Stores document embeddings for semantic search
+2. **Embedding Model**: Converts text to high-dimensional vectors
+3. **Similarity Engine**: Performs cosine similarity calculations
+4. **Context Retrieval**: Finds and ranks relevant document chunks
+5. **AI Integration**: Combines context with user queries for enhanced responses
+
+**RAG Workflow:**
+```
+User Query → Vector Embedding → Semantic Search → Context Retrieval → AI Enhancement → Response
+```
+
+### **RAG-Enhanced Tools Integration**
+
+**1. Direct RAG Search (`rag_search`)**
+- Pure semantic search without AI generation
+- Returns ranked document chunks with similarity scores
+- Ideal for finding specific information or exploring content
+- Supports file filtering and similarity thresholds
+
+**2. RAG-Enhanced AI Questioning (`rag_ask`)**
+- Combines semantic search with AI generation
+- Automatically retrieves relevant context for questions
+- Provides AI-generated answers enhanced with document knowledge
+- Best for getting comprehensive, contextual answers
+
+**3. AI Tools with RAG Enhancement (`ask_ai`, `analyze_file`)**
+- Optional RAG enhancement via `use_rag` parameter
+- Maintains tool functionality while adding document context
+- Seamless integration with existing workflows
+- Flexible RAG activation based on needs
+
+### **RAG Configuration & Optimization**
+
+**Key Parameters:**
+- `top_k`: Controls amount of context retrieved (1-50 for search, 1-20 for questioning)
+- `min_similarity`: Filters context by relevance threshold (0.0-1.0)
+- `temperature`: Balances creativity vs. factual accuracy in AI responses
+- `file_filters`: Restricts search to specific file types or patterns
+
+**Performance Tuning:**
+- **High Precision**: `min_similarity=0.7+`, `top_k=3-5`
+- **Balanced Retrieval**: `min_similarity=0.5-0.7`, `top_k=5-8`
+- **Broad Context**: `min_similarity=0.3-0.5`, `top_k=8-15`
+- **Exploratory Search**: `min_similarity=0.1-0.3`, `top_k=10-20`
+
+### **RAG Best Practices**
+
+**Query Optimization:**
+- Use specific, well-formed questions for better context retrieval
+- Include domain-specific terminology when available
+- Combine multiple concepts for richer context (e.g., "SSL certificate installation process")
+- Avoid overly broad queries that may retrieve irrelevant context
+
+**Context Management:**
+- Monitor similarity scores to assess context relevance
+- Adjust `min_similarity` based on document quality and query specificity
+- Use `file_filters` to focus on relevant document types
+- Balance `top_k` to avoid context overload while ensuring completeness
+
+**Response Quality:**
+- Lower `temperature` (0.1-0.3) for factual, technical questions
+- Higher `temperature` (0.7-1.0) for creative or analytical responses
+- Use RAG enhancement for domain-specific questions
+- Disable RAG for general knowledge or creative writing tasks
+
+### **RAG Limitations & Considerations**
+
+**Technical Limitations:**
+- Context window limits may truncate large document chunks
+- Embedding quality depends on document content and structure
+- Semantic search may miss exact keyword matches in some cases
+- Performance scales with document collection size
+
+**Content Considerations:**
+- RAG works best with well-structured, informative documents
+- Poor quality or fragmented documents may reduce effectiveness
+- Regular reindexing recommended for frequently updated documents
+- File format limitations apply (see supported file types)
+
+**Usage Guidelines:**
+- Verify document indexing status before relying on RAG
+- Monitor response quality and adjust parameters as needed
+- Consider document freshness for time-sensitive information
+- Use error handling for RAG unavailability scenarios
+
 ### **analyze_file** - AI-Powered File Analysis
 Analyze specific files using AI with multiple analysis types and optional RAG enhancement.
 
@@ -552,12 +644,26 @@ Analyze specific files using AI with multiple analysis types and optional RAG en
 ```
 
 ### **rag_search** - Semantic Vector Search (RAG/Hybrid modes)
-Search using vector embeddings for meaning-based results.
+Perform semantic search using vector embeddings to find contextually relevant content based on meaning rather than exact keyword matches.
 
 **Parameters:**
-- `query` (required): Search query
-- `top_k` (optional): Number of top results to return (default: 5)
-- `min_similarity` (optional): Minimum similarity score (0.0-1.0, default: 0.5)
+- `query` (required): Search query or question
+- `top_k` (optional): Maximum number of results to return (default: 5, range: 1-50)
+- `min_similarity` (optional): Minimum cosine similarity threshold (0.0-1.0, default: 0.5)
+- `file_filters` (optional): Array of file extensions or patterns to filter results
+
+**Validation Rules:**
+- `query`: Must be non-empty string, maximum 1000 characters
+- `top_k`: Integer between 1 and 50
+- `min_similarity`: Float between 0.0 and 1.0 (higher values = more strict matching)
+- `file_filters`: Array of strings (e.g., [".pdf", ".txt", "*security*"])
+
+**Semantic Search Features:**
+- **Contextual Understanding**: Finds content based on meaning, not just keywords
+- **Multi-language Support**: Works with documents in different languages
+- **Fuzzy Matching**: Handles typos and variations in terminology
+- **Concept Mapping**: Connects related concepts (e.g., "login" matches "authentication")
+- **Ranking by Relevance**: Results sorted by semantic similarity scores
 
 **Example Request:**
 ```json
@@ -569,7 +675,8 @@ Search using vector embeddings for meaning-based results.
     "arguments": {
       "query": "authentication setup",
       "top_k": 3,
-      "min_similarity": 0.6
+      "min_similarity": 0.6,
+      "file_filters": [".pdf", ".md"]
     }
   }
 }
@@ -580,36 +687,48 @@ Search using vector embeddings for meaning-based results.
 {
   "jsonrpc": "2.0",
   "result": {
-    "results": [
-      {
-        "file": "security-guide.pdf",
-        "similarity": 0.89,
-        "content": "User authentication is handled through JWT tokens. Configure the auth service by setting the secret key in your environment variables...",
-        "page": 12,
-        "chunk": 34
-      },
-      {
-        "file": "api-docs.html",
-        "similarity": 0.76,
-        "content": "Authentication endpoints are available at /auth/login and /auth/verify. These endpoints require valid API keys...",
-        "line": 45,
-        "chunk": 22
-      }
-    ],
-    "query": "authentication setup",
-    "totalResults": 12,
-    "minSimilarity": 0.6
+    "content": [{
+      "type": "text",
+      "text": "Found 3 relevant chunks (similarity ≥ 0.6):\n\n**[From security-guide.pdf - Similarity: 0.89]**\nUser authentication is handled through JWT tokens. Configure the auth service by setting the secret key in your environment variables...\n\n**[From api-docs.md - Similarity: 0.76]**\nAuthentication endpoints are available at /auth/login and /auth/verify. These endpoints require valid API keys...\n\n**[From setup-guide.pdf - Similarity: 0.68]**\nInitial authentication setup requires creating an admin user account. Use the following command to create the first user..."
+    }]
   }
 }
 ```
 
+**Search Tips:**
+- **Broad Queries**: Use general terms for exploratory search (e.g., "security")
+- **Specific Queries**: Use detailed questions for targeted results (e.g., "How to configure SSL certificates?")
+- **Concept Search**: Search for concepts rather than exact phrases (e.g., "user management" vs "add user")
+- **Multi-term Queries**: Combine related terms for better context (e.g., "database backup restore")
+
+**Similarity Score Interpretation:**
+- **0.9-1.0**: Highly relevant, direct matches
+- **0.7-0.9**: Very relevant, strong semantic connection
+- **0.5-0.7**: Moderately relevant, related concepts
+- **0.3-0.5**: Loosely related, may contain useful context
+- **0.0-0.3**: Weakly related, likely not useful
+
 ### **rag_ask** - RAG-Enhanced AI Questioning (RAG/Hybrid modes)
-Ask questions enhanced with document context.
+Ask questions enhanced with document context using semantic search and vector embeddings.
 
 **Parameters:**
-- `question` (required): Question to ask
-- `top_k` (optional): Number of context chunks to use (default: 5)
-- `temperature` (optional): Creativity level (0.0-1.0, default: 0.7)
+- `question` (required): Question to ask the AI
+- `top_k` (optional): Number of context chunks to retrieve (default: 5, range: 1-20)
+- `temperature` (optional): AI creativity level (0.0-2.0, default: 0.7)
+- `min_similarity` (optional): Minimum similarity threshold for context chunks (0.0-1.0, default: 0.1)
+
+**Validation Rules:**
+- `question`: Must be non-empty string, maximum 2000 characters
+- `top_k`: Integer between 1 and 20
+- `temperature`: Float between 0.0 and 2.0 (0.0 = deterministic, 2.0 = highly creative)
+- `min_similarity`: Float between 0.0 and 1.0 (higher values = more relevant context)
+
+**How RAG Enhancement Works:**
+1. **Query Processing**: The question is converted to vector embeddings
+2. **Context Retrieval**: Semantic search finds the most relevant document chunks
+3. **Context Ranking**: Results are ranked by cosine similarity scores
+4. **Context Integration**: Top-K chunks are combined with the original question
+5. **AI Generation**: Enhanced prompt is sent to the AI provider for response
 
 **Example Request:**
 ```json
@@ -621,7 +740,8 @@ Ask questions enhanced with document context.
     "arguments": {
       "question": "How do I set up SSL certificates?",
       "top_k": 3,
-      "temperature": 0.3
+      "temperature": 0.3,
+      "min_similarity": 0.6
     }
   }
 }
@@ -632,17 +752,49 @@ Ask questions enhanced with document context.
 {
   "jsonrpc": "2.0",
   "result": {
-    "answer": "Based on your security documentation, SSL certificate setup involves:\n\n1. **Certificate Generation**: Use OpenSSL to generate certificates as described in the security guide (page 8)\n2. **Configuration**: Set the certificate paths in config.json under the 'Security' section\n3. **Verification**: Use the provided test script to verify certificate validity\n\nSpecific steps from your documents:\n• Certificate files should be placed in /etc/ssl/certs/ (security-guide.pdf)\n• Private key must have 600 permissions (config-reference.txt)\n• Certificate chain must include intermediate certificates (api-docs.html)",
-    "contextSources": [
-      {"file": "security-guide.pdf", "similarity": 0.92, "page": 8},
-      {"file": "config-reference.txt", "similarity": 0.85},
-      {"file": "api-docs.html", "similarity": 0.78, "line": 128}
-    ],
-    "topK": 3,
-    "temperature": 0.3
+    "content": [{
+      "type": "text",
+      "text": "RAG-Enhanced Response (using 3 context chunks):\n\nBased on your security documentation, SSL certificate setup involves:\n\n1. **Certificate Generation**: Use OpenSSL to generate certificates as described in the security guide (page 8)\n2. **Configuration**: Set the certificate paths in config.json under the 'Security' section\n3. **Verification**: Use the provided test script to verify certificate validity\n\nSpecific steps from your documents:\n• Certificate files should be placed in /etc/ssl/certs/ (security-guide.pdf)\n• Private key must have 600 permissions (config-reference.txt)\n• Certificate chain must include intermediate certificates (api-docs.html)"
+    }]
   }
 }
 ```
+
+**Context Sources Information:**
+The response includes context from retrieved document chunks, formatted as:
+- `[From filename - Similarity: 0.XXX]` headers indicate source and relevance
+- Higher similarity scores (closer to 1.0) indicate more relevant context
+- Context chunks are automatically ranked and filtered by similarity threshold
+
+**Best Practices:**
+- Use `top_k=3-5` for focused, specific questions
+- Use `top_k=8-10` for broad, exploratory questions
+- Set `min_similarity=0.6+` for highly relevant context only
+- Set `min_similarity=0.3-0.5` for broader context inclusion
+- Use `temperature=0.1-0.3` for factual, technical questions
+- Use `temperature=0.7-1.0` for creative or analytical questions
+
+**Error Handling for RAG Tools:**
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32603,
+    "message": "Internal error",
+    "data": "Vector store not initialized. Please run reindex_documents first."
+  }
+}
+```
+
+**Common RAG Error Scenarios:**
+- **Vector Store Not Available**: RAG index hasn't been created or is corrupted
+- **Empty Search Results**: No documents match the similarity threshold
+- **Invalid Query Parameters**: `top_k` out of range or invalid `min_similarity`
+- **Embedding Generation Failed**: Unable to convert query to vector embeddings
+- **AI Provider Unavailable**: RAG search succeeded but AI generation failed (rag_ask only)
+- **File Filter Errors**: Invalid file patterns or no matching files
+- **Context Window Exceeded**: Retrieved context too large for AI provider
+- **Indexing In Progress**: Vector store is being rebuilt and temporarily unavailable
 
 ### **reindex_documents** - Rebuild Vector Index (RAG/Hybrid modes)
 Rebuild the vector store index.

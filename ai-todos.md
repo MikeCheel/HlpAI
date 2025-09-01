@@ -12,7 +12,7 @@
 6. [Completed] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
 7. [Completed] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
 8. [Completed] Add ask_ai and analyze_file functionality documentation
-9. [Pending] Document RAG-enhanced questioning features
+9. [Completed] Document RAG-enhanced questioning features
 10. [Pending] Add semantic search API documentation
 11. [Pending] Document command-line arguments for AI provider timeouts (OpenAI, Anthropic, DeepSeek)
 12. [Pending] Document max token limit configurations for all supported providers
