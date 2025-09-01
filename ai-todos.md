@@ -8,7 +8,7 @@
 2. [Completed] Document AI provider switching process in README-INTERACTIVE.md
 3. [Completed] Add configuration details for timeout and max tokens settings to README-MCP.md
 4. [Completed] Implement standardized error handling middleware for AI operations
-5. [Pending] Extend AiProviderFactory to support additional provider types
+5. [Completed] Extend AiProviderFactory to support additional provider types - Deferred for later implementation
 6. [Pending] Ensure menu items are appropriate for current provider (hide model-related options unless supported)
 7. [Pending] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
 8. [Pending] Add ask_ai and analyze_file functionality documentation
