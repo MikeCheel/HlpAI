@@ -5,6 +5,11 @@ using HlpAI.Models;
 namespace HlpAI.Services;
 
 /// <summary>
+/// Result of connectivity testing
+/// </summary>
+public record ConnectivityResult(bool IsAvailable, long ResponseTime, string ErrorMessage);
+
+/// <summary>
 /// Factory for creating AI provider instances
 /// </summary>
 public static class AiProviderFactory
@@ -191,12 +196,12 @@ public static class AiProviderFactory
     }
 
     /// <summary>
-    /// Try to detect which providers are available
+    /// Try to detect which providers are available with detailed error information
     /// </summary>
     [SupportedOSPlatform("windows")]
-    public static async Task<Dictionary<AiProviderType, bool>> DetectAvailableProvidersAsync(ILogger? logger = null)
+    public static async Task<Dictionary<AiProviderType, ConnectivityResult>> DetectAvailableProvidersAsync(ILogger? logger = null)
     {
-        var results = new Dictionary<AiProviderType, bool>();
+        var results = new Dictionary<AiProviderType, ConnectivityResult>();
         var providers = Enum.GetValues<AiProviderType>();
         var apiKeyStorage = new SecureApiKeyStorage();
 
@@ -221,7 +226,7 @@ public static class AiProviderFactory
                     else
                     {
                         // No API key available for cloud provider
-                        results[providerType] = false;
+                        results[providerType] = new ConnectivityResult(false, 0, "No API key configured");
                         continue;
                     }
                 }
@@ -231,18 +236,59 @@ public static class AiProviderFactory
                     provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger, null);
                 }
                 
-                var isAvailable = await provider.IsAvailableAsync();
-                results[providerType] = isAvailable;
+                var connectivityResult = await TestProviderConnectivityAsync(provider);
+                results[providerType] = connectivityResult;
                 provider.Dispose();
             }
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to detect availability for {Provider}", providerType);
-                results[providerType] = false;
+                results[providerType] = new ConnectivityResult(false, 0, $"Configuration error: {ex.Message}");
             }
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Tests provider connectivity with enhanced error reporting and timing
+    /// </summary>
+    private static async Task<ConnectivityResult> TestProviderConnectivityAsync(IAiProvider provider)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        try
+        {
+            // Test with timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            
+            var isAvailable = await provider.IsAvailableAsync();
+            stopwatch.Stop();
+            
+            if (isAvailable)
+            {
+                return new ConnectivityResult(true, stopwatch.ElapsedMilliseconds, "Provider is available");
+            }
+            else
+            {
+                return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, "Provider is not responding or not available");
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, "Connection timeout (10 seconds)");
+        }
+        catch (HttpRequestException ex)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, $"Network error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new ConnectivityResult(false, stopwatch.ElapsedMilliseconds, $"Unexpected error: {ex.Message}");
+        }
     }
 
     /// <summary>

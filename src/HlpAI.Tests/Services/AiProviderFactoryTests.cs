@@ -177,7 +177,8 @@ public class AiProviderFactoryTests
         await Assert.That(availableProviders.ContainsKey(AiProviderType.DeepSeek)).IsTrue();
         
         // We can't predict availability, but we can check that all providers are present
-        foreach (var (providerType, isAvailable) in availableProviders)
+        // and that each returns a ConnectivityResult
+        foreach (var (providerType, connectivityResult) in availableProviders)
         {
             await Assert.That(providerType == AiProviderType.Ollama || 
                         providerType == AiProviderType.LmStudio || 
@@ -185,6 +186,17 @@ public class AiProviderFactoryTests
                         providerType == AiProviderType.OpenAI ||
                         providerType == AiProviderType.Anthropic ||
                         providerType == AiProviderType.DeepSeek).IsTrue();
+            
+            // Verify ConnectivityResult structure
+            await Assert.That(connectivityResult).IsNotNull();
+            await Assert.That(connectivityResult.ResponseTime).IsGreaterThanOrEqualTo(0);
+            
+            // If not available, should have an error message
+            if (!connectivityResult.IsAvailable)
+            {
+                await Assert.That(connectivityResult.ErrorMessage).IsNotNull();
+                await Assert.That(connectivityResult.ErrorMessage).IsNotEmpty();
+            }
         }
     }
 

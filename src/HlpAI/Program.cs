@@ -5336,11 +5336,17 @@ private static Task WaitForKeyPress()
             var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
             
             Console.WriteLine("\nProvider Availability:");
-            foreach (var (providerType, isAvailable) in availableProviders)
+            foreach (var (providerType, connectivityResult) in availableProviders)
             {
-                var status = isAvailable ? "✅ Available" : "❌ Not available";
                 var info = AiProviderFactory.GetProviderInfo(providerType);
-                Console.WriteLine($"{info.Name}: {status} ({info.DefaultUrl})");
+                if (connectivityResult.IsAvailable)
+                {
+                    Console.WriteLine($"✅ {info.Name}: Available ({connectivityResult.ResponseTime}ms) - {info.DefaultUrl}");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ {info.Name}: {connectivityResult.ErrorMessage} - {info.DefaultUrl}");
+                }
             }
         }
         catch (Exception ex)
@@ -5396,14 +5402,19 @@ private static Task WaitForKeyPress()
         {
             var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
             
-            foreach (var (providerType, isAvailable) in availableProviders)
+            foreach (var (providerType, connectivityResult) in availableProviders)
             {
                 var info = AiProviderFactory.GetProviderInfo(providerType);
-                var statusIcon = isAvailable ? "✅" : "❌";
-                var statusText = isAvailable ? "Available" : "Not Available";
                 var currentIndicator = (providerType == config.LastProvider) ? " ← CURRENT" : "";
                 
-                Console.WriteLine($"{statusIcon} {info.Name}: {statusText}{currentIndicator}");
+                if (connectivityResult.IsAvailable)
+                {
+                    Console.WriteLine($"✅ {info.Name}: Available ({connectivityResult.ResponseTime}ms){currentIndicator}");
+                }
+                else
+                {
+                    Console.WriteLine($"❌ {info.Name}: {connectivityResult.ErrorMessage}{currentIndicator}");
+                }
             }
         }
         catch (Exception ex)
@@ -5422,7 +5433,7 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine("🔍 Scanning for available providers...");
             var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
-            var availableList = availableProviders.Where(p => p.Value).ToList();
+            var availableList = availableProviders.Where(p => p.Value.IsAvailable).ToList();
             
             if (availableList.Count == 0)
             {
@@ -5449,11 +5460,11 @@ private static Task WaitForKeyPress()
             
             for (int i = 0; i < providersList.Count; i++)
             {
-                var (providerType, _) = providersList[i];
+                var (providerType, connectivityResult) = providersList[i];
                 var info = AiProviderFactory.GetProviderInfo(providerType);
                 var currentIndicator = (providerType == config.LastProvider) ? " (current)" : "";
                 var url = GetProviderUrl(config, providerType);
-                Console.WriteLine($"{i + 1}. {info.Name}{currentIndicator} - {url}");
+                Console.WriteLine($"{i + 1}. {info.Name}{currentIndicator} - {url} ({connectivityResult.ResponseTime}ms)");
             }
             
             Console.Write($"\nSelect provider to switch to (1-{providersList.Count}): ");
@@ -6441,5 +6452,5 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Result of connectivity testing
     /// </summary>
-    public record ConnectivityResult(bool IsAvailable, long ResponseTime, string ErrorMessage);
+    
 }

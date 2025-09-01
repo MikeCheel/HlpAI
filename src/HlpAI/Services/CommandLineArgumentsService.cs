@@ -1192,11 +1192,17 @@ public class CommandLineArgumentsService
                 var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync();
                 
                 Console.WriteLine("\nProvider Availability:");
-                foreach (var (providerType, isAvailable) in availableProviders)
+                foreach (var (providerType, connectivityResult) in availableProviders)
                 {
                     var info = AiProviderFactory.GetProviderInfo(providerType);
-                    var status = isAvailable ? "✅ Available" : "❌ Not available";
-                    Console.WriteLine($"{info.Name}: {status} ({info.DefaultUrl})");
+                    if (connectivityResult.IsAvailable)
+                    {
+                        Console.WriteLine($"✅ {info.Name}: Available ({connectivityResult.ResponseTime}ms) - {info.DefaultUrl}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ {info.Name}: {connectivityResult.ErrorMessage} - {info.DefaultUrl}");
+                    }
                 }
             }
             catch (Exception ex)

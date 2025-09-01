@@ -152,6 +152,18 @@ public class MenuStateManagerTests
         var logger = new TestLogger();
         // Create a test configuration service with clean state
         var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_logger_{Guid.NewGuid()}.db");
+        
+        // Ensure the database file doesn't exist before starting
+        if (File.Exists(testDbPath))
+        {
+            File.Delete(testDbPath);
+        }
+        
+        // Clear any existing singleton instance and connection pools
+        SqliteConfigurationService.ReleaseInstance();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        Thread.Sleep(100); // Allow time for cleanup
+        
         using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
         
         // Initialize with default configuration to ensure clean state
@@ -159,18 +171,24 @@ public class MenuStateManagerTests
         var saveResult = await testConfigService.SaveAppConfigurationAsync(defaultConfig);
         await Assert.That(saveResult).IsTrue(); // Ensure save was successful
         
-        // Verify the configuration was saved correctly before creating MenuStateManager
-        var loadedConfig = await testConfigService.LoadAppConfigurationAsync();
+        // Force a fresh load from the database to verify state
+        testConfigService.Dispose();
+        SqliteConfigurationService.ReleaseInstance();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        
+        // Create a new instance to ensure we're loading from the clean database
+        using var freshConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
+        var loadedConfig = await freshConfigService.LoadAppConfigurationAsync();
         await Assert.That(loadedConfig.CurrentMenuContext).IsEqualTo(MenuContext.MainMenu);
 
         // Act
-        var manager = new MenuStateManager(testConfigService, logger);
+        var manager = new MenuStateManager(freshConfigService, logger);
 
         // Assert
         await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
         
         // Cleanup
-        testConfigService.Dispose();
+        freshConfigService.Dispose();
         
         // Release the singleton instance to ensure no conflicts
         SqliteConfigurationService.ReleaseInstance();
