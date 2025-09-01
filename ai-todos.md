@@ -13,15 +13,15 @@
 7. [Completed] Document AI tool definitions (tools/list and tools/call) in README-MCP.md
 8. [Completed] Add ask_ai and analyze_file functionality documentation
 9. [Completed] Document RAG-enhanced questioning features
-10. [Pending] Add semantic search API documentation
-11. [Pending] Document command-line arguments for AI provider timeouts (OpenAI, Anthropic, DeepSeek)
-12. [Pending] Document max token limit configurations for all supported providers
-13. [Pending] Add documentation for cosine similarity calculation in SemanticSearchService
-14. [Pending] Document IAiProvider interface usage
-15. [Pending] Add configuration details for secure API key storage
-16. [Pending] Document provider auto-detection and fallback mechanisms
-17. [Pending] Add documentation for model compatibility handling between providers
-18. [Pending] Document configuration persistence features
+10. [Completed] Add semantic search API documentation
+11. [Completed] Document command-line arguments for AI provider timeouts (OpenAI, Anthropic, DeepSeek)
+12. [Completed] Document max token limit configurations for all supported providers
+13. [Completed] Add documentation for cosine similarity calculation in SemanticSearchService
+14. [Completed] Document IAiProvider interface usage
+15. [Completed] Add configuration details for secure API key storage
+16. [Completed] Document provider auto-detection and fallback mechanisms
+17. [Completed] Add documentation for model compatibility handling between providers
+18. [Completed] Document configuration persistence features
 
 ## Archived Content
 
