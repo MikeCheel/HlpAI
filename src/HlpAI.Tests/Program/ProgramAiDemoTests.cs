@@ -1,7 +1,8 @@
+using HlpAI;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-namespace HlpAI.Tests;
+namespace HlpAI.Tests.Program;
 
 /// <summary>
 /// Unit tests for Program class public methods
@@ -12,11 +13,8 @@ public class ProgramAiDemoTests
 {
     private StringReader _stringReader = null!;
     private TextReader _originalIn = null!;
-    private readonly Mock<ILogger> _mockLogger;
-    
     public ProgramAiDemoTests()
     {
-        _mockLogger = new Mock<ILogger>();
     }
     
     [Before(Test)]
@@ -50,7 +48,7 @@ public class ProgramAiDemoTests
     public void ShowMenu_DisplaysMenuOptions()
     {
         // Act
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         
         // Assert
         // TUnit automatically captures console output
@@ -61,7 +59,7 @@ public class ProgramAiDemoTests
     public void ClearScreen_ExecutesWithoutError()
     {
         // Act & Assert - Should not throw
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         
         // TUnit automatically captures console output
         // Method completed without exception
@@ -75,7 +73,7 @@ public class ProgramAiDemoTests
         var breadcrumb = "Main > Test";
         
         // Act
-        Program.ClearScreenWithHeader(header, breadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, breadcrumb);
         
         // Assert
         // TUnit automatically captures console output
@@ -86,7 +84,7 @@ public class ProgramAiDemoTests
     public void ShowUsage_DisplaysHelpInformation()
     {
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -101,7 +99,7 @@ public class ProgramAiDemoTests
         SetupConsoleInput("\n"); // Simulate Enter key
         
         // Act
-        Program.WaitForUserInput(customPrompt);
+        HlpAI.Program.WaitForUserInput(customPrompt);
         
         // Assert
         // TUnit automatically captures console output
@@ -115,7 +113,7 @@ public class ProgramAiDemoTests
         SetupConsoleInput("\n"); // Simulate Enter key
         
         // Act & Assert - Should not throw
-        Program.WaitForUserInput();
+        HlpAI.Program.WaitForUserInput();
         
         // Method completed without exception
     }
@@ -127,7 +125,7 @@ public class ProgramAiDemoTests
         var message = "Test pause message";
         
         // Act
-        await Program.ShowBriefPauseAsync(message, 100); // Short delay for testing
+        await HlpAI.Program.ShowBriefPauseAsync(message, 100); // Short delay for testing
         
         // Assert
         // TUnit automatically captures console output
@@ -138,7 +136,7 @@ public class ProgramAiDemoTests
     public async Task ShowBriefPauseAsync_WithDefaultMessage_ExecutesWithoutError()
     {
         // Act & Assert - Should not throw
-        await Program.ShowBriefPauseAsync(null, 100); // Short delay for testing
+        await HlpAI.Program.ShowBriefPauseAsync(null, 100); // Short delay for testing
         
         // Method completed without exception
     }

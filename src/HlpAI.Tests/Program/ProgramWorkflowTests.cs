@@ -1,3 +1,4 @@
+using HlpAI;
 using HlpAI.Services;
 using HlpAI.MCP;
 using Microsoft.Extensions.Logging;
@@ -77,7 +78,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput("1\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -96,7 +97,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput("3\ncustom-model\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -115,7 +116,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput("99\n1\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -131,7 +132,7 @@ public class ProgramWorkflowTests
         mockProvider.Setup(p => p.ProviderName).Returns("TestProvider");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -148,7 +149,7 @@ public class ProgramWorkflowTests
         mockProvider.Setup(p => p.ProviderName).Returns("TestProvider");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -163,7 +164,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput($"{testDir}\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -179,7 +180,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput($"{invalidDir}\n{validDir}\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -196,7 +197,7 @@ public class ProgramWorkflowTests
         try
         {
             // Act
-            Program.ShowUsage();
+            HlpAI.Program.ShowUsage();
             
             // Assert
             var output = _stringWriter.ToString();
@@ -221,7 +222,7 @@ public class ProgramWorkflowTests
         SetupConsoleInput($"{newDir}\nn\n{validDir}\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -245,7 +246,7 @@ public class ProgramWorkflowTests
         {
             // Act
         // Test a public method instead since HandleFileExportMenuChoice is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -277,7 +278,7 @@ public class ProgramWorkflowTests
         {
             // Act
             // Test a public method instead since HandleFileExportMenuChoice is private
-            Program.ShowUsage();
+            HlpAI.Program.ShowUsage();
             
             // Assert
             var output = _stringWriter.ToString();
@@ -301,7 +302,7 @@ public class ProgramWorkflowTests
         
         // Act
         // Test a public method instead since DemoListFiles is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -320,7 +321,7 @@ public class ProgramWorkflowTests
         
         // Act
         // Test a public method instead since DemoReadFile is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -338,7 +339,7 @@ public class ProgramWorkflowTests
         
         // Act
         // Test a public method instead since DemoReadFile is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -357,7 +358,7 @@ public class ProgramWorkflowTests
         
         // Act
         // Test a public method instead since DemoSearchFiles is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();
@@ -375,7 +376,7 @@ public class ProgramWorkflowTests
         
         // Act
         // Test a public method instead since DemoSearchFiles is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         var output = _stringWriter.ToString();

@@ -1,3 +1,4 @@
+using HlpAI;
 using HlpAI.Services;
 using HlpAI.MCP;
 using HlpAI.Models;
@@ -90,7 +91,7 @@ public class ProgramConfigurationTests
         
         // Act
         // Test a public method instead since ShowConfigurationMenuAsync is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -105,7 +106,7 @@ public class ProgramConfigurationTests
         
         // Act
         // Test a public method instead since ShowConfigurationMenuAsync is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -119,7 +120,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("2\n0\n"); // Toggle remember last model, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -133,7 +134,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("3\n0\n"); // Toggle remember last operation mode, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -147,7 +148,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("4\n0\n"); // Toggle remember last menu context, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -162,7 +163,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput($"5\n{newPath}\n0\n"); // Set hh.exe path, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -176,7 +177,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("5\n\n0\n"); // Set empty hh.exe path, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -190,7 +191,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("99\n0\n"); // Invalid choice, then exit
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -209,7 +210,7 @@ public class ProgramConfigurationTests
             SetupConsoleInput($"{newDirectory}\n");
             
             // Act
-            Program.ShowUsage();
+            HlpAI.Program.ShowUsage();
             
             // Assert
             // TUnit automatically captures console output
@@ -233,7 +234,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput($"{invalidDirectory}\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -247,7 +248,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("\n"); // Empty input
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -262,7 +263,7 @@ public class ProgramConfigurationTests
         _mockAiProvider.Setup(p => p.ProviderName).Returns("TestProvider");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -277,7 +278,7 @@ public class ProgramConfigurationTests
         _mockAiProvider.Setup(p => p.ProviderName).Returns("TestProvider");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -288,7 +289,7 @@ public class ProgramConfigurationTests
     public void GetProviderStatusDisplay_WithNullProvider_ReturnsNotConfigured()
     {
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -299,7 +300,7 @@ public class ProgramConfigurationTests
     public void ClearScreen_ClearsConsoleAndSetsPosition()
     {
         // Act
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         
         // Assert
         // Note: Console.Clear() and Console.SetCursorPosition() are hard to test directly
@@ -314,7 +315,7 @@ public class ProgramConfigurationTests
         var message = "Test pause message";
         
         // Act
-        await Program.ShowBriefPauseAsync(message);
+        await HlpAI.Program.ShowBriefPauseAsync(message);
         
         // Assert
         // TUnit automatically captures console output
@@ -325,7 +326,7 @@ public class ProgramConfigurationTests
     public async Task ShowBriefPauseAsync_WithDefaultMessage_DisplaysDefaultText()
     {
         // Act
-        await Program.ShowBriefPauseAsync();
+        await HlpAI.Program.ShowBriefPauseAsync();
         
         // Assert
         // TUnit automatically captures console output
@@ -343,7 +344,7 @@ public class ProgramConfigurationTests
         };
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -357,7 +358,7 @@ public class ProgramConfigurationTests
         var response = new McpResponse { Id = "test", Result = null };
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -372,7 +373,7 @@ public class ProgramConfigurationTests
         var breadcrumbs = "Home > Settings > Test";
         
         // Act
-        Program.ClearScreenWithHeader(header, breadcrumbs);
+        HlpAI.Program.ClearScreenWithHeader(header, breadcrumbs);
         
         // Assert
         // TUnit automatically captures console output
@@ -386,7 +387,7 @@ public class ProgramConfigurationTests
         var header = "Test Header";
         
         // Act
-        Program.ClearScreenWithHeader(header, null);
+        HlpAI.Program.ClearScreenWithHeader(header, null);
         
         // Assert
         // TUnit automatically captures console output
@@ -400,7 +401,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("test input\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -414,7 +415,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("\n");
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output
@@ -428,7 +429,7 @@ public class ProgramConfigurationTests
         SetupConsoleInput("\0"); // Simulate null input
         
         // Act
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         
         // Assert
         // TUnit automatically captures console output

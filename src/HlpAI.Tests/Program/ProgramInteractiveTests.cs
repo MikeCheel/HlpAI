@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using HlpAI;
 using HlpAI.Models;
 using HlpAI.MCP;
 using HlpAI.Services;
@@ -55,7 +56,7 @@ public class ProgramInteractiveTests
         SetupConsoleInput("test input\n");
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -66,7 +67,7 @@ public class ProgramInteractiveTests
         SetupConsoleInput("\n");
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -80,7 +81,7 @@ public class ProgramInteractiveTests
         testStringReader.Dispose();
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -88,7 +89,7 @@ public class ProgramInteractiveTests
     public async Task ClearScreen_ExecutesWithoutError()
     {
         // Act & Assert - Should not throw
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         await Task.CompletedTask;
     }
     
@@ -100,7 +101,7 @@ public class ProgramInteractiveTests
         SetupConsoleInput("\n"); // Simulate Enter key press
         
         // Act & Assert - Should execute without throwing
-        await Program.ShowBriefPauseAsync(message);
+        await HlpAI.Program.ShowBriefPauseAsync(message);
     }
     
     [Test]
@@ -110,7 +111,7 @@ public class ProgramInteractiveTests
         SetupConsoleInput("\n"); // Simulate Enter key press
         
         // Act & Assert - Should execute without throwing
-        await Program.ShowBriefPauseAsync();
+        await HlpAI.Program.ShowBriefPauseAsync();
     }
     
     [Test]
@@ -125,7 +126,7 @@ public class ProgramInteractiveTests
         
         // Act & Assert - Should execute without throwing
         // Test a public method instead since GetProviderStatusDisplay is private
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -140,7 +141,7 @@ public class ProgramInteractiveTests
         };
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -148,7 +149,7 @@ public class ProgramInteractiveTests
     public async Task ShowMenu_DisplaysCompleteMenuStructure()
     {
         // Act & Assert - Should execute without throwing
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         await Task.CompletedTask;
     }
     
@@ -160,7 +161,7 @@ public class ProgramInteractiveTests
         var breadcrumb = "Main Menu > Configuration > Test";
         
         // Act & Assert - Should execute without throwing
-        Program.ClearScreenWithHeader(header, breadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, breadcrumb);
         await Task.CompletedTask;
     }
     
@@ -171,7 +172,7 @@ public class ProgramInteractiveTests
         var header = "🔧 Test Header";
         
         // Act & Assert - Should execute without throwing
-        Program.ClearScreenWithHeader(header, null!);
+        HlpAI.Program.ClearScreenWithHeader(header, null!);
         await Task.CompletedTask;
     }
     
@@ -182,7 +183,7 @@ public class ProgramInteractiveTests
         var header = "🔧 Test Header";
         
         // Act & Assert - Should execute without throwing
-        Program.ClearScreenWithHeader(header, "");
+        HlpAI.Program.ClearScreenWithHeader(header, "");
         await Task.CompletedTask;
     }
     
@@ -197,7 +198,7 @@ public class ProgramInteractiveTests
         };
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -208,7 +209,7 @@ public class ProgramInteractiveTests
         // Testing null response handling
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -227,7 +228,7 @@ public class ProgramInteractiveTests
         };
         
         // Act & Assert - Should execute without throwing
-        Program.ShowUsage();
+        HlpAI.Program.ShowUsage();
         await Task.CompletedTask;
     }
     
@@ -239,7 +240,7 @@ public class ProgramInteractiveTests
         var args = new[] { "--help" };
         
         // Act & Assert - Should execute without throwing
-        await Program.Main(args);
+        await HlpAI.Program.Main(args);
     }
     
     [Test]
@@ -250,7 +251,7 @@ public class ProgramInteractiveTests
         var args = new[] { "--version" };
         
         // Act & Assert - Should execute without throwing
-        await Program.Main(args);
+        await HlpAI.Program.Main(args);
     }
     
     [Test]
@@ -261,6 +262,6 @@ public class ProgramInteractiveTests
         var args = new[] { "--invalid-option" };
         
         // Act & Assert - Should execute without throwing
-        await Program.Main(args);
+        await HlpAI.Program.Main(args);
     }
 }

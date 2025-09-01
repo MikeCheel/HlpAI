@@ -1,3 +1,4 @@
+using HlpAI;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -56,7 +57,7 @@ public class ProgramMenuTests
         const string header = "🎯 Test";
         
         // Act
-        Program.ClearScreenWithHeader(header);
+        HlpAI.Program.ClearScreenWithHeader(header);
         
         // Assert
         // TUnit automatically captures console output
@@ -71,7 +72,7 @@ public class ProgramMenuTests
         var breadcrumb = "Main Menu > AI Provider Management";
         
         // Act
-        Program.ClearScreenWithHeader(header, breadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, breadcrumb);
         
         // Assert
         // TUnit automatically captures console output
@@ -85,7 +86,7 @@ public class ProgramMenuTests
         var longHeader = "🔧 This is a very long header that exceeds the minimum length";
         
         // Act
-        Program.ClearScreenWithHeader(longHeader);
+        HlpAI.Program.ClearScreenWithHeader(longHeader);
         
         // Assert
         // TUnit automatically captures console output
@@ -99,7 +100,7 @@ public class ProgramMenuTests
         var shortHeader = "🎯 Test";
         
         // Act
-        Program.ClearScreenWithHeader(shortHeader);
+        HlpAI.Program.ClearScreenWithHeader(shortHeader);
         
         // Assert
         // TUnit automatically captures console output
@@ -114,7 +115,7 @@ public class ProgramMenuTests
         var emptyBreadcrumb = "";
         
         // Act
-        Program.ClearScreenWithHeader(header, emptyBreadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, emptyBreadcrumb);
         
         // Assert
         // TUnit automatically captures console output
@@ -128,7 +129,7 @@ public class ProgramMenuTests
         var header = "🎯 Test Header";
         
         // Act
-        Program.ClearScreenWithHeader(header, null!);
+        HlpAI.Program.ClearScreenWithHeader(header, null!);
         
         // Assert
         // TUnit automatically captures console output
@@ -144,7 +145,7 @@ public class ProgramMenuTests
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
         // Act
-        await Program.ShowBriefPauseAsync(message, delayMs);
+        await HlpAI.Program.ShowBriefPauseAsync(message, delayMs);
         stopwatch.Stop();
         
         // Assert
@@ -160,7 +161,7 @@ public class ProgramMenuTests
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
         // Act
-        await Program.ShowBriefPauseAsync(null, delayMs);
+        await HlpAI.Program.ShowBriefPauseAsync(null, delayMs);
         stopwatch.Stop();
         
         // Assert
@@ -176,7 +177,7 @@ public class ProgramMenuTests
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
         // Act
-        await Program.ShowBriefPauseAsync(message); // Uses default 1500ms
+        await HlpAI.Program.ShowBriefPauseAsync(message); // Uses default 1500ms
         stopwatch.Stop();
         
         // Assert
@@ -188,7 +189,7 @@ public class ProgramMenuTests
     public void ShowMenu_DisplaysAllMenuOptions()
     {
         // Act
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         
         // Assert
         // TUnit automatically captures console output
@@ -199,7 +200,7 @@ public class ProgramMenuTests
     public void ClearScreen_CallsClearScreenWithHeader()
     {
         // Act
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         
         // Assert
         // TUnit automatically captures console output
@@ -216,8 +217,8 @@ public class ProgramMenuTests
         // by checking that console operations don't throw in test environment
         
         // Act & Assert - Should not throw
-        Program.ClearScreenWithHeader("Test Header");
-        await Program.ShowBriefPauseAsync("Test", 1);
+        HlpAI.Program.ClearScreenWithHeader("Test Header");
+        await HlpAI.Program.ShowBriefPauseAsync("Test", 1);
         
         // If we reach here without exceptions, the test environment detection is working
         // Test passes if no exception is thrown
@@ -230,7 +231,7 @@ public class ProgramMenuTests
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         
         // Act
-        Program.WaitForUserInput("Test prompt");
+        HlpAI.Program.WaitForUserInput("Test prompt");
         stopwatch.Stop();
         
         // Assert
@@ -244,7 +245,7 @@ public class ProgramMenuTests
     public void WaitForUserInput_WithDefaultPrompt_DisplaysNothing()
     {
         // Act
-        Program.WaitForUserInput();
+        HlpAI.Program.WaitForUserInput();
         
         // Assert
         // TUnit automatically captures console output
@@ -258,7 +259,7 @@ public class ProgramMenuTests
         // by checking that ClearScreen produces expected output
         
         // Act
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -271,7 +272,7 @@ public class ProgramMenuTests
         // which is called after command execution
         
         // Act
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -287,7 +288,7 @@ public class ProgramMenuTests
         var breadcrumb = "Main Menu > Configuration";
         
         // Act
-        Program.ClearScreenWithHeader(header, breadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, breadcrumb);
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -299,8 +300,8 @@ public class ProgramMenuTests
         // This test verifies that multiple screen clears work consistently
         
         // Act - Clear screen multiple times
-        Program.ClearScreen();
-        Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
+        HlpAI.Program.ClearScreen();
         
         // Assert - Methods execute without exception
         // Method completed without exception
@@ -315,7 +316,7 @@ public class ProgramMenuTests
         var headerWithEmojis = "🤖 AI Provider 🔧 Configuration 📊 Status";
         
         // Act
-        Program.ClearScreenWithHeader(headerWithEmojis);
+        HlpAI.Program.ClearScreenWithHeader(headerWithEmojis);
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -331,7 +332,7 @@ public class ProgramMenuTests
         var complexBreadcrumb = "Main Menu > System > Vector Database Management > Settings";
         
         // Act
-        Program.ClearScreenWithHeader(header, complexBreadcrumb);
+        HlpAI.Program.ClearScreenWithHeader(header, complexBreadcrumb);
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -346,7 +347,7 @@ public class ProgramMenuTests
         var emptyHeader = "";
         
         // Act
-        Program.ClearScreenWithHeader(emptyHeader);
+        HlpAI.Program.ClearScreenWithHeader(emptyHeader);
         
         // Assert - Method executes without exception
         // Method completed without exception
@@ -359,7 +360,7 @@ public class ProgramMenuTests
         // and show the menu again instead of terminating the program
         
         // Act
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         
         // Assert - Method executes without exception
         // Method completed without exception - this verifies the fix prevents program termination
@@ -372,7 +373,7 @@ public class ProgramMenuTests
         // regardless of startup context (fixes issue where no menu appeared after RAG indexing)
         
         // Act
-        Program.ShowMenu();
+        HlpAI.Program.ShowMenu();
         
         // Assert - Method executes without exception
         // Method completed without exception
