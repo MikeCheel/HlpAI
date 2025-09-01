@@ -6300,12 +6300,51 @@ private static Task WaitForKeyPress()
                     Console.WriteLine();
                     
                     using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                    var continueAnyway = await promptService.PromptYesNoDefaultNoAsync("Continue with setup anyway?");
+                    var configureNow = await promptService.PromptYesNoDefaultYesAsync("This provider is not configured. Would you like to configure it now?");
                     
-                    if (!continueAnyway)
+                    if (configureNow)
                     {
-                        Console.WriteLine("Setup cancelled.");
-                        return null;
+                        // Navigate to configuration for this specific provider
+                        var configResult = await ConfigureSpecificProviderAsync(selectedProvider, config, configService, logger);
+                        if (configResult == true)
+                        {
+                            // Configuration successful, update provider and continue
+                            config.LastProvider = selectedProvider;
+                            config.LastModel = selectedProvider switch
+                            {
+                                AiProviderType.Ollama => config.OllamaDefaultModel,
+                                AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                                AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                                AiProviderType.OpenAI => config.OpenAiDefaultModel,
+                                AiProviderType.Anthropic => config.AnthropicDefaultModel,
+                                AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
+                                _ => "default"
+                            };
+                            Console.WriteLine($"✅ Selected and configured provider: {selectedProvider}");
+                            return true; // Provider changed and configured
+                        }
+                        else if (configResult == null)
+                        {
+                            // Configuration cancelled, return to provider selection
+                            Console.WriteLine("Configuration cancelled. Returning to provider selection.");
+                            return await SelectProviderForSetupAsync(config, configService, logger);
+                        }
+                        else
+                        {
+                            // Configuration failed, ask if they want to continue anyway
+                            var continueAnyway = await promptService.PromptYesNoDefaultNoAsync("Configuration failed. Continue with setup anyway?");
+                            if (!continueAnyway)
+                            {
+                                Console.WriteLine("Setup cancelled.");
+                                return null;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // User chose not to configure, return to provider listing
+                        Console.WriteLine("Returning to provider selection.");
+                        return await SelectProviderForSetupAsync(config, configService, logger);
                     }
                 }
                 
@@ -6377,6 +6416,24 @@ private static Task WaitForKeyPress()
         
         Console.WriteLine("❌ Invalid selection.");
         return await ConfigureProviderAsync(config, configService, logger);
+    }
+    
+    /// <summary>
+    /// Configure a specific provider directly (set API keys, URLs, etc.)
+    /// </summary>
+    private static async Task<bool?> ConfigureSpecificProviderAsync(AiProviderType provider, AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    {
+        Console.WriteLine($"\n🔧 Configure {provider}");
+        Console.WriteLine("=========================\n");
+        
+        if (AiProviderFactory.RequiresApiKey(provider))
+        {
+            return await ConfigureApiKeyAsync(provider, config, configService, logger);
+        }
+        else
+        {
+            return await ConfigureProviderUrlAsync(provider, config, configService, logger);
+        }
     }
     
     /// <summary>

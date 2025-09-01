@@ -2,6 +2,27 @@
 
 ## Current Tasks
 
+### 🔄 NEW: Provider Configuration Prompt Enhancement
+**Status**: PENDING APPROVAL 🔄  
+**Description**: When a user selects an unconfigured provider, prompt them to configure it immediately
+
+**Requirements**:
+- When selecting a provider that isn't configured, ask user: "This provider is not configured. Would you like to configure it now? (Y/N)"
+- If Yes: Navigate directly to the configuration menu for that specific provider
+- If No: Return to the provider listing menu
+- Apply this enhancement to the interactive screen workflow
+
+**Implementation Areas**:
+- Provider selection logic in interactive mode
+- Configuration menu navigation
+- User prompt handling
+- Menu flow control
+
+**Expected Benefits**:
+- Improved user experience with immediate configuration option
+- Reduced friction in provider setup workflow
+- Better guidance for users with unconfigured providers
+
 ### ✅ COMPLETED: Fix InvalidOperationException in Provider Selection
 **Status**: COMPLETED ✅  
 **Description**: Resolved InvalidOperationException that occurred when enumerating AI providers during interactive setup
