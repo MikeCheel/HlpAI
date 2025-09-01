@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
+using TUnit.Core;
 using HlpAI.Extensions;
 using HlpAI.Models;
 using HlpAI.Services;
@@ -30,40 +30,21 @@ public class AiProviderExtensionsTests
         
         _appConfig = new AppConfiguration
         {
-            OpenAI = new AiProviderConfiguration
-            {
-                MaxTokens = 4000,
-                TimeoutMs = 300000
-            },
-            Anthropic = new AiProviderConfiguration
-            {
-                MaxTokens = 8000,
-                TimeoutMs = 300000
-            },
-            DeepSeek = new AiProviderConfiguration
-            {
-                MaxTokens = 4000,
-                TimeoutMs = 300000
-            },
-            LmStudio = new AiProviderConfiguration
-            {
-                MaxTokens = 4000,
-                TimeoutMs = 300000
-            },
-            OpenWebUi = new AiProviderConfiguration
-            {
-                MaxTokens = 4000,
-                TimeoutMs = 300000
-            },
-            Ollama = new AiProviderConfiguration
-            {
-                MaxTokens = 4000,
-                TimeoutMs = 300000
-            }
+            OpenAiMaxTokens = 4000,
+            OpenAiTimeoutMinutes = 5,
+            AnthropicMaxTokens = 8000,
+            AnthropicTimeoutMinutes = 5,
+            DeepSeekMaxTokens = 4000,
+            DeepSeekTimeoutMinutes = 5,
+            LmStudioMaxTokens = 4000,
+            LmStudioTimeoutMinutes = 5,
+            OpenWebUiMaxTokens = 4000,
+            OpenWebUiTimeoutMinutes = 5,
+            OllamaTimeoutMinutes = 5
         };
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteWithMiddlewareAsync_SuccessfulOperation_ReturnsSuccess()
     {
         // Arrange
@@ -77,13 +58,13 @@ public class AiProviderExtensionsTests
             logger: _mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
-        Assert.Equal("TestOperation", result.OperationName);
-        Assert.Equal("OpenAI", result.ProviderName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
+        await Assert.That(result.OperationName).IsEqualTo("TestOperation");
+        await Assert.That(result.ProviderName).IsEqualTo("OpenAI");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteWithMiddlewareAsync_WithContext_UsesProvidedContext()
     {
         // Arrange
@@ -104,11 +85,11 @@ public class AiProviderExtensionsTests
             _mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
     }
 
-    [Fact]
+    [Test]
     public async Task GenerateWithMiddlewareAsync_CallsGenerateAsync_ReturnsResult()
     {
         // Arrange
@@ -116,7 +97,7 @@ public class AiProviderExtensionsTests
         var maxTokens = 2000;
         var expectedResult = "generated response";
         
-        _mockProvider.Setup(p => p.GenerateAsync(prompt, maxTokens))
+        _mockProvider.Setup(p => p.GenerateAsync(prompt, null, 0.7))
                     .ReturnsAsync(expectedResult);
         
         // Act
@@ -126,13 +107,13 @@ public class AiProviderExtensionsTests
             _mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
-        Assert.Equal("GenerateAsync", result.OperationName);
-        _mockProvider.Verify(p => p.GenerateAsync(prompt, maxTokens), Times.Once);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
+        await Assert.That(result.OperationName).IsEqualTo("GenerateAsync");
+        _mockProvider.Verify(p => p.GenerateAsync(prompt, null, 0.7), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task IsAvailableWithMiddlewareAsync_CallsIsAvailableAsync_ReturnsResult()
     {
         // Arrange
@@ -142,13 +123,13 @@ public class AiProviderExtensionsTests
         var result = await _mockProvider.Object.IsAvailableWithMiddlewareAsync(_mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.True(result.Data);
-        Assert.Equal("IsAvailableAsync", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsTrue();
+        await Assert.That(result.OperationName).IsEqualTo("IsAvailableAsync");
         _mockProvider.Verify(p => p.IsAvailableAsync(), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task GetModelsWithMiddlewareAsync_CallsGetModelsAsync_ReturnsResult()
     {
         // Arrange
@@ -159,13 +140,13 @@ public class AiProviderExtensionsTests
         var result = await _mockProvider.Object.GetModelsWithMiddlewareAsync(_mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedModels, result.Data);
-        Assert.Equal("GetModelsAsync", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedModels);
+        await Assert.That(result.OperationName).IsEqualTo("GetModelsAsync");
         _mockProvider.Verify(p => p.GetModelsAsync(), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task ValidateApiKeyWithMiddlewareAsync_CallsValidateApiKeyAsync_ReturnsResult()
     {
         // Arrange
@@ -175,48 +156,48 @@ public class AiProviderExtensionsTests
         var result = await _mockCloudProvider.Object.ValidateApiKeyWithMiddlewareAsync(_mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.True(result.Data);
-        Assert.Equal("ValidateApiKeyAsync", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsTrue();
+        await Assert.That(result.OperationName).IsEqualTo("ValidateApiKeyAsync");
         _mockCloudProvider.Verify(p => p.ValidateApiKeyAsync(), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task GetUsageInfoWithMiddlewareAsync_CallsGetUsageInfoAsync_ReturnsResult()
     {
         // Arrange
-        var expectedUsage = new ApiUsageInfo(1000, 500, DateTime.UtcNow);
+        var expectedUsage = new ApiUsageInfo(1000, 2000, 500, 1000, DateTime.UtcNow);
         _mockCloudProvider.Setup(p => p.GetUsageInfoAsync()).ReturnsAsync(expectedUsage);
         
         // Act
         var result = await _mockCloudProvider.Object.GetUsageInfoWithMiddlewareAsync(_mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedUsage, result.Data);
-        Assert.Equal("GetUsageInfoAsync", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedUsage);
+        await Assert.That(result.OperationName).IsEqualTo("GetUsageInfoAsync");
         _mockCloudProvider.Verify(p => p.GetUsageInfoAsync(), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task GetRateLimitInfoWithMiddlewareAsync_CallsGetRateLimitInfoAsync_ReturnsResult()
     {
         // Arrange
-        var expectedRateLimit = new RateLimitInfo(100, 50, DateTime.UtcNow.AddMinutes(1));
+        var expectedRateLimit = new RateLimitInfo(100, 50, 1000, 800, DateTime.UtcNow.AddMinutes(1));
         _mockCloudProvider.Setup(p => p.GetRateLimitInfoAsync()).ReturnsAsync(expectedRateLimit);
         
         // Act
         var result = await _mockCloudProvider.Object.GetRateLimitInfoWithMiddlewareAsync(_mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedRateLimit, result.Data);
-        Assert.Equal("GetRateLimitInfoAsync", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedRateLimit);
+        await Assert.That(result.OperationName).IsEqualTo("GetRateLimitInfoAsync");
         _mockCloudProvider.Verify(p => p.GetRateLimitInfoAsync(), Times.Once);
     }
 
-    [Fact]
-    public void GetMiddlewareStatistics_ReturnsStatistics()
+    [Test]
+    public async Task GetMiddlewareStatistics_ReturnsStatistics()
     {
         // Act
         var stats = _mockProvider.Object.GetMiddlewareStatistics();
@@ -224,24 +205,24 @@ public class AiProviderExtensionsTests
         // Assert
         // Statistics might be null if no operations have been executed yet
         // This is expected behavior
-        Assert.True(stats == null || stats.TotalRetries >= 0);
+        await Assert.That(stats == null || stats.TotalRetries >= 0).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public void ClearMiddlewareStatistics_ClearsStatistics()
     {
         // Act & Assert - Should not throw
         _mockProvider.Object.ClearMiddlewareStatistics();
     }
 
-    [Theory]
-    [InlineData(AiProviderType.OpenAI)]
-    [InlineData(AiProviderType.Anthropic)]
-    [InlineData(AiProviderType.DeepSeek)]
-    [InlineData(AiProviderType.LmStudio)]
-    [InlineData(AiProviderType.OpenWebUi)]
-    [InlineData(AiProviderType.Ollama)]
-    public void CreateContextFromConfig_AllProviderTypes_CreatesValidContext(AiProviderType providerType)
+    [Test]
+    [Arguments(AiProviderType.OpenAI)]
+    [Arguments(AiProviderType.Anthropic)]
+    [Arguments(AiProviderType.DeepSeek)]
+    [Arguments(AiProviderType.LmStudio)]
+    [Arguments(AiProviderType.OpenWebUi)]
+    [Arguments(AiProviderType.Ollama)]
+    public async Task CreateContextFromConfig_AllProviderTypes_CreatesValidContext(AiProviderType providerType)
     {
         // Arrange
         _mockProvider.Setup(p => p.ProviderType).Returns(providerType);
@@ -251,15 +232,15 @@ public class AiProviderExtensionsTests
         var context = _mockProvider.Object.CreateContextFromConfig(_appConfig, prompt);
         
         // Assert
-        Assert.NotNull(context);
-        Assert.Equal(prompt, context.Prompt);
-        Assert.True(context.MaxTokens > 0);
-        Assert.True(context.TimeoutMs > 0);
-        Assert.NotNull(context.Metadata);
-        Assert.Equal(providerType.ToString(), context.Metadata["ProviderType"]);
+        await Assert.That(context).IsNotNull();
+        await Assert.That(context.Prompt).IsEqualTo(prompt);
+        await Assert.That(context.MaxTokens > 0).IsTrue();
+        await Assert.That(context.TimeoutMs > 0).IsTrue();
+        await Assert.That(context.Metadata).IsNotNull();
+        await Assert.That(context.Metadata!["ProviderType"]).IsEqualTo(providerType.ToString());
     }
 
-    [Fact]
+    [Test]
     public void CreateContextFromConfig_UnknownProviderType_ThrowsArgumentException()
     {
         // Arrange
@@ -270,7 +251,7 @@ public class AiProviderExtensionsTests
             _mockProvider.Object.CreateContextFromConfig(_appConfig));
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteWithConfigContextAsync_UsesConfigurationContext_ReturnsResult()
     {
         // Arrange
@@ -287,23 +268,23 @@ public class AiProviderExtensionsTests
             _mockLogger.Object);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
-        Assert.Equal("TestOperation", result.OperationName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
+        await Assert.That(result.OperationName).IsEqualTo("TestOperation");
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_Create_ReturnsBuilder()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_Create_ReturnsBuilder()
     {
         // Act
         var builder = AiOperationConfigurationBuilder.Create();
         
         // Assert
-        Assert.NotNull(builder);
+        await Assert.That(builder).IsNotNull();
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_WithMaxRetries_SetsMaxRetries()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_WithMaxRetries_SetsMaxRetries()
     {
         // Arrange
         var maxRetries = 5;
@@ -314,11 +295,11 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.Equal(maxRetries, config.MaxRetries);
+        await Assert.That(config.MaxRetries).IsEqualTo(maxRetries);
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_WithRetryDelay_SetsRetryDelays()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_WithRetryDelay_SetsRetryDelays()
     {
         // Arrange
         var baseDelay = 500;
@@ -330,12 +311,12 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.Equal(baseDelay, config.BaseRetryDelayMs);
-        Assert.Equal(maxDelay, config.MaxRetryDelayMs);
+        await Assert.That(config.BaseRetryDelayMs).IsEqualTo(baseDelay);
+        await Assert.That(config.MaxRetryDelayMs).IsEqualTo(maxDelay);
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_WithRateLimit_SetsRateLimit()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_WithRateLimit_SetsRateLimit()
     {
         // Arrange
         var maxRequests = 100;
@@ -347,13 +328,13 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.True(config.EnableRateLimiting);
-        Assert.Equal(maxRequests, config.MaxRequestsPerWindow);
-        Assert.Equal(windowMinutes, config.RateLimitWindowMinutes);
+        await Assert.That(config.EnableRateLimiting).IsTrue();
+        await Assert.That(config.MaxRequestsPerWindow).IsEqualTo(maxRequests);
+        await Assert.That(config.RateLimitWindowMinutes).IsEqualTo(windowMinutes);
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_DisableRateLimit_DisablesRateLimit()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_DisableRateLimit_DisablesRateLimit()
     {
         // Act
         var config = AiOperationConfigurationBuilder.Create()
@@ -361,11 +342,11 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.False(config.EnableRateLimiting);
+        await Assert.That(config.EnableRateLimiting).IsFalse();
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_WithMaxPromptLength_SetsMaxPromptLength()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_WithMaxPromptLength_SetsMaxPromptLength()
     {
         // Arrange
         var maxLength = 50000;
@@ -376,11 +357,11 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.Equal(maxLength, config.MaxPromptLength);
+        await Assert.That(config.MaxPromptLength).IsEqualTo(maxLength);
     }
 
-    [Fact]
-    public void AiOperationConfigurationBuilder_ChainedCalls_SetsAllProperties()
+    [Test]
+    public async Task AiOperationConfigurationBuilder_ChainedCalls_SetsAllProperties()
     {
         // Arrange
         var maxRetries = 5;
@@ -399,35 +380,35 @@ public class AiProviderExtensionsTests
             .Build();
         
         // Assert
-        Assert.Equal(maxRetries, config.MaxRetries);
-        Assert.Equal(baseDelay, config.BaseRetryDelayMs);
-        Assert.Equal(maxDelay, config.MaxRetryDelayMs);
-        Assert.True(config.EnableRateLimiting);
-        Assert.Equal(maxRequests, config.MaxRequestsPerWindow);
-        Assert.Equal(windowMinutes, config.RateLimitWindowMinutes);
-        Assert.Equal(maxPromptLength, config.MaxPromptLength);
+        await Assert.That(config.MaxRetries).IsEqualTo(maxRetries);
+        await Assert.That(config.BaseRetryDelayMs).IsEqualTo(baseDelay);
+        await Assert.That(config.MaxRetryDelayMs).IsEqualTo(maxDelay);
+        await Assert.That(config.EnableRateLimiting).IsTrue();
+        await Assert.That(config.MaxRequestsPerWindow).IsEqualTo(maxRequests);
+        await Assert.That(config.RateLimitWindowMinutes).IsEqualTo(windowMinutes);
+        await Assert.That(config.MaxPromptLength).IsEqualTo(maxPromptLength);
     }
 
-    [Fact]
+    [Test]
     public async Task GenerateWithMiddlewareAsync_DefaultParameters_UsesDefaults()
     {
         // Arrange
         var prompt = "test prompt";
         var expectedResult = "generated response";
         
-        _mockProvider.Setup(p => p.GenerateAsync(prompt, 4000)) // Default maxTokens
+        _mockProvider.Setup(p => p.GenerateAsync(prompt, null, 0.7)) // Default parameters
                     .ReturnsAsync(expectedResult);
         
         // Act
         var result = await _mockProvider.Object.GenerateWithMiddlewareAsync(prompt);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
-        _mockProvider.Verify(p => p.GenerateAsync(prompt, 4000), Times.Once);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
+        _mockProvider.Verify(p => p.GenerateAsync(prompt, null, 0.7), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteWithMiddlewareAsync_OperationThrowsException_ReturnsFailure()
     {
         // Arrange
@@ -440,8 +421,8 @@ public class AiProviderExtensionsTests
             logger: _mockLogger.Object);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.NotNull(result.Error);
-        Assert.Contains("Test error", result.Error.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error).IsNotNull();
+        await Assert.That(result.Error!.Message).Contains("Test error");
     }
 }

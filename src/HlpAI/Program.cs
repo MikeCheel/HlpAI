@@ -500,7 +500,7 @@ public static class Program
         while (directory == null)
         {
             using var directoryPromptService = new PromptService(config, sharedConfigService, logger);
-            var input = directoryPromptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, "", "directory path").Trim();
+            var input = directoryPromptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path").Trim();
             
             if (string.IsNullOrEmpty(input))
             {
@@ -515,29 +515,8 @@ public static class Program
             
             if (!Directory.Exists(input))
             {
-                Console.WriteLine($"❌ Directory '{input}' does not exist.");
-                using var createDirPromptService = new PromptService(config, sharedConfigService, logger);
-                var createResponse = await createDirPromptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
-                
-                if (createResponse)
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(input);
-                        Console.WriteLine($"✅ Created directory: {input}");
-                        directory = input;
-                    }
-                    catch (Exception ex)
-                    {
-                        var errorMessage = $"Failed to create directory: {ex.Message}";
-                        Console.WriteLine($"❌ {errorMessage}");
-                        await errorLoggingService.LogErrorAsync(errorMessage, ex, "Interactive setup - directory creation");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Please enter a valid existing directory path, or type 'quit' to exit.");
-                }
+                Console.WriteLine($"❌ Directory '{input}' does not exist. Please enter a valid existing directory path, or type 'quit' to exit.");
+                continue;
             }
             else
             {
@@ -6392,7 +6371,7 @@ private static Task WaitForKeyPress()
         
         Console.WriteLine($"Please enter your {provider} API key:");
         Console.Write("API Key: ");
-        var apiKey = SafePromptForString("", "s").Trim();
+        var apiKey = SafePromptForString("", "").Trim();
         
         if (string.IsNullOrEmpty(apiKey))
         {
@@ -6473,7 +6452,7 @@ private static Task WaitForKeyPress()
         
         Console.WriteLine($"Enter the URL for {provider} (default: {defaultUrl}):");
         Console.Write("URL: ");
-        var url = SafePromptForString("", "s").Trim();
+        var url = SafePromptForString("", defaultUrl).Trim();
         
         if (string.IsNullOrEmpty(url))
         {

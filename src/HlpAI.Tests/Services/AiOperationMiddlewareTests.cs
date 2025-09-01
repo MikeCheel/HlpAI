@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
+using TUnit.Core;
 using HlpAI.Services;
 using HlpAI.Models;
 using HlpAI.Extensions;
@@ -30,7 +30,7 @@ public class AiOperationMiddlewareTests
         _middleware = new AiOperationMiddleware(_mockLogger.Object, _config);
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_SuccessfulOperation_ReturnsSuccess()
     {
         // Arrange
@@ -44,14 +44,14 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expectedResult, result.Data);
-        Assert.Null(result.Error);
-        Assert.Equal("TestOperation", result.OperationName);
-        Assert.Equal("OpenAI", result.ProviderName);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(expectedResult);
+        await Assert.That(result.Error).IsNull();
+        await Assert.That(result.OperationName).IsEqualTo("TestOperation");
+        await Assert.That(result.ProviderName).IsEqualTo("OpenAI");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_OperationThrowsException_ReturnsFailure()
     {
         // Arrange
@@ -65,14 +65,14 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Null(result.Data);
-        Assert.NotNull(result.Error);
-        Assert.Equal(AiOperationErrorType.ConfigurationError, result.Error.ErrorType);
-        Assert.Contains("Test error", result.Error.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Data).IsNull();
+        await Assert.That(result.Error).IsNotNull();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.ConfigurationError);
+        await Assert.That(result.Error!.Message).Contains("Test error");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_HttpRequestException_ReturnsNetworkError()
     {
         // Arrange
@@ -86,12 +86,12 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal(AiOperationErrorType.NetworkError, result.Error!.ErrorType);
-        Assert.True(result.Error.IsRetryable);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.NetworkError);
+        await Assert.That(result.Error.IsRetryable).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_TaskCanceledException_ReturnsTimeoutError()
     {
         // Arrange
@@ -105,12 +105,12 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal(AiOperationErrorType.Timeout, result.Error!.ErrorType);
-        Assert.True(result.Error.IsRetryable);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.Timeout);
+        await Assert.That(result.Error.IsRetryable).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_UnauthorizedAccessException_ReturnsAuthenticationError()
     {
         // Arrange
@@ -124,12 +124,12 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal(AiOperationErrorType.AuthenticationError, result.Error!.ErrorType);
-        Assert.False(result.Error.IsRetryable);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.AuthenticationError);
+        await Assert.That(result.Error.IsRetryable).IsFalse();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_ArgumentException_ReturnsValidationError()
     {
         // Arrange
@@ -143,12 +143,12 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal(AiOperationErrorType.ValidationError, result.Error!.ErrorType);
-        Assert.False(result.Error.IsRetryable);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.ValidationError);
+        await Assert.That(result.Error.IsRetryable).IsFalse();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_RetryableException_RetriesOperation()
     {
         // Arrange
@@ -170,12 +170,12 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal("success", result.Data);
-        Assert.Equal(3, callCount); // Initial attempt + 2 retries
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo("success");
+        await Assert.That(callCount).IsEqualTo(3); // Initial attempt + 2 retries
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_ExceedsMaxRetries_ReturnsFailure()
     {
         // Arrange
@@ -188,11 +188,11 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal(AiOperationErrorType.NetworkError, result.Error!.ErrorType);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.ErrorType).IsEqualTo(AiOperationErrorType.NetworkError);
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_InvalidOperationName_ReturnsValidationError()
     {
         // Arrange
@@ -205,11 +205,11 @@ public class AiOperationMiddlewareTests
             AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Contains("Operation validation failed", result.Error!.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.Message).Contains("Operation validation failed");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_InvalidContext_ReturnsValidationError()
     {
         // Arrange
@@ -228,11 +228,11 @@ public class AiOperationMiddlewareTests
             context);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Contains("MaxTokens must be greater than 0", result.Error!.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.Message).Contains("MaxTokens must be greater than 0");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_PromptTooLong_ReturnsValidationError()
     {
         // Arrange
@@ -253,12 +253,12 @@ public class AiOperationMiddlewareTests
             context);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Contains("Prompt length", result.Error!.Message);
-        Assert.Contains("exceeds maximum allowed", result.Error!.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.Message).Contains("Prompt length");
+        await Assert.That(result.Error!.Message).Contains("exceeds maximum allowed");
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_RateLimitExceeded_ReturnsRateLimitError()
     {
         // Arrange
@@ -274,25 +274,25 @@ public class AiOperationMiddlewareTests
         var result = await _middleware.ExecuteAsync(operation, "TestOperation", AiProviderType.OpenAI);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Contains("Rate limit exceeded", result.Error!.Message);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Error!.Message).Contains("Rate limit exceeded");
     }
 
-    [Fact]
-    public void GetStatistics_ReturnsCorrectStatistics()
+    [Test]
+    public async Task GetStatistics_ReturnsCorrectStatistics()
     {
         // Act
         var stats = _middleware.GetStatistics();
         
         // Assert
-        Assert.NotNull(stats);
-        Assert.Equal(0, stats.TotalRetries);
-        Assert.Equal(0, stats.OperationsWithRetries);
-        Assert.Equal(0, stats.ActiveRateLimitKeys);
+        await Assert.That(stats).IsNotNull();
+        await Assert.That(stats.TotalRetries).IsEqualTo(0);
+        await Assert.That(stats.OperationsWithRetries).IsEqualTo(0);
+        await Assert.That(stats.ActiveRateLimitKeys).IsEqualTo(0);
     }
 
-    [Fact]
-    public void ClearStatistics_ClearsAllStatistics()
+    [Test]
+    public async Task ClearStatistics_ClearsAllStatistics()
     {
         // Arrange - Execute some operations to generate statistics
         var operation = () => Task.FromResult("result");
@@ -303,29 +303,29 @@ public class AiOperationMiddlewareTests
         var stats = _middleware.GetStatistics();
         
         // Assert
-        Assert.Equal(0, stats.TotalRetries);
-        Assert.Equal(0, stats.OperationsWithRetries);
-        Assert.Equal(0, stats.ActiveRateLimitKeys);
+        await Assert.That(stats.TotalRetries).IsEqualTo(0);
+        await Assert.That(stats.OperationsWithRetries).IsEqualTo(0);
+        await Assert.That(stats.ActiveRateLimitKeys).IsEqualTo(0);
     }
 
-    [Fact]
-    public void AiOperationConfiguration_DefaultValues_AreCorrect()
+    [Test]
+    public async Task AiOperationConfiguration_DefaultValues_AreCorrect()
     {
         // Arrange & Act
         var config = new AiOperationConfiguration();
         
         // Assert
-        Assert.Equal(3, config.MaxRetries);
-        Assert.Equal(1000, config.BaseRetryDelayMs);
-        Assert.Equal(30000, config.MaxRetryDelayMs);
-        Assert.True(config.EnableRateLimiting);
-        Assert.Equal(60, config.MaxRequestsPerWindow);
-        Assert.Equal(1, config.RateLimitWindowMinutes);
-        Assert.Equal(100000, config.MaxPromptLength);
+        await Assert.That(config.MaxRetries).IsEqualTo(3);
+        await Assert.That(config.BaseRetryDelayMs).IsEqualTo(1000);
+        await Assert.That(config.MaxRetryDelayMs).IsEqualTo(30000);
+        await Assert.That(config.EnableRateLimiting).IsTrue();
+        await Assert.That(config.MaxRequestsPerWindow).IsEqualTo(60);
+        await Assert.That(config.RateLimitWindowMinutes).IsEqualTo(1);
+        await Assert.That(config.MaxPromptLength).IsEqualTo(100000);
     }
 
-    [Fact]
-    public void AiOperationResult_Success_CreatesCorrectResult()
+    [Test]
+    public async Task AiOperationResult_Success_CreatesCorrectResult()
     {
         // Arrange
         var data = "test data";
@@ -337,16 +337,16 @@ public class AiOperationMiddlewareTests
         var result = AiOperationResult<string>.Success(data, operationName, providerName, duration);
         
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.Equal(data, result.Data);
-        Assert.Null(result.Error);
-        Assert.Equal(operationName, result.OperationName);
-        Assert.Equal(providerName, result.ProviderName);
-        Assert.Equal(duration, result.Duration);
+        await Assert.That(result.IsSuccess).IsTrue();
+        await Assert.That(result.Data).IsEqualTo(data);
+        await Assert.That(result.Error).IsNull();
+        await Assert.That(result.OperationName).IsEqualTo(operationName);
+        await Assert.That(result.ProviderName).IsEqualTo(providerName);
+        await Assert.That(result.Duration).IsEqualTo(duration);
     }
 
-    [Fact]
-    public void AiOperationResult_Failure_CreatesCorrectResult()
+    [Test]
+    public async Task AiOperationResult_Failure_CreatesCorrectResult()
     {
         // Arrange
         var error = new AiOperationException("Test error");
@@ -358,16 +358,16 @@ public class AiOperationMiddlewareTests
         var result = AiOperationResult<string>.Failure(error, operationName, providerName, duration);
         
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Null(result.Data);
-        Assert.Equal(error, result.Error);
-        Assert.Equal(operationName, result.OperationName);
-        Assert.Equal(providerName, result.ProviderName);
-        Assert.Equal(duration, result.Duration);
+        await Assert.That(result.IsSuccess).IsFalse();
+        await Assert.That(result.Data).IsNull();
+        await Assert.That(result.Error).IsEqualTo(error);
+        await Assert.That(result.OperationName).IsEqualTo(operationName);
+        await Assert.That(result.ProviderName).IsEqualTo(providerName);
+        await Assert.That(result.Duration).IsEqualTo(duration);
     }
 
-    [Fact]
-    public void AiOperationException_Constructor_SetsPropertiesCorrectly()
+    [Test]
+    public async Task AiOperationException_Constructor_SetsPropertiesCorrectly()
     {
         // Arrange
         var message = "Test error";
@@ -378,13 +378,13 @@ public class AiOperationMiddlewareTests
         var exception = new AiOperationException(message, errorType, isRetryable);
         
         // Assert
-        Assert.Equal(message, exception.Message);
-        Assert.Equal(errorType, exception.ErrorType);
-        Assert.Equal(isRetryable, exception.IsRetryable);
+        await Assert.That(exception.Message).IsEqualTo(message);
+        await Assert.That(exception.ErrorType).IsEqualTo(errorType);
+        await Assert.That(exception.IsRetryable).IsEqualTo(isRetryable);
     }
 
-    [Fact]
-    public void AiOperationException_WithInnerException_SetsPropertiesCorrectly()
+    [Test]
+    public async Task AiOperationException_WithInnerException_SetsPropertiesCorrectly()
     {
         // Arrange
         var message = "Test error";
@@ -396,14 +396,14 @@ public class AiOperationMiddlewareTests
         var exception = new AiOperationException(message, innerException, errorType, isRetryable);
         
         // Assert
-        Assert.Equal(message, exception.Message);
-        Assert.Equal(innerException, exception.InnerException);
-        Assert.Equal(errorType, exception.ErrorType);
-        Assert.Equal(isRetryable, exception.IsRetryable);
+        await Assert.That(exception.Message).IsEqualTo(message);
+        await Assert.That(exception.InnerException).IsEqualTo(innerException);
+        await Assert.That(exception.ErrorType).IsEqualTo(errorType);
+        await Assert.That(exception.IsRetryable).IsEqualTo(isRetryable);
     }
 
-    [Fact]
-    public void OperationValidationResult_Constructor_SetsPropertiesCorrectly()
+    [Test]
+    public async Task OperationValidationResult_Constructor_SetsPropertiesCorrectly()
     {
         // Arrange
         var isValid = false;
@@ -413,27 +413,27 @@ public class AiOperationMiddlewareTests
         var result = new OperationValidationResult(isValid, errors);
         
         // Assert
-        Assert.Equal(isValid, result.IsValid);
-        Assert.Equal(errors, result.Errors);
+        await Assert.That(result.IsValid).IsEqualTo(isValid);
+        await Assert.That(result.Errors).IsEqualTo(errors);
     }
 
-    [Theory]
-    [InlineData(AiOperationErrorType.UnknownError)]
-    [InlineData(AiOperationErrorType.NetworkError)]
-    [InlineData(AiOperationErrorType.Timeout)]
-    [InlineData(AiOperationErrorType.AuthenticationError)]
-    [InlineData(AiOperationErrorType.ValidationError)]
-    [InlineData(AiOperationErrorType.ConfigurationError)]
-    [InlineData(AiOperationErrorType.RateLimitExceeded)]
-    [InlineData(AiOperationErrorType.ModelNotAvailable)]
-    [InlineData(AiOperationErrorType.InsufficientQuota)]
-    public void AiOperationErrorType_AllValuesAreDefined(AiOperationErrorType errorType)
+    [Test]
+    [Arguments(AiOperationErrorType.UnknownError)]
+    [Arguments(AiOperationErrorType.NetworkError)]
+    [Arguments(AiOperationErrorType.Timeout)]
+    [Arguments(AiOperationErrorType.AuthenticationError)]
+    [Arguments(AiOperationErrorType.ValidationError)]
+    [Arguments(AiOperationErrorType.ConfigurationError)]
+    [Arguments(AiOperationErrorType.RateLimitExceeded)]
+    [Arguments(AiOperationErrorType.ModelNotAvailable)]
+    [Arguments(AiOperationErrorType.InsufficientQuota)]
+    public async Task AiOperationErrorType_AllValuesAreDefined(AiOperationErrorType errorType)
     {
         // Act & Assert
-        Assert.True(Enum.IsDefined(typeof(AiOperationErrorType), errorType));
+        await Assert.That(Enum.IsDefined(typeof(AiOperationErrorType), errorType)).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_DisabledRateLimit_DoesNotEnforceRateLimit()
     {
         // Arrange
@@ -450,11 +450,11 @@ public class AiOperationMiddlewareTests
         var result2 = await middlewareWithoutRateLimit.ExecuteAsync(operation, "TestOperation", AiProviderType.OpenAI);
         
         // Assert - Both should succeed
-        Assert.True(result1.IsSuccess);
-        Assert.True(result2.IsSuccess);
+        await Assert.That(result1.IsSuccess).IsTrue();
+        await Assert.That(result2.IsSuccess).IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task ExecuteAsync_DifferentProviders_SeparateRateLimits()
     {
         // Arrange
@@ -470,6 +470,6 @@ public class AiOperationMiddlewareTests
         var result = await _middleware.ExecuteAsync(operation, "TestOperation", AiProviderType.Anthropic);
         
         // Assert
-        Assert.True(result.IsSuccess);
+        await Assert.That(result.IsSuccess).IsTrue();
     }
 }

@@ -96,86 +96,89 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
     /// </summary>
     public async Task IndexDocumentAsync(string filePath, string content, Dictionary<string, object>? metadata = null)
     {
+        var fileInfo = new FileInfo(filePath);
+        
+        // Use the file change detection service for optimized checking
+        var storedMetadata = await GetStoredFileMetadataAsync(filePath);
+        var hasChanged = await _changeDetectionService.HasFileChangedAsync(
+            filePath, 
+            storedMetadata?.Hash, 
+            storedMetadata?.LastModified);
+
+        if (!hasChanged && storedMetadata != null)
+        {
+            _logger?.LogInformation("File {FilePath} is already up to date (MD5 optimization), skipping", filePath);
+            return;
+        }
+
+        _logger?.LogDebug("Processing file {FilePath} - detected changes or new file", filePath);
+
+        // Compute file hash using the optimized service
+        var fileHash = await _changeDetectionService.ComputeFileHashAsync(filePath);
+        var lastModified = fileInfo.LastWriteTime;
+
+        var config = _config ?? ConfigurationService.LoadConfiguration(_logger);
+        var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
+
+        var insertSql = @"
+            INSERT INTO document_chunks 
+            (id, source_file, content, chunk_index, embedding, metadata, indexed_at, file_hash, file_modified, file_size)
+            VALUES (@id, @source_file, @content, @chunk_index, @embedding, @metadata, @indexed_at, @file_hash, @file_modified, @file_size)
+        ";
+
+        using var transaction = await _connection.BeginTransactionAsync();
+
         try
         {
-            var fileInfo = new FileInfo(filePath);
-            
-            // Use the file change detection service for optimized checking
-            var storedMetadata = await GetStoredFileMetadataAsync(filePath);
-            var hasChanged = await _changeDetectionService.HasFileChangedAsync(
-                filePath, 
-                storedMetadata?.Hash, 
-                storedMetadata?.LastModified);
-
-            if (!hasChanged && storedMetadata != null)
+            // Remove existing chunks for this file within the transaction
+            await RemoveFileChunksAsync(filePath, (SqliteTransaction)transaction);
+            for (int i = 0; i < chunks.Count; i++)
             {
-                _logger?.LogInformation("File {FilePath} is already up to date (MD5 optimization), skipping", filePath);
-                return;
+                var chunkMetadata = metadata ?? [];
+                chunkMetadata["file_name"] = Path.GetFileName(filePath);
+                chunkMetadata["file_extension"] = Path.GetExtension(filePath);
+                chunkMetadata["chunk_count"] = chunks.Count;
+
+                var embedding = await _embeddingService.GetEmbeddingAsync(chunks[i]);
+                var embeddingBytes = EmbeddingToBytes(embedding);
+
+                using var command = new SqliteCommand(insertSql, _connection, (SqliteTransaction)transaction);
+                command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                command.Parameters.AddWithValue("@source_file", filePath);
+                command.Parameters.AddWithValue("@content", chunks[i]);
+                command.Parameters.AddWithValue("@chunk_index", i);
+                command.Parameters.AddWithValue("@embedding", embeddingBytes);
+                command.Parameters.AddWithValue("@metadata", JsonSerializer.Serialize(chunkMetadata));
+                command.Parameters.AddWithValue("@indexed_at", DateTime.UtcNow.ToString("O"));
+                command.Parameters.AddWithValue("@file_hash", fileHash);
+                command.Parameters.AddWithValue("@file_modified", lastModified.ToString("O"));
+                command.Parameters.AddWithValue("@file_size", fileInfo.Length);
+
+                await command.ExecuteNonQueryAsync();
             }
 
-            _logger?.LogDebug("Processing file {FilePath} - detected changes or new file", filePath);
+            // Update file metadata table for quick future lookups
+            await UpdateFileMetadataAsync(filePath, fileHash, fileInfo.Length, lastModified, chunks.Count, (SqliteTransaction)transaction);
 
-            // Compute file hash using the optimized service
-            var fileHash = await _changeDetectionService.ComputeFileHashAsync(filePath);
-            var lastModified = fileInfo.LastWriteTime;
-
-            // Remove existing chunks for this file
-            await RemoveFileChunksAsync(filePath);
-
-            var config = _config ?? ConfigurationService.LoadConfiguration(_logger);
-            var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
-
-            var insertSql = @"
-                INSERT INTO document_chunks 
-                (id, source_file, content, chunk_index, embedding, metadata, indexed_at, file_hash, file_modified, file_size)
-                VALUES (@id, @source_file, @content, @chunk_index, @embedding, @metadata, @indexed_at, @file_hash, @file_modified, @file_size)
-            ";
-
-            using var transaction = await _connection.BeginTransactionAsync();
-
-            try
-            {
-                for (int i = 0; i < chunks.Count; i++)
-                {
-                    var chunkMetadata = metadata ?? [];
-                    chunkMetadata["file_name"] = Path.GetFileName(filePath);
-                    chunkMetadata["file_extension"] = Path.GetExtension(filePath);
-                    chunkMetadata["chunk_count"] = chunks.Count;
-
-                    var embedding = await _embeddingService.GetEmbeddingAsync(chunks[i]);
-                    var embeddingBytes = EmbeddingToBytes(embedding);
-
-                    using var command = new SqliteCommand(insertSql, _connection, (SqliteTransaction)transaction);
-                    command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                    command.Parameters.AddWithValue("@source_file", filePath);
-                    command.Parameters.AddWithValue("@content", chunks[i]);
-                    command.Parameters.AddWithValue("@chunk_index", i);
-                    command.Parameters.AddWithValue("@embedding", embeddingBytes);
-                    command.Parameters.AddWithValue("@metadata", JsonSerializer.Serialize(chunkMetadata));
-                    command.Parameters.AddWithValue("@indexed_at", DateTime.UtcNow.ToString("O"));
-                    command.Parameters.AddWithValue("@file_hash", fileHash);
-                    command.Parameters.AddWithValue("@file_modified", lastModified.ToString("O"));
-                    command.Parameters.AddWithValue("@file_size", fileInfo.Length);
-
-                    await command.ExecuteNonQueryAsync();
-                }
-
-                // Update file metadata table for quick future lookups
-                await UpdateFileMetadataAsync(filePath, fileHash, fileInfo.Length, lastModified, chunks.Count, (SqliteTransaction)transaction);
-
-                await transaction.CommitAsync();
-                _logger?.LogInformation("Successfully indexed {FilePath} with {ChunkCount} chunks (hash: {Hash})", 
-                    filePath, chunks.Count, fileHash[..8]);
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            await transaction.CommitAsync();
+            _logger?.LogInformation("Successfully indexed {FilePath} with {ChunkCount} chunks (hash: {Hash})", 
+                filePath, chunks.Count, fileHash.Length >= 8 ? fileHash[..8] : fileHash);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error indexing document: {FilePath}", filePath);
+            try
+            {
+                // Only rollback if the transaction is still active
+                if (transaction.Connection != null)
+                {
+                    await transaction.RollbackAsync();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Transaction already completed, ignore rollback error
+            }
             throw;
         }
     }
@@ -296,29 +299,24 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
 
     public async Task<List<SearchResult>> SearchAsync(RagQuery query)
     {
-        try
+        var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query.Query);
+
+        var sql = @"
+            SELECT source_file, content, metadata, chunk_index, embedding
+            FROM document_chunks
+        ";
+
+        using var command = new SqliteCommand(sql, _connection);
+        var results = new List<SearchResult>();
+        using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
         {
-            var queryEmbedding = await _embeddingService.GetEmbeddingAsync(query.Query);
-            var queryBytes = EmbeddingToBytes(queryEmbedding);
+            var embeddingBytes = reader.GetFieldValue<byte[]>(4);
+            var embedding = BytesToEmbedding(embeddingBytes);
+            var similarity = EmbeddingService.CosineSimilarity(queryEmbedding, embedding);
 
-            var sql = @"
-                SELECT source_file, content, metadata, chunk_index, embedding,
-                       (SELECT AVG((e1.value - e2.value) * (e1.value - e2.value)) 
-                        FROM json_each(@query_embedding) e1 
-                        JOIN json_each(embedding) e2 ON e1.key = e2.key) as distance
-                FROM document_chunks
-                ORDER BY distance ASC
-                LIMIT @topK
-            ";
-
-            using var command = new SqliteCommand(sql, _connection);
-            command.Parameters.AddWithValue("@query_embedding", JsonSerializer.Serialize(queryEmbedding));
-            command.Parameters.AddWithValue("@topK", query.TopK);
-
-            var results = new List<SearchResult>();
-            using var reader = await command.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
+            if (similarity >= query.MinSimilarity)
             {
                 var metadataString = reader.GetString(2); // metadata
                 var metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(metadataString) ?? [];
@@ -329,21 +327,18 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
                     {
                         SourceFile = reader.GetString(0), // source_file
                         Content = reader.GetString(1), // content
-                        Embedding = BytesToEmbedding(reader.GetFieldValue<byte[]>(4)), // embedding
+                        Embedding = embedding,
                         ChunkIndex = reader.GetInt32(3), // chunk_index
                         Metadata = metadata
                     },
-                    Similarity = 1.0f - (float)reader.GetDouble(5) // distance
+                    Similarity = similarity
                 });
             }
+        }
 
-            return results;
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error searching vector store with query: {Query}", query.Query);
-            return new List<SearchResult>();
-        }
+        return [.. results
+            .OrderByDescending(r => r.Similarity)
+            .Take(query.TopK)];
     }
 
     public async Task<int> GetChunkCountAsync()
@@ -410,27 +405,54 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
         }
     }
 
-    private async Task RemoveFileChunksAsync(string filePath)
+    private async Task RemoveFileChunksAsync(string filePath, SqliteTransaction? transaction = null)
     {
+        bool shouldCommit = transaction == null;
+        SqliteTransaction? localTransaction = null;
+        
         try
         {
-            using var transaction = await _connection.BeginTransactionAsync();
+            localTransaction = transaction ?? (SqliteTransaction)await _connection.BeginTransactionAsync();
             
             var deleteChunksSql = "DELETE FROM document_chunks WHERE source_file = @file";
-            using var deleteChunksCommand = new SqliteCommand(deleteChunksSql, _connection, (SqliteTransaction)transaction);
+            using var deleteChunksCommand = new SqliteCommand(deleteChunksSql, _connection, localTransaction);
             deleteChunksCommand.Parameters.AddWithValue("@file", filePath);
             await deleteChunksCommand.ExecuteNonQueryAsync();
             
             var deleteMetadataSql = "DELETE FROM file_metadata WHERE file_path = @file";
-            using var deleteMetadataCommand = new SqliteCommand(deleteMetadataSql, _connection, (SqliteTransaction)transaction);
+            using var deleteMetadataCommand = new SqliteCommand(deleteMetadataSql, _connection, localTransaction);
             deleteMetadataCommand.Parameters.AddWithValue("@file", filePath);
             await deleteMetadataCommand.ExecuteNonQueryAsync();
             
-            await transaction.CommitAsync();
+            if (shouldCommit)
+            {
+                await localTransaction.CommitAsync();
+            }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error removing file chunks: {FilePath}", filePath);
+            
+            if (shouldCommit && localTransaction != null)
+            {
+                try
+                {
+                    await localTransaction.RollbackAsync();
+                }
+                catch
+                {
+                    // Ignore rollback errors for local transactions
+                }
+            }
+            
+            throw; // Always re-throw to let the caller handle the transaction
+        }
+        finally
+        {
+            if (shouldCommit)
+            {
+                localTransaction?.Dispose();
+            }
         }
     }
 

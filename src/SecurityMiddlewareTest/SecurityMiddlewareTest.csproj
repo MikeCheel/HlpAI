@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\HlpAI\HlpAI.csproj" />
+    <ProjectReference Include="..\HlpAI\HlpAI.csproj" />
   </ItemGroup>
 
 </Project>

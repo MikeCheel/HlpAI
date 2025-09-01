@@ -48,6 +48,53 @@
 - ✅ Zero build warnings achieved
 - ✅ All tests continue to pass (1109/1109)
 - ✅ Code maintainability improved with centralized constants
+
+### ✅ COMPLETED: Fix SqliteTransaction Rollback Error in OptimizedSqliteVectorStore
+**Status**: COMPLETED ✅  
+**Description**: Resolved InvalidOperationException "This SqliteTransaction has completed; it is no longer usable" in OptimizedSqliteVectorStore.IndexDocumentAsync method
+
+**Root Cause**: Multiple issues causing transaction state problems:
+1. `RemoveFileChunksAsync` was creating and managing its own transaction when called within an existing transaction
+2. Transaction rollback was attempted even when the transaction was already completed
+3. Test was using in-memory databases with separate connections, preventing data sharing between instances
+4. String manipulation error with short hash values in logging
+
+**Solution Implemented**:
+1. **Fixed RemoveFileChunksAsync Transaction Handling**: Modified to properly handle externally provided transactions
+   - Added `localTransaction` variable to distinguish between internal and external transactions
+   - Only commit/rollback transactions that were created internally
+   - Always re-throw exceptions to allow caller to handle them
+2. **Enhanced Transaction Rollback Safety**: Added checks to ensure transaction is still active before rollback
+   - Check `transaction.Connection != null` before attempting rollback
+   - Catch `InvalidOperationException` during rollback attempts
+3. **Fixed String Manipulation Error**: Added safe substring operation for file hash logging
+   - Changed `fileHash[..8]` to `fileHash.Length >= 8 ? fileHash[..8] : fileHash`
+4. **Fixed Test Database Sharing**: Modified `IndexDocumentAsync_ChangedFile_ShouldReindex` test
+   - Changed from in-memory database to file-based database for data sharing
+   - Added proper cleanup with delays to handle SQLite connection disposal
+
+**Results**:
+- ✅ All OptimizedSqliteVectorStore tests now pass (including previously failing IndexDocumentAsync_ChangedFile_ShouldReindex)
+- ✅ Transaction handling is now robust and safe
+- ✅ No more SqliteTransaction rollback errors
+- ✅ Proper test isolation while allowing data sharing when needed
+
+### ✅ COMPLETED: Fix Configuration Acceptance Issue
+**Status**: COMPLETED ✅  
+**Description**: Fixed issue where program would end when user pressed Enter to accept default configuration during interactive setup
+
+**Root Cause**: The directory selection prompt was using an empty string ("") as the default value in `PromptForValidatedString`, which caused the method to treat Enter presses as empty input and display "Input cannot be empty. Please try again."
+
+**Solution Implemented**:
+1. **Updated Directory Selection Logic**: Modified `InteractiveSetupAsync` in Program.cs to pass `null` instead of empty string as default value
+2. **Proper Behavior**: Now when no saved directory exists, the user must provide a directory path (no default is offered)
+3. **Preserved Last Directory Logic**: If a last directory is saved and RememberLastDirectory is enabled, user is still prompted to use it
+
+**Results**:
+- ✅ Application no longer ends when user presses Enter without saved directory
+- ✅ User is properly required to enter a directory path when none is saved
+- ✅ Last directory functionality remains intact
+- ✅ Interactive setup flow works as intended
 - ✅ Platform compatibility properly documented
 - ✅ Exception logging enhanced for better debugging
 
@@ -68,6 +115,26 @@
 - ✅ All tests continue to pass (1109/1109)
 - ✅ Test cleanup methods comply with TUnit framework rules
 - ✅ Test isolation maintained without rule violations
+
+### ✅ COMPLETED: Remove Directory Creation Functionality
+**Status**: COMPLETED ✅  
+**Description**: Updated directory validation logic to ensure paths must always exist and are never created by the application
+
+**Changes Made**:
+1. **Removed Directory Creation Logic**: Eliminated the prompt to create non-existent directories in `InteractiveSetupAsync`
+2. **Simplified Validation**: Directory paths that don't exist now simply display an error message and prompt again
+3. **Enhanced User Guidance**: Clear error message instructs users to provide existing directory paths
+
+**Solution Implemented**:
+- Modified `Program.cs` lines 516-542 to remove directory creation functionality
+- Replaced complex creation logic with simple validation and error messaging
+- Maintained quit/exit functionality for user convenience
+
+**Results**:
+- ✅ Application no longer creates directories automatically
+- ✅ Users must provide existing directory paths
+- ✅ Clear error messaging guides users to valid input
+- ✅ Simplified and more predictable behavior
 
 ## Current Implementation
 

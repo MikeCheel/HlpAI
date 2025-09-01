@@ -2,7 +2,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.Sqlite;
 using Moq;
-using Xunit;
+using TUnit.Core;
+using HlpAI.Models;
 using HlpAI.VectorStores;
 using HlpAI.Services;
 
@@ -17,7 +18,6 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
     private readonly string _testFilePath;
     private readonly string _testContent;
     private readonly float[] _testEmbedding;
-    private OptimizedSqliteVectorStore? _vectorStore;
 
     public OptimizedSqliteVectorStoreTests()
     {
@@ -43,21 +43,21 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
             _mockLogger.Object);
     }
 
-    [Fact]
+    [Test]
     public async Task IndexDocumentAsync_NewFile_ShouldIndexSuccessfully()
     {
-        // Arrange
-        _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(_testFilePath, null, null))
-            .ReturnsAsync(true);
-        _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(_testFilePath))
-            .ReturnsAsync("test-hash-123");
-
         // Create a temporary file for testing
         var tempFile = Path.GetTempFileName();
         await File.WriteAllTextAsync(tempFile, _testContent);
 
         try
         {
+            // Arrange - Set up mocks for the actual temp file path
+            _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(tempFile, null, null))
+                .ReturnsAsync(true);
+            _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(tempFile))
+                .ReturnsAsync("test-hash-123");
+
             using var vectorStore = CreateVectorStore();
 
             // Act
@@ -65,10 +65,10 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
 
             // Assert
             var chunkCount = await vectorStore.GetChunkCountAsync();
-            Assert.True(chunkCount > 0);
+            await Assert.That(chunkCount > 0).IsTrue();
 
             var indexedFiles = await vectorStore.GetIndexedFilesAsync();
-            Assert.Contains(tempFile, indexedFiles);
+            await Assert.That(indexedFiles).Contains(tempFile);
 
             _mockChangeDetectionService.Verify(x => x.HasFileChangedAsync(tempFile, null, null), Times.Once);
             _mockChangeDetectionService.Verify(x => x.ComputeFileHashAsync(tempFile), Times.Once);
@@ -80,7 +80,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task IndexDocumentAsync_UnchangedFile_ShouldSkipIndexing()
     {
         // Arrange
@@ -134,57 +134,118 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task IndexDocumentAsync_ChangedFile_ShouldReindex()
     {
         // Arrange
         var tempFile = Path.GetTempFileName();
+        var tempDbFile = Path.GetTempFileName();
         await File.WriteAllTextAsync(tempFile, _testContent);
+        int initialChunkCount;
 
         try
         {
-            using var vectorStore = CreateVectorStore();
+            // Use a file-based database so both instances can share data
+            var sharedConnectionString = $"Data Source={tempDbFile}";
+            
+            // First indexing with first vector store instance
+            using (var vectorStore1 = new OptimizedSqliteVectorStore(
+                sharedConnectionString,
+                _mockEmbeddingService.Object,
+                _mockChangeDetectionService.Object,
+                _mockLogger.Object))
+            {
+                _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(tempFile, null, null))
+                    .ReturnsAsync(true);
+                _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(tempFile))
+                    .ReturnsAsync("hash-v1");
+                _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
+                    .ReturnsAsync(_testEmbedding);
 
-            // First indexing
-            _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(tempFile, null, null))
-                .ReturnsAsync(true);
-            _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(tempFile))
-                .ReturnsAsync("hash-v1");
-
-            await vectorStore.IndexDocumentAsync(tempFile, _testContent);
-            var initialChunkCount = await vectorStore.GetChunkCountAsync();
+                await vectorStore1.IndexDocumentAsync(tempFile, _testContent);
+                initialChunkCount = await vectorStore1.GetChunkCountAsync();
+            }
 
             // Reset mocks
             _mockEmbeddingService.Reset();
             _mockChangeDetectionService.Reset();
 
-            // Setup for changed file
-            _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(tempFile, "hash-v1", It.IsAny<DateTime?>()))
-                .ReturnsAsync(true);
-            _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(tempFile))
-                .ReturnsAsync("hash-v2");
-            _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
-                .ReturnsAsync(_testEmbedding);
+            // Second indexing with new vector store instance using same database
+            using (var vectorStore2 = new OptimizedSqliteVectorStore(
+                sharedConnectionString,
+                _mockEmbeddingService.Object,
+                _mockChangeDetectionService.Object,
+                _mockLogger.Object))
+            {
+                // Setup for changed file
+                _mockChangeDetectionService.Setup(x => x.HasFileChangedAsync(tempFile, "hash-v1", It.IsAny<DateTime?>()))
+                    .ReturnsAsync(true);
+                _mockChangeDetectionService.Setup(x => x.ComputeFileHashAsync(tempFile))
+                    .ReturnsAsync("hash-v2");
+                _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
+                    .ReturnsAsync(_testEmbedding);
 
-            // Act - index the changed file
-            var newContent = _testContent + " Additional content.";
-            await vectorStore.IndexDocumentAsync(tempFile, newContent);
+                // Act - index the changed file
+                var newContent = _testContent + " Additional content.";
+                await vectorStore2.IndexDocumentAsync(tempFile, newContent);
 
-            // Assert
-            _mockChangeDetectionService.Verify(x => x.HasFileChangedAsync(tempFile, "hash-v1", It.IsAny<DateTime?>()), Times.Once);
-            _mockChangeDetectionService.Verify(x => x.ComputeFileHashAsync(tempFile), Times.Once);
-            _mockEmbeddingService.Verify(x => x.GetEmbeddingAsync(It.IsAny<string>()), Times.AtLeastOnce);
+                // Assert
+                _mockChangeDetectionService.Verify(x => x.HasFileChangedAsync(tempFile, "hash-v1", It.IsAny<DateTime?>()), Times.Once);
+                _mockChangeDetectionService.Verify(x => x.ComputeFileHashAsync(tempFile), Times.Once);
+                _mockEmbeddingService.Verify(x => x.GetEmbeddingAsync(It.IsAny<string>()), Times.AtLeastOnce);
 
-            var finalChunkCount = await vectorStore.GetChunkCountAsync();
-            Assert.True(finalChunkCount >= initialChunkCount); // Should have at least the same number of chunks
-        }
+                var finalChunkCount = await vectorStore2.GetChunkCountAsync();
+                 await Assert.That(finalChunkCount >= initialChunkCount).IsTrue(); // Should have at least the same number of chunks
+             }
+         }
         finally
         {
-            File.Delete(tempFile);
+            // Clean up temp file
+            try
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+            catch (Exception ex)
+            {
+                _mockLogger.Object?.LogWarning(ex, "Failed to delete temp file: {TempFile}", tempFile);
+            }
+
+            // Clean up database file with proper connection pool clearing
+            if (File.Exists(tempDbFile))
+            {
+                // Force garbage collection to ensure connections are disposed
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                
+                // Clear SQLite connection pools
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                
+                // Wait for file handles to be released
+                await Task.Delay(200);
+                
+                // Retry deletion with exponential backoff
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        File.Delete(tempDbFile);
+                        break;
+                    }
+                    catch (IOException) when (i < 4)
+                    {
+                        await Task.Delay(100 * (i + 1));
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                    }
+                }
+            }
         }
     }
 
-    [Fact]
+    [Test]
     public async Task BatchCheckFilesForChangesAsync_ShouldReturnCorrectResults()
     {
         // Arrange
@@ -211,11 +272,11 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         var results = await vectorStore.BatchCheckFilesForChangesAsync(filePaths);
 
         // Assert
-        Assert.Equal(expectedResults, results);
+        await Assert.That(results).IsEqualTo(expectedResults);
         _mockChangeDetectionService.Verify(x => x.BatchCheckFilesChangedAsync(filePaths, It.IsAny<Dictionary<string, FileMetadata>>()), Times.Once);
     }
 
-    [Fact]
+    [Test]
     public async Task SearchAsync_ShouldReturnResults()
     {
         // Arrange
@@ -235,14 +296,14 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
             await vectorStore.IndexDocumentAsync(tempFile, _testContent);
 
             // Act
-            var results = await vectorStore.SearchAsync("test query", 5);
+            var results = await vectorStore.SearchAsync(new RagQuery { Query = "test query", TopK = 5 });
 
             // Assert
-            Assert.NotNull(results);
+            await Assert.That(results).IsNotNull();
             var resultsList = results.ToList();
-            Assert.NotEmpty(resultsList);
-            Assert.All(resultsList, r => Assert.NotNull(r.Content));
-            Assert.All(resultsList, r => Assert.NotNull(r.Source));
+            await Assert.That(resultsList).IsNotEmpty();
+            await Assert.That(resultsList.All(r => r.Chunk.Content != null)).IsTrue();
+            await Assert.That(resultsList.All(r => r.Chunk.SourceFile != null)).IsTrue();
         }
         finally
         {
@@ -250,7 +311,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task GetChunkCountAsync_ShouldReturnCorrectCount()
     {
         // Arrange
@@ -260,10 +321,10 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         var initialCount = await vectorStore.GetChunkCountAsync();
 
         // Assert
-        Assert.Equal(0, initialCount);
+        await Assert.That(initialCount).IsEqualTo(0);
     }
 
-    [Fact]
+    [Test]
     public async Task GetIndexedFilesAsync_ShouldReturnIndexedFiles()
     {
         // Arrange
@@ -286,7 +347,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
             var indexedFiles = await vectorStore.GetIndexedFilesAsync();
 
             // Assert
-            Assert.Contains(tempFile, indexedFiles);
+            await Assert.That(indexedFiles).Contains(tempFile);
         }
         finally
         {
@@ -294,7 +355,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task ClearAsync_ShouldRemoveAllData()
     {
         // Arrange
@@ -313,17 +374,17 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
             // Index a document
             await vectorStore.IndexDocumentAsync(tempFile, _testContent);
             var countBeforeClear = await vectorStore.GetChunkCountAsync();
-            Assert.True(countBeforeClear > 0);
+            await Assert.That(countBeforeClear > 0).IsTrue();
 
             // Act
             await vectorStore.ClearAsync();
 
             // Assert
             var countAfterClear = await vectorStore.GetChunkCountAsync();
-            Assert.Equal(0, countAfterClear);
+            await Assert.That(countAfterClear).IsEqualTo(0);
 
             var filesAfterClear = await vectorStore.GetIndexedFilesAsync();
-            Assert.Empty(filesAfterClear);
+            await Assert.That(filesAfterClear).IsEmpty();
         }
         finally
         {
@@ -331,7 +392,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task IndexDocumentAsync_WithMetadata_ShouldStoreMetadata()
     {
         // Arrange
@@ -356,13 +417,13 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
             await vectorStore.IndexDocumentAsync(tempFile, _testContent, metadata);
 
             // Assert
-            var results = await vectorStore.SearchAsync("test", 1);
+            var results = await vectorStore.SearchAsync(new RagQuery { Query = "test", TopK = 1 });
             var result = results.First();
             
-            Assert.Contains("author", result.Metadata.Keys);
-            Assert.Contains("category", result.Metadata.Keys);
-            Assert.Contains("file_name", result.Metadata.Keys);
-            Assert.Contains("file_extension", result.Metadata.Keys);
+            await Assert.That(result.Chunk.Metadata.Keys).Contains("author");
+            await Assert.That(result.Chunk.Metadata.Keys).Contains("category");
+            await Assert.That(result.Chunk.Metadata.Keys).Contains("file_name");
+            await Assert.That(result.Chunk.Metadata.Keys).Contains("file_extension");
         }
         finally
         {
@@ -370,7 +431,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         }
     }
 
-    [Fact]
+    [Test]
     public async Task IndexDocumentAsync_WithError_ShouldThrowException()
     {
         // Arrange
@@ -380,19 +441,18 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         using var vectorStore = CreateVectorStore();
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => 
-            vectorStore.IndexDocumentAsync(_testFilePath, _testContent));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vectorStore.IndexDocumentAsync(_testFilePath, _testContent));
     }
 
-    [Fact]
-    public void Constructor_ShouldInitializeDatabase()
+    [Test]
+    public async Task Constructor_ShouldInitializeDatabase()
     {
         // Act & Assert - Should not throw
         using var vectorStore = CreateVectorStore();
-        Assert.NotNull(vectorStore);
+        await Assert.That(vectorStore).IsNotNull();
     }
 
-    [Fact]
+    [Test]
     public async Task SearchAsync_WithError_ShouldThrowException()
     {
         // Arrange
@@ -402,11 +462,10 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         using var vectorStore = CreateVectorStore();
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => 
-            vectorStore.SearchAsync("test query"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vectorStore.SearchAsync(new RagQuery { Query = "test query" }));
     }
 
-    [Fact]
+    [Test]
     public async Task GetChunkCountAsync_WithError_ShouldReturnZero()
     {
         // Arrange - Create a vector store with a closed connection to simulate error
@@ -417,10 +476,10 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         var count = await vectorStore.GetChunkCountAsync();
 
         // Assert
-        Assert.Equal(0, count);
+        await Assert.That(count).IsEqualTo(0);
     }
 
-    [Fact]
+    [Test]
     public async Task GetIndexedFilesAsync_WithError_ShouldReturnEmptyList()
     {
         // Arrange - Create a vector store with a closed connection to simulate error
@@ -431,11 +490,11 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         var files = await vectorStore.GetIndexedFilesAsync();
 
         // Assert
-        Assert.Empty(files);
+        await Assert.That(files).IsEmpty();
     }
 
     public void Dispose()
     {
-        _vectorStore?.Dispose();
+        // No resources to dispose
     }
 }
