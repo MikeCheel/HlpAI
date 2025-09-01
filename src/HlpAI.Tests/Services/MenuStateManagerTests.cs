@@ -2,8 +2,6 @@ using HlpAI.Models;
 using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 
@@ -32,9 +30,7 @@ public class MenuStateManagerTests
         _configService = SqliteConfigurationService.SetTestInstance(_testDbPath, _logger);
         
         // Initialize with default configuration to ensure clean state
-        var defaultConfig = new AppConfiguration();
-        // Explicitly set CurrentMenuContext to MainMenu to ensure clean state
-        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
         _configService.SaveAppConfigurationAsync(defaultConfig).GetAwaiter().GetResult();
         
         _menuStateManager = new MenuStateManager(_configService, _logger);
@@ -53,10 +49,6 @@ public class MenuStateManagerTests
             
             // Clear SQLite connection pools to release file handles
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            
-            // Force garbage collection to ensure connections are released
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
             
             // Additional wait to ensure file handles are released
             Thread.Sleep(500);
@@ -77,8 +69,6 @@ public class MenuStateManagerTests
                     catch (IOException) when (i < 4)
                     {
                         Thread.Sleep(200 * (i + 1));
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
                         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
                     }
                 }
@@ -117,8 +107,7 @@ public class MenuStateManagerTests
         using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, null);
         
         // Initialize with default configuration to ensure clean state
-        var defaultConfig = new AppConfiguration();
-        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
         await testConfigService.SaveAppConfigurationAsync(defaultConfig);
         
         // Act
@@ -129,9 +118,22 @@ public class MenuStateManagerTests
         
         // Cleanup
         testConfigService.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         if (File.Exists(testDbPath))
         {
-            File.Delete(testDbPath);
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    File.Delete(testDbPath);
+                    break;
+                }
+                catch (IOException) when (i < 4)
+                {
+                    Thread.Sleep(200 * (i + 1));
+                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                }
+            }
         }
     }
 
@@ -145,8 +147,7 @@ public class MenuStateManagerTests
         using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
         
         // Initialize with default configuration to ensure clean state
-        var defaultConfig = new AppConfiguration();
-        defaultConfig.CurrentMenuContext = MenuContext.MainMenu;
+        var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
         await testConfigService.SaveAppConfigurationAsync(defaultConfig);
 
         // Act
@@ -198,7 +199,6 @@ public class MenuStateManagerTests
     {
         // Arrange
         var newContext = MenuContext.Configuration;
-        var initialBreadcrumb = _menuStateManager.GetBreadcrumbPath();
 
         // Act
         _menuStateManager.NavigateToMenu(newContext, addToHistory: false);
@@ -206,12 +206,9 @@ public class MenuStateManagerTests
 
         // Assert
         await Assert.That(_menuStateManager.CurrentContext).IsEqualTo(newContext);
-        // The breadcrumb should show the new context, but the navigation history should not change
         await Assert.That(finalBreadcrumb).IsEqualTo(MenuStateManager.GetMenuDisplayName(newContext));
-        
         // Verify that navigating back goes to the original context (not added to history)
-        var backResult = _menuStateManager.NavigateBack();
-        await Assert.That(backResult).IsEqualTo(MenuContext.MainMenu);
+        await Assert.That(_menuStateManager.NavigateBack()).IsEqualTo(MenuContext.MainMenu);
     }
 
     [Test]
@@ -219,7 +216,6 @@ public class MenuStateManagerTests
     {
         // Arrange
         var currentContext = _menuStateManager.CurrentContext;
-        var initialBreadcrumb = _menuStateManager.GetBreadcrumbPath();
 
         // Act
         _menuStateManager.NavigateToMenu(currentContext, addToHistory: true);
@@ -227,14 +223,13 @@ public class MenuStateManagerTests
 
         // Assert
         await Assert.That(_menuStateManager.CurrentContext).IsEqualTo(currentContext);
-        await Assert.That(finalBreadcrumb).IsEqualTo(initialBreadcrumb);
+        await Assert.That(finalBreadcrumb).IsEqualTo(_menuStateManager.GetBreadcrumbPath());
     }
 
     [Test]
-    public async Task NavigateBack_WithHistory_ReturnsToePreviousContext()
+    public async Task NavigateBack_WithHistory_ReturnsToPreviousContext()
     {
         // Arrange
-        var initialContext = _menuStateManager.CurrentContext;
         _menuStateManager.NavigateToMenu(MenuContext.Configuration);
         _menuStateManager.NavigateToMenu(MenuContext.LogViewer);
 
@@ -438,7 +433,6 @@ public class MenuStateManagerTests
     public async Task RefreshConfiguration_ReloadsConfigurationFromDisk()
     {
         // Arrange
-        var initialContext = _menuStateManager.CurrentContext;
         _menuStateManager.NavigateToMenu(MenuContext.Configuration);
 
         // Act

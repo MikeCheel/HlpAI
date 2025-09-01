@@ -2,8 +2,6 @@ using HlpAI.Models;
 using HlpAI.Services;
 using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
-using TUnit.Core;
-using TUnit.Assertions;
 
 namespace HlpAI.Tests.Integration;
 

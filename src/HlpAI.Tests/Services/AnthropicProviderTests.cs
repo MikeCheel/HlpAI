@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
-using TUnit.Core;
 using HlpAI.Services;
 
 namespace HlpAI.Tests.Services;

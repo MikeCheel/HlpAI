@@ -2,8 +2,6 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Moq;
 using HlpAI.Services;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests.Services;
 

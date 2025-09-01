@@ -1,11 +1,9 @@
 using HlpAI.VectorStores;
 using HlpAI.Services;
 using HlpAI.Models;
-using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Microsoft.Data.Sqlite;
-using Moq.Protected;
 
 namespace HlpAI.Tests.VectorStores;
 

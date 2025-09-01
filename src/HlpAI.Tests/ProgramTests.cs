@@ -1,5 +1,4 @@
 using HlpAI.MCP;
-using HlpAI.Models;
 using HlpAI.Services;
 using Microsoft.Extensions.Logging;
 using Moq;

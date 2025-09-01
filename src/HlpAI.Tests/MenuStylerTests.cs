@@ -1,10 +1,3 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using TUnit.Core;
-using TUnit.Assertions;
-using HlpAI;
-
 namespace HlpAI.Tests
 {
     [NotInParallel]

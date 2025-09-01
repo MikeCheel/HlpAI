@@ -433,8 +433,6 @@ FodyWeavers.xsd
 *.msp
 
 # AI Tools
-ai-todos.md
-vibe-docs/
 .claude/
 vector.db
 vectors.db

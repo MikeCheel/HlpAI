@@ -1,16 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 using HlpAI.Services;
 using HlpAI.MCP;
 using HlpAI.Models;
-using HlpAI.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
-using TUnit.Assertions;
-using TUnit.Core;
 
 namespace HlpAI.Tests;
 
