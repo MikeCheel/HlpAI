@@ -450,6 +450,7 @@ public static class Program
 
     private sealed record SetupResult(string Directory, string Model, OperationMode Mode);
 
+    [SupportedOSPlatform("windows")]
     private static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger, SqliteConfigurationService? configService = null)
     {
         Console.WriteLine("🎯 HlpAI - Interactive Setup");
@@ -547,10 +548,20 @@ public static class Program
         Console.WriteLine($"✅ Using directory: {directory}");
         Console.WriteLine();
 
-        // Step 2: Model Selection
-        Console.WriteLine("🤖 Step 2: AI Model Selection");
-        Console.WriteLine("------------------------------");
-        var model = await SelectModelAsync(logger, config, configService);
+        // Step 2: AI Provider & Model Selection
+        Console.WriteLine("🤖 Step 2: AI Provider & Model Selection");
+        Console.WriteLine("----------------------------------------");
+        
+        // First ask about provider selection
+        var providerChanged = await SelectProviderForSetupAsync(config, configService, logger);
+        if (providerChanged == null) // User cancelled
+        {
+            Console.WriteLine("❌ Provider selection cancelled.");
+            return null;
+        }
+        
+        // Then proceed with model selection
+        var model = await SelectModelForProviderAsync(logger, config, configService);
         if (string.IsNullOrEmpty(model))
         {
             Console.WriteLine("❌ Model selection cancelled.");
@@ -6168,6 +6179,257 @@ private static Task WaitForKeyPress()
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey(true);
             }
+        }
+    }
+
+    /// <summary>
+    /// Enhanced provider selection for interactive setup - asks if user wants to use current provider or choose different one
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static async Task<bool?> SelectProviderForSetupAsync(AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    {
+        // Check if there's a current provider configured
+        if (config.LastProvider != AiProviderType.Ollama || !string.IsNullOrEmpty(config.LastModel))
+        {
+            Console.WriteLine($"Current AI Provider: {config.LastProvider}");
+            if (!string.IsNullOrEmpty(config.LastModel))
+            {
+                Console.WriteLine($"Current Model: {config.LastModel}");
+            }
+            Console.WriteLine();
+            
+            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var useCurrentProvider = await promptService.PromptYesNoDefaultYesAsync("Use current AI provider?");
+            
+            if (useCurrentProvider)
+            {
+                Console.WriteLine($"✅ Using current provider: {config.LastProvider}");
+                return false; // No change needed
+            }
+        }
+        
+        // Show provider selection menu
+        Console.WriteLine("\n✅ Available AI Providers:");
+        Console.WriteLine();
+        
+        var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
+        var providers = providerDescriptions.Keys.ToList();
+        var availabilityTasks = providers.Select(async provider => 
+        {
+            bool isAvailable = false;
+            
+            if (AiProviderFactory.RequiresApiKey(provider))
+            {
+                // For cloud providers, check if API key is stored
+                var apiKeyStorage = new SecureApiKeyStorage();
+                if (apiKeyStorage.HasApiKey(provider.ToString()))
+                {
+                    try
+                    {
+                        var apiKey = apiKeyStorage.RetrieveApiKey(provider.ToString());
+                        if (!string.IsNullOrEmpty(apiKey))
+                        {
+                            var tempProvider = AiProviderFactory.CreateProvider(
+                                provider,
+                                "default",
+                                GetProviderUrl(config, provider) ?? string.Empty,
+                                apiKey,
+                                logger,
+                                config
+                            );
+                            isAvailable = await tempProvider.IsAvailableAsync();
+                            tempProvider.Dispose();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogDebug(ex, "Failed to check availability for {Provider}: {Error}", provider, ex.Message);
+                        isAvailable = false;
+                    }
+                }
+            }
+            else
+            {
+                // For local providers, check availability normally
+                try
+                {
+                    var tempProvider = AiProviderFactory.CreateProvider(
+                        provider,
+                        "default",
+                        GetProviderUrl(config, provider) ?? string.Empty,
+                        logger,
+                        config
+                    );
+                    isAvailable = await tempProvider.IsAvailableAsync();
+                    tempProvider.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogDebug(ex, "Failed to check availability for {Provider}: {Error}", provider, ex.Message);
+                    isAvailable = false;
+                }
+            }
+            
+            return new { Provider = provider, IsAvailable = isAvailable };
+        }).ToArray();
+        
+        var availabilityResults = await Task.WhenAll(availabilityTasks);
+        
+        for (int i = 0; i < providers.Count; i++)
+        {
+            var provider = providers[i];
+            var result = availabilityResults.First(r => r.Provider == provider);
+            var status = result.IsAvailable ? "✅ Available" : "❌ Not available";
+            var currentIndicator = (provider == config.LastProvider) ? " (current)" : "";
+            Console.WriteLine($"  {i + 1}. {providerDescriptions[provider]} - {status}{currentIndicator}");
+        }
+        
+        Console.WriteLine();
+        Console.Write($"Select a provider (1-{providers.Count}, or 'q' to quit): ");
+        var input = SafePromptForString("", "b").Trim();
+        
+        if (input?.ToLower() == "q")
+        {
+            return null; // User cancelled
+        }
+        
+        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+        {
+            var selectedProvider = providers[selection - 1];
+            
+            if (selectedProvider == config.LastProvider)
+            {
+                Console.WriteLine("✅ That's already your current provider.");
+                return false; // No change needed
+            }
+            
+            // Update configuration with new provider
+            config.LastProvider = selectedProvider;
+            config.LastModel = selectedProvider switch
+            {
+                AiProviderType.Ollama => config.OllamaDefaultModel,
+                AiProviderType.LmStudio => config.LmStudioDefaultModel,
+                AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
+                AiProviderType.OpenAI => config.OpenAiDefaultModel,
+                AiProviderType.Anthropic => config.AnthropicDefaultModel,
+                AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
+                _ => "default"
+            };
+            
+            Console.WriteLine($"✅ Selected provider: {selectedProvider}");
+            return true; // Provider changed
+        }
+        
+        Console.WriteLine("❌ Invalid selection.");
+        return null; // Invalid selection, treat as cancelled
+    }
+    
+    /// <summary>
+    /// Model selection that works with the currently configured provider
+    /// </summary>
+    private static async Task<string> SelectModelForProviderAsync(ILogger logger, AppConfiguration config, SqliteConfigurationService? configService)
+    {
+        Console.WriteLine("\n🤖 Model Selection");
+        Console.WriteLine("==================");
+        
+        // Show last model if available and remember setting is enabled
+        if (config.RememberLastModel && !string.IsNullOrEmpty(config.LastModel))
+        {
+            Console.WriteLine($"💾 Last used model: {config.LastModel}");
+            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+            
+            if (useLastModel)
+            {
+                Console.WriteLine($"✅ Using model: {config.LastModel}");
+                return config.LastModel;
+            }
+            Console.WriteLine();
+        }
+        
+        // Create provider instance based on current configuration
+        using var provider = AiProviderFactory.CreateProvider(
+            config.LastProvider,
+            config.LastModel ?? "default",
+            GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+            logger,
+            config
+        );
+        
+        if (!await provider.IsAvailableAsync())
+        {
+            Console.WriteLine($"❌ {provider.ProviderName} is not available at {provider.BaseUrl}");
+            Console.WriteLine($"   Make sure {provider.ProviderName} is running and accessible.");
+            Console.WriteLine();
+            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+            return continueWithDefault ? provider.DefaultModel : "";
+        }
+        
+        var availableModels = await provider.GetModelsAsync();
+        
+        if (availableModels.Count == 0)
+        {
+            Console.WriteLine($"❌ No models found in {provider.ProviderName}.");
+            if (provider.ProviderType == AiProviderType.Ollama)
+            {
+                Console.WriteLine("   Install a model first: ollama pull llama3.2");
+            }
+            Console.WriteLine();
+            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with '{provider.DefaultModel}' anyway?");
+            return continueWithDefault ? provider.DefaultModel : "";
+        }
+        
+        Console.WriteLine($"✅ {provider.ProviderName} connected! Available models:");
+        Console.WriteLine();
+        
+        for (int i = 0; i < availableModels.Count; i++)
+        {
+            Console.WriteLine($"  {i + 1}. {availableModels[i]}");
+        }
+        
+        Console.WriteLine($"  {availableModels.Count + 1}. Enter custom model name");
+        Console.WriteLine();
+        
+        while (true)
+        {
+            Console.Write($"Select a model (1-{availableModels.Count + 1}, or 'q' to quit): ");
+            var input = SafePromptForString("", "b").Trim();
+            
+            if (input?.ToLower() == "q")
+            {
+                return "";
+            }
+            
+            if (int.TryParse(input, out int selection))
+            {
+                if (selection >= 1 && selection <= availableModels.Count)
+                {
+                    var selectedModel = availableModels[selection - 1];
+                    Console.WriteLine($"✅ Selected model: {selectedModel}");
+                    return selectedModel;
+                }
+                else if (selection == availableModels.Count + 1)
+                {
+                    using var promptService = configService != null 
+                        ? new PromptService(config, configService, logger)
+                        : new PromptService(config, logger);
+                    var customModel = promptService.PromptForValidatedString(
+                        "Enter custom model name: ", 
+                        InputValidationType.ModelName, 
+                        "", 
+                        "model name");
+                    if (!string.IsNullOrEmpty(customModel))
+                    {
+                        Console.WriteLine($"✅ Selected custom model: {customModel}");
+                        Console.WriteLine($"⚠️  Note: Make sure this model exists in {provider.ProviderName} or the application may fail.");
+                        return customModel;
+                    }
+                }
+            }
+            
+            Console.WriteLine("❌ Invalid selection. Please try again.");
         }
     }
 

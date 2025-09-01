@@ -26,19 +26,19 @@ public static class AiProviderFactory
         return providerType switch
         {
             AiProviderType.Ollama => new OllamaClient(
-                GetEffectiveUrl("http://localhost:11434"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.Ollama),
                 model,
                 logger,
                 config),
 
             AiProviderType.LmStudio => new LmStudioProvider(
-                GetEffectiveUrl("http://localhost:1234"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.LmStudio),
                 model,
                 logger,
                 config),
 
             AiProviderType.OpenWebUi => new OpenWebUiProvider(
-                GetEffectiveUrl("http://localhost:3000"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.OpenWebUi),
                 model,
                 logger,
                 config),
@@ -71,19 +71,19 @@ public static class AiProviderFactory
         return providerType switch
         {
             AiProviderType.Ollama => new OllamaClient(
-                GetEffectiveUrl("http://localhost:11434"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.Ollama),
                 model,
                 logger,
                 config),
 
             AiProviderType.LmStudio => new LmStudioProvider(
-                GetEffectiveUrl("http://localhost:1234"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.LmStudio),
                 model,
                 logger,
                 config),
 
             AiProviderType.OpenWebUi => new OpenWebUiProvider(
-                GetEffectiveUrl("http://localhost:3000"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.OpenWebUi),
                 model,
                 logger,
                 config),
@@ -91,21 +91,21 @@ public static class AiProviderFactory
             AiProviderType.OpenAI => new OpenAiProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "OpenAI provider requires an API key"),
                 model,
-                GetEffectiveUrl("https://api.openai.com"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.OpenAi),
                 logger,
                 config),
 
             AiProviderType.Anthropic => new AnthropicProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "Anthropic provider requires an API key"),
                 model,
-                GetEffectiveUrl("https://api.anthropic.com"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.Anthropic),
                 logger,
                 config),
 
             AiProviderType.DeepSeek => new DeepSeekProvider(
                 apiKey ?? throw new ArgumentNullException(nameof(apiKey), "DeepSeek provider requires an API key"),
                 model,
-                GetEffectiveUrl("https://api.deepseek.com/v1"),
+                GetEffectiveUrl(AiProviderConstants.DefaultUrls.DeepSeek),
                 logger,
                 config),
 
@@ -123,38 +123,38 @@ public static class AiProviderFactory
             AiProviderType.Ollama => new ProviderInfo(
                 "Ollama",
                 "Local model runner",
-                "http://localhost:11434",
-                "llama3.2"),
+                AiProviderConstants.DefaultUrls.Ollama,
+                AiProviderConstants.DefaultModels.Ollama),
 
             AiProviderType.LmStudio => new ProviderInfo(
                 "LM Studio",
                 "Local API server with GUI",
-                "http://localhost:1234",
-                "default"),
+                AiProviderConstants.DefaultUrls.LmStudio,
+                AiProviderConstants.DefaultModels.LmStudio),
 
             AiProviderType.OpenWebUi => new ProviderInfo(
                 "Open Web UI",
                 "Web-based model management",
-                "http://localhost:3000",
-                "default"),
+                AiProviderConstants.DefaultUrls.OpenWebUi,
+                AiProviderConstants.DefaultModels.OpenWebUi),
 
             AiProviderType.OpenAI => new ProviderInfo(
                 "OpenAI",
                 "Cloud-based AI service (GPT models)",
-                "https://api.openai.com/v1",
-                "gpt-4o-mini"),
+                AiProviderConstants.DefaultUrls.OpenAiV1,
+                AiProviderConstants.DefaultModels.OpenAi),
 
             AiProviderType.Anthropic => new ProviderInfo(
                 "Anthropic",
                 "Cloud-based AI service (Claude models)",
-                "https://api.anthropic.com/v1",
-                "claude-3-5-haiku-20241022"),
+                AiProviderConstants.DefaultUrls.AnthropicV1,
+                AiProviderConstants.DefaultModels.Anthropic),
 
             AiProviderType.DeepSeek => new ProviderInfo(
                 "DeepSeek",
                 "Cloud-based AI service",
-                "https://api.deepseek.com/v1",
-                "deepseek-chat"),
+                AiProviderConstants.DefaultUrls.DeepSeek,
+                AiProviderConstants.DefaultModels.DeepSeek),
 
             _ => throw new ArgumentException($"Unknown provider type: {providerType}")
         };
@@ -173,6 +173,20 @@ public static class AiProviderFactory
             [AiProviderType.OpenAI] = "OpenAI - Cloud-based AI service (GPT models)",
             [AiProviderType.Anthropic] = "Anthropic - Cloud-based AI service (Claude models)",
             [AiProviderType.DeepSeek] = "DeepSeek - Cloud-based AI service"
+        };
+    }
+
+    /// <summary>
+    /// Check if a provider requires an API key
+    /// </summary>
+    public static bool RequiresApiKey(AiProviderType providerType)
+    {
+        return providerType switch
+        {
+            AiProviderType.OpenAI => true,
+            AiProviderType.Anthropic => true,
+            AiProviderType.DeepSeek => true,
+            _ => false
         };
     }
 
@@ -238,13 +252,13 @@ public static class AiProviderFactory
     {
         return providerType switch
         {
-            AiProviderType.Ollama => config.OllamaDefaultModel ?? "llama3.2",
-            AiProviderType.LmStudio => config.LmStudioDefaultModel ?? "default",
-            AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel ?? "default",
-            AiProviderType.OpenAI => config.OpenAiDefaultModel ?? "gpt-4o-mini",
-            AiProviderType.Anthropic => config.AnthropicDefaultModel ?? "claude-3-5-haiku-20241022",
-            AiProviderType.DeepSeek => config.DeepSeekDefaultModel ?? "deepseek-chat",
-            _ => "default"
+            AiProviderType.Ollama => config.OllamaDefaultModel ?? AiProviderConstants.DefaultModels.Ollama,
+            AiProviderType.LmStudio => config.LmStudioDefaultModel ?? AiProviderConstants.DefaultModels.LmStudio,
+            AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel ?? AiProviderConstants.DefaultModels.OpenWebUi,
+            AiProviderType.OpenAI => config.OpenAiDefaultModel ?? AiProviderConstants.DefaultModels.OpenAi,
+            AiProviderType.Anthropic => config.AnthropicDefaultModel ?? AiProviderConstants.DefaultModels.Anthropic,
+            AiProviderType.DeepSeek => config.DeepSeekDefaultModel ?? AiProviderConstants.DefaultModels.DeepSeek,
+            _ => AiProviderConstants.DefaultModels.LmStudio
         };
     }
 

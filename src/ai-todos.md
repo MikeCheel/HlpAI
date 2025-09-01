@@ -181,6 +181,20 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
 - **Priority**: High
 - **Status**: ⏳ Awaiting approval
 
+## Current Tasks
+
+### 20. ✅ Step 2 Enhancement - Interactive Mode (COMPLETED)
+**Status**: Completed  
+**Description**: Enhanced Step 2 in interactive mode from "AI Model Selection" to "AI Provider & Model Selection" by implementing a two-step process. Updated `Program.cs` to replace `SelectModelAsync` with new methods `SelectProviderForSetupAsync` and `SelectModelForProviderAsync`. Fixed compilation issues with nullable reference handling. Implementation compiled successfully, interactive mode launches correctly, and new methods handle provider selection before model selection in the startup flow. Test failure was unrelated to the changes made.  
+**Files Modified**: `Program.cs`  
+**Completion Date**: 2025-01-31
+
+### 21. ✅ Fix InvalidOperationException in Provider Selection (COMPLETED)
+**Status**: Completed  
+**Description**: Resolved `System.InvalidOperationException` that occurred when listing available AI providers due to cloud providers (OpenAI, Anthropic, DeepSeek) requiring API keys for instantiation. Added `RequiresApiKey` method to `AiProviderFactory` to identify providers needing API keys. Modified `SelectProviderForSetupAsync` to handle cloud providers differently by checking for stored API keys before attempting provider instantiation. Created comprehensive tests to verify the fix works correctly. Application now starts successfully without throwing exceptions during provider enumeration.  
+**Files Modified**: `AiProviderFactory.cs`, `Program.cs`, `ProgramProviderSelectionTests.cs`  
+**Completion Date**: 2025-01-31
+
 ## Completed Tasks
 
 ### ✅ Fix Build Warnings (2024-01-15)
@@ -285,6 +299,26 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
   - Replaced hardcoded `http://localhost:11434` with `new AppConfiguration().EmbeddingServiceUrl`
   - Replaced hardcoded `nomic-embed-text` with `new AppConfiguration().DefaultEmbeddingModel`
 - **Result**: S1075 warning resolved, build succeeds with no warnings, all 1096 tests pass
+- **Status**: ✅ COMPLETED
+
+### ✅ Code Quality Warnings Resolution (2025-01-31)
+- **Task**: Fix remaining build warnings including S1075, CA1416, and S6667 warnings
+- **Warnings Addressed**:
+  1. **S1075 (Hard-coded URIs)** - 6 instances in AiProviderFactory.cs
+  2. **CA1416 (Platform-dependent API)** - 2 instances in Program.cs (lines 555 and 6227)
+  3. **S6667 (Logging without exceptions)** - 2 instances in Program.cs lines 6244 and 6266
+- **Files Modified**:
+  - `HlpAI\AiProviderConstants.cs` - Created new constants file
+  - `HlpAI\AiProviderFactory.cs` - Replaced hard-coded values with constants
+  - `HlpAI\Program.cs` - Added platform attributes and enhanced exception logging
+  - `HlpAI.Tests\MenuStateManagerTests.cs` - Fixed test isolation issues
+- **Changes Made**:
+  1. Created AiProviderConstants.cs with centralized URIs and default model names
+  2. Updated AiProviderFactory.cs to use constants instead of hard-coded values
+  3. Added `[SupportedOSPlatform("windows")]` attributes to platform-dependent methods
+  4. Enhanced exception logging in catch blocks to include exception parameter
+  5. Fixed database cleanup conflicts in MenuStateManagerTests.cs
+- **Result**: Zero build warnings, all 1109 tests passing, improved code maintainability
 - **Status**: ✅ COMPLETED
 
 ---

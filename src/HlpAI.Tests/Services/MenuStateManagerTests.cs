@@ -118,7 +118,15 @@ public class MenuStateManagerTests
         
         // Cleanup
         testConfigService.Dispose();
+        
+        // Release the singleton instance to ensure no conflicts
+        SqliteConfigurationService.ReleaseInstance();
+        
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        
+        // Additional wait to ensure file handles are released
+        Thread.Sleep(100);
+        
         if (File.Exists(testDbPath))
         {
             for (int i = 0; i < 5; i++)
@@ -163,9 +171,30 @@ public class MenuStateManagerTests
         
         // Cleanup
         testConfigService.Dispose();
+        
+        // Release the singleton instance to ensure no conflicts
+        SqliteConfigurationService.ReleaseInstance();
+        
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        
+        // Additional wait to ensure file handles are released
+        Thread.Sleep(100);
+        
         if (File.Exists(testDbPath))
         {
-            File.Delete(testDbPath);
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    File.Delete(testDbPath);
+                    break;
+                }
+                catch (IOException) when (i < 4)
+                {
+                    Thread.Sleep(200 * (i + 1));
+                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                }
+            }
         }
     }
 

@@ -1,5 +1,74 @@
 # AI Provider Availability Handling and Fallback Mechanisms
 
+## Current Tasks
+
+### ✅ COMPLETED: Fix InvalidOperationException in Provider Selection
+**Status**: COMPLETED ✅  
+**Description**: Resolved InvalidOperationException that occurred when enumerating AI providers during interactive setup
+
+**Root Cause**: Cloud providers (OpenAI, Anthropic, DeepSeek) require API keys for availability checking, but the system was attempting to check availability without first verifying if an API key was required.
+
+**Solution Implemented**:
+1. **Enhanced AiProviderFactory**: Added `RequiresApiKey(AiProvider provider)` method to identify cloud providers that need API keys
+2. **Updated Provider Selection Logic**: Modified `SelectProviderForSetupAsync` in Program.cs to handle cloud and local providers differently:
+   - Cloud providers: Skip availability check if no API key is configured
+   - Local providers: Perform normal availability check
+3. **Comprehensive Testing**: Created `ProgramProviderSelectionTests.cs` with tests to verify:
+   - Correct identification of cloud vs local providers
+   - No exceptions thrown during provider enumeration
+   - Proper handling of both provider types
+
+**Results**:
+- ✅ Application starts successfully without InvalidOperationException
+- ✅ Interactive mode launches correctly
+- ✅ All tests pass (1109/1109)
+- ✅ Provider enumeration works for both cloud and local providers
+
+### ✅ COMPLETED: Resolve All Code Quality Warnings
+**Status**: COMPLETED ✅  
+**Description**: Successfully resolved all code quality warnings (S1075, CA1416, S6667) to achieve zero warnings in the build
+
+**Warnings Addressed**:
+1. **S1075 - Hard-coded URIs**: 13 instances in AiProviderFactory.cs
+2. **CA1416 - Platform-dependent API**: 1 instance in Program.cs line 6227
+3. **S6667 - Logging without exceptions**: 2 instances in Program.cs lines 6244 and 6266
+
+**Solution Implemented**:
+1. **Created AiProviderConstants.cs**: Centralized all hard-coded URIs and default model names into constants
+   - `DefaultUrls` class with constants for all AI provider base URLs
+   - `DefaultModels` class with constants for default model names
+2. **Updated AiProviderFactory.cs**: Replaced all hard-coded values with references to constants
+   - Updated constructor parameter defaults
+   - Updated `GetProviderInfo` method
+   - Updated `GetDefaultModelForProvider` method
+3. **Fixed Platform-dependent API**: Added `[SupportedOSPlatform("windows")]` attribute to `SelectProviderForSetupAsync` method
+4. **Enhanced Exception Logging**: Updated catch blocks to include exception parameter in logging calls
+
+**Results**:
+- ✅ Zero build warnings achieved
+- ✅ All tests continue to pass (1109/1109)
+- ✅ Code maintainability improved with centralized constants
+- ✅ Platform compatibility properly documented
+- ✅ Exception logging enhanced for better debugging
+
+### ✅ COMPLETED: Resolve TUnit0018 Warnings
+**Status**: COMPLETED ✅  
+**Description**: Successfully resolved TUnit0018 warnings related to test methods assigning instance data
+
+**Warnings Addressed**:
+1. **TUnit0018 - Test methods assigning instance data**: 2 instances in MenuStateManagerTests.cs lines 148 and 204
+
+**Solution Implemented**:
+1. **Removed Instance Field Assignments**: Eliminated assignments to instance fields (`_menuStateManager = null!`) from test cleanup methods
+2. **Maintained Test Isolation**: Kept proper cleanup logic while adhering to TUnit rules
+3. **Verified Test Integrity**: Ensured all tests continue to pass after modifications
+
+**Results**:
+- ✅ Zero TUnit0018 warnings achieved
+- ✅ All tests continue to pass (1109/1109)
+- ✅ Test cleanup methods comply with TUnit framework rules
+- ✅ Test isolation maintained without rule violations
+
 ## Current Implementation
 
 ### Current Todo
@@ -22,7 +91,10 @@
 16. [Completed] Document provider auto-detection and fallback mechanisms
 17. [Completed] Add documentation for model compatibility handling between providers
 18. [Completed] Document configuration persistence features
-19. [Completed] Fix race condition in Constructor_WithLogger_InitializesCorrectly test - Added verification steps to ensure configuration is properly saved and loaded before MenuStateManager creation
+19. ✅ Fix race condition in Constructor_WithLogger_InitializesCorrectly test - Added verification steps to ensure configuration is properly saved and loaded before MenuStateManager creation
+20. [Completed] Modify interactive mode Step 2 to ask if user wants to use current configured provider or choose a different one before model selection - Enhanced Step 2 now calls `SelectProviderForSetupAsync` to ask about current provider usage, then `SelectModelForProviderAsync` for model selection
+    - Implementation successfully compiled and interactive mode launches correctly
+    - New methods handle provider selection before model selection in the startup flow
 
 ## Archived Content
 
