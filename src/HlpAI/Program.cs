@@ -532,7 +532,7 @@ public static class Program
         Console.WriteLine("----------------------------------------");
         
         // First ask about provider selection
-        var providerChanged = await SelectProviderForSetupAsync(config, configService, logger);
+        var providerChanged = await SelectProviderForSetupAsync(config, configService, logger, hasParentMenu: false);
         if (providerChanged == null) // User cancelled
         {
             Console.WriteLine("❌ Provider selection cancelled.");
@@ -1621,9 +1621,17 @@ public static class Program
             }
             
             Console.WriteLine($"{models.Count + 1}. Enter custom model name");
+            Console.WriteLine("b. Back to configuration menu");
             Console.WriteLine();
             
-            var input = SafePromptForString($"Select model (1-{models.Count + 1}): ", "1").Trim();
+            var input = SafePromptForString($"Select model (1-{models.Count + 1}, b): ", "1").Trim();
+            
+            // Handle 'b' or 'back' input for navigation
+            if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || 
+                string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+            {
+                return; // Return to parent menu
+            }
             
             if (int.TryParse(input, out int selection))
             {
@@ -1635,11 +1643,11 @@ public static class Program
                 else if (selection == models.Count + 1)
                 {
                     if (configService == null)
-        {
-            logger?.LogError("Configuration service is not available");
-            return;
-        }
-        using var promptService = new PromptService(configService, logger);
+                    {
+                        logger?.LogError("Configuration service is not available");
+                        return;
+                    }
+                    using var promptService = new PromptService(configService, logger);
                     var customModel = promptService.PromptForValidatedString(
                         "Enter custom model name: ", 
                         InputValidationType.ModelName, 
@@ -1657,7 +1665,7 @@ public static class Program
             }
             else
             {
-                Console.WriteLine("❌ Invalid input. Please enter a number.");
+                Console.WriteLine("❌ Invalid input. Please enter a number or 'b' to go back.");
             }
             
             provider.Dispose();
@@ -6291,7 +6299,7 @@ private static Task WaitForKeyPress()
     /// Enhanced provider selection for interactive setup - asks if user wants to use current provider or choose different one
     /// </summary>
     [SupportedOSPlatform("windows")]
-    private static async Task<bool?> SelectProviderForSetupAsync(AppConfiguration config, SqliteConfigurationService? configService, ILogger logger)
+    private static async Task<bool?> SelectProviderForSetupAsync(AppConfiguration config, SqliteConfigurationService? configService, ILogger logger, bool hasParentMenu = false)
     {
         // Check if there's a current provider configured
         if (config.LastProvider != AiProviderType.Ollama || !string.IsNullOrEmpty(config.LastModel))
@@ -6342,12 +6350,39 @@ private static Task WaitForKeyPress()
         Console.WriteLine();
         Console.WriteLine($"  {providers.Count + 1}. 🔧 Configure a provider (set API keys, URLs, etc.)");
         Console.WriteLine();
-        Console.Write($"Select an option (1-{providers.Count + 1}, 'q' to quit, or 'b' to go back): ");
-        var input = SafePromptForString("", "b").Trim();
         
-        if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
+        string prompt;
+        string defaultValue;
+        if (hasParentMenu)
+        {
+            prompt = $"Select an option (1-{providers.Count + 1}, 'q' to quit, or 'b' to go back): ";
+            defaultValue = "b";
+        }
+        else
+        {
+            prompt = $"Select an option (1-{providers.Count + 1}, or 'q' to quit): ";
+            defaultValue = "q";
+        }
+        
+        Console.Write(prompt);
+        var input = SafePromptForString("", defaultValue).Trim();
+        
+        if (input?.ToLower() == "q")
         {
             return null; // User cancelled
+        }
+        
+        if (hasParentMenu && (input?.ToLower() == "b" || input?.ToLower() == "back"))
+        {
+            return null; // User cancelled - go back to parent menu
+        }
+        
+        // If no parent menu and user tries to go back, treat as invalid input
+        if (!hasParentMenu && (input?.ToLower() == "b" || input?.ToLower() == "back"))
+        {
+            Console.WriteLine("❌ Invalid option. There is no parent menu to go back to.");
+            await Task.Delay(1500);
+            return await SelectProviderForSetupAsync(config, configService, logger, hasParentMenu);
         }
         
         if (int.TryParse(input, out int selection))
@@ -6405,7 +6440,7 @@ private static Task WaitForKeyPress()
                         {
                             // Configuration cancelled, return to provider selection
                             Console.WriteLine("Configuration cancelled. Returning to provider selection.");
-                            return await SelectProviderForSetupAsync(config, configService, logger);
+                            return await SelectProviderForSetupAsync(config, configService, logger, hasParentMenu);
                         }
                         else
                         {
@@ -6422,7 +6457,7 @@ private static Task WaitForKeyPress()
                     {
                         // User chose not to configure, return to provider listing
                         Console.WriteLine("Returning to provider selection.");
-                        return await SelectProviderForSetupAsync(config, configService, logger);
+                        return await SelectProviderForSetupAsync(config, configService, logger, hasParentMenu);
                     }
                 }
                 

@@ -103,6 +103,15 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
 
 ## Pending Tasks
 
+### ✅ Fix Model Selection Menu 'b' and 'back' Options (2025-01-31)
+- **Task**: Model selection menu still shows 'b' and 'back' behavior when selecting models, causing crashes on invalid options
+- **Scope**: Despite previous fixes, the application still exhibited problematic 'b' and 'go back' behavior during model selection and crashes when invalid options are selected. Fixed remaining instances.
+- **Priority**: High
+- **Status**: ✅ COMPLETED
+- **Details**: Added explicit 'b. Back to configuration menu' option and proper input handling in SelectModelFromConfigMenuAsync method. All 1209 tests pass.
+- **Files Modified**: Program.cs
+- **Solution**: Enhanced SelectModelFromConfigMenuAsync to display 'b' option and handle 'b' or 'back' input for navigation back to configuration menu
+
 ### 🔧 Fix Menu System Robustness (2024-01-15)
 - **Task**: Ensure no menu option selection causes program crash or unexpected exit
 - **Scope**: Review all menu handling code to prevent crashes from invalid inputs, edge cases, or unexpected user actions
@@ -182,6 +191,25 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
 - **Status**: ⏳ Awaiting approval
 
 ## Current Tasks
+
+### In Progress
+- **Enhance Provider Configuration Prompts** - Add clearer prompts and validation for provider configuration steps to improve user experience and reduce configuration errors
+  - Status: IN PROGRESS
+  - Files: Program.cs (provider configuration methods)
+  - Next: Review and enhance all provider configuration prompts
+
+### Pending Tasks
+- **Fix Context-Aware 'b' Options** - Only display 'b' (back) options in menus when there is actually a parent menu to return to. Remove 'b' options from top-level menus and ensure proper context checking.
+  - Status: PENDING APPROVAL
+  - Priority: HIGH
+  - Scope: Update menu displays to be context-aware
+  - Files: Program.cs (all menu methods)
+  - Details: Ensure 'b (back)' is only shown when there's a parent menu to return to
+  - Analysis: Found 25+ menu locations with 'b' options that need context checking
+  - Menu Hierarchy Analysis:
+    * Top-level menus (should NOT show 'b'): SelectProviderForSetupAsync (startup flow)
+    * Sub-menus (should show 'b'): ShowConfigurationMenuAsync, SelectModelFromConfigMenuAsync, etc.
+    * Context-dependent: Some menus called from multiple contexts need conditional logic
 
 ### 20. ✅ Step 2 Enhancement - Interactive Mode (COMPLETED)
 **Status**: Completed  
