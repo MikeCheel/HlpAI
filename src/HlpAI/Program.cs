@@ -1241,12 +1241,41 @@ public static class Program
             // Create a new provider instance based on current configuration
             var providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
             var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
-            var newProvider = AiProviderFactory.CreateProvider(
-                config.LastProvider, 
-                config.LastModel ?? "default", 
-                providerUrl, 
-                logger,
-                config);
+            
+            IAiProvider newProvider;
+            
+            // Check if this is a cloud provider that requires an API key
+            if (AiProviderFactory.RequiresApiKey(config.LastProvider) && config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
+            {
+                // Retrieve API key from secure storage
+                var apiKeyStorage = new SecureApiKeyStorage(logger);
+                var apiKey = apiKeyStorage.RetrieveApiKey(config.LastProvider.ToString());
+                
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    Console.WriteLine($"No API key found for {config.LastProvider}. Please configure an API key first.");
+                    return false;
+                }
+                
+                // Create provider with API key
+                newProvider = AiProviderFactory.CreateProvider(
+                    config.LastProvider, 
+                    config.LastModel ?? "default", 
+                    providerUrl, 
+                    apiKey,
+                    logger,
+                    config);
+            }
+            else
+            {
+                // Create provider without API key (for local providers)
+                newProvider = AiProviderFactory.CreateProvider(
+                    config.LastProvider, 
+                    config.LastModel ?? "default", 
+                    providerUrl, 
+                    logger,
+                    config);
+            }
             
             // Check if the new provider is available
             if (await newProvider.IsAvailableAsync())
