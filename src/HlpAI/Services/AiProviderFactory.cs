@@ -108,7 +108,7 @@ public static class AiProviderFactory
                 config),
 
             AiProviderType.DeepSeek => new DeepSeekProvider(
-                apiKey ?? throw new ArgumentNullException(nameof(apiKey), "DeepSeek provider requires an API key"),
+                apiKey ?? string.Empty,
                 model,
                 GetEffectiveUrl(AiProviderConstants.DefaultUrls.DeepSeek),
                 logger,

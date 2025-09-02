@@ -119,7 +119,12 @@ public class MenuStateManagerTests
             
             // Initialize with default configuration to ensure clean state
             var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
-            await testConfigService.SaveAppConfigurationAsync(defaultConfig);
+            var saveResult = await testConfigService.SaveAppConfigurationAsync(defaultConfig);
+            await Assert.That(saveResult).IsTrue(); // Ensure save was successful
+            
+            // Verify the configuration was saved correctly
+            var loadedConfig = await testConfigService.LoadAppConfigurationAsync();
+            await Assert.That(loadedConfig.CurrentMenuContext).IsEqualTo(MenuContext.MainMenu);
             
             // Act
             var manager = new MenuStateManager(testConfigService, null);

@@ -16,6 +16,225 @@ public static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static PromptService? _promptService;
+    private static int _maxMenuOption = 19; // Default max option, updated dynamically in ShowMenu
+    private static readonly Dictionary<int, string> _currentMenuActions = [];
+    
+    /// <summary>
+    /// Gets the action for a given menu option number based on current context
+    /// </summary>
+    private static string? GetMenuAction(int optionNumber)
+    {
+        return _currentMenuActions.TryGetValue(optionNumber, out var action) ? action : null;
+    }
+    
+    /// <summary>
+    /// Checks if a menu option number is valid in the current context
+    /// </summary>
+    private static bool IsValidMenuOption(int optionNumber)
+    {
+        return optionNumber >= 1 && optionNumber <= _maxMenuOption;
+    }
+    
+    /// <summary>
+    /// Handles a menu option based on the current context
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static async Task<bool> HandleMenuOptionAsync(int optionNumber, EnhancedMcpRagServer? server, 
+        AppConfiguration config, SqliteConfigurationService configService, ILogger<EnhancedMcpRagServer> logger, 
+        ErrorLoggingService mainErrorLoggingService, MenuStateManager menuStateManager, 
+        string ollamaModel, OperationMode mode, bool running)
+    {
+        ClearScreen();
+        
+        // Handle fixed options (1-8) that don't change
+        switch (optionNumber)
+        {
+            case 1:
+                if (server != null) 
+                    await DemoListFiles(server);
+                else
+                {
+                    var serverError = "Server not available for list files command";
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - list files");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 2:
+                if (server != null) 
+                    await DemoReadFile(server, config, configService, logger);
+                else
+                {
+                    var serverError = "Server not available for read file command";
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - read file");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 3:
+                if (server != null) 
+                    await DemoSearchFiles(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 4:
+                if (server != null) 
+                    await DemoAskAI(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 5:
+                if (server != null) 
+                    await DemoAnalyzeFile(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 6:
+                if (server != null) 
+                    await DemoRagSearch(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 7:
+                if (server != null) 
+                    await DemoRagAsk(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 8:
+                if (server != null) 
+                    await DemoReindex(server);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            default:
+                // Handle dynamic options (9+) based on current menu context
+                var action = GetMenuAction(optionNumber);
+                if (action != null)
+                {
+                    running = await HandleDynamicMenuActionAsync(action, server, config, configService, logger, mainErrorLoggingService, menuStateManager, ollamaModel, mode, running);
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Invalid option: {optionNumber}");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+        }
+        
+        ShowMenu(); // Restore main menu after command
+        return running;
+    }
+    
+    /// <summary>
+    /// Handles dynamic menu actions based on action strings
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static async Task<bool> HandleDynamicMenuActionAsync(string action, EnhancedMcpRagServer? server, 
+        AppConfiguration _, SqliteConfigurationService __, ILogger<EnhancedMcpRagServer> logger, 
+        ErrorLoggingService ___, MenuStateManager menuStateManager, 
+        string ollamaModel, OperationMode mode, bool running)
+    {
+        switch (action)
+        {
+            case "show_models":
+                if (server?._aiProvider.SupportsDynamicModelSelection == true)
+                {
+                    await DemoShowModels(server);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Current AI provider does not support dynamic model selection.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "show_status":
+                if (server != null) 
+                    await DemoShowStatus(server);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "indexing_report":
+                if (server != null) 
+                    await DemoIndexingReport(server);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "server_mode":
+                if (server != null)
+                {
+                    await RunServerMode(server);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "change_directory":
+                if (server != null)
+                {
+                    var newServer = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
+                    if (newServer != server)
+                    {
+                        Console.WriteLine("⚠️ Directory changed. Please restart the application to use the new directory.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "configuration":
+                await ShowConfigurationMenuAsync(menuStateManager);
+                break;
+            case "log_viewer":
+                await ShowLogViewerAsync(menuStateManager);
+                break;
+            case "extractor_management":
+                await ShowExtractorManagementMenuAsync(menuStateManager);
+                break;
+            case "ai_provider":
+                await ShowAiProviderMenuAsync(menuStateManager);
+                break;
+            case "vector_database":
+                await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
+                break;
+            case "file_filtering":
+                await ShowFileFilteringManagementMenuAsync(menuStateManager);
+                break;
+            default:
+                Console.WriteLine($"❌ Unknown action: {action}");
+                WaitForUserInput("Press any key to continue...");
+                break;
+        }
+        return running;
+    }
 
     /// <summary>
     /// Safely prompts for string input with default value handling
@@ -42,7 +261,7 @@ public static class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
         
-        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var logger = loggerFactory.CreateLogger<EnhancedMcpRagServer>();
         using var configService = SqliteConfigurationService.GetInstance(logger);
 
@@ -78,6 +297,20 @@ public static class Program
             return;
         }
 
+        // Handle configuration management commands
+        if (cmdArgs.IsConfigurationManagementCommand())
+        {
+            await cmdArgs.ApplyConfigurationManagementAsync(configService);
+            return;
+        }
+
+        // Test command to set LastDirectory
+        if (args.Length > 0 && args[0] == "--test-set-last-directory")
+        {
+            await TestSetLastDirectory.SetTestDirectoryAsync();
+            return;
+        }
+
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
         {
@@ -98,6 +331,7 @@ public static class Program
             if (setupResult == null)
             {
                 Console.WriteLine("❌ Setup cancelled. Exiting.");
+                WaitForUserInput("Press any key to continue...");
                 return;
             }
             
@@ -120,6 +354,7 @@ public static class Program
                 // Log the command line error
                 using var cmdErrorLoggingService = new ErrorLoggingService(logger);
                 await cmdErrorLoggingService.LogErrorAsync($"Directory does not exist: {rootPath}", null, "Command line mode - directory validation");
+                WaitForUserInput("Press any key to continue...");
                 return;
             }
 
@@ -134,6 +369,7 @@ public static class Program
                 if (string.IsNullOrEmpty(ollamaModel))
                 {
                     Console.WriteLine("❌ No model selected. Exiting.");
+                    WaitForUserInput("Press any key to continue...");
                     return;
                 }
             }
@@ -185,115 +421,29 @@ public static class Program
                 await RestoreMenuContextAsync(startupContext, server, menuStateManager, config, logger);
             }
             
+            // Clear screen after initial configuration before showing main menu
+            ClearScreen();
+            
             // Always show menu after initialization (including after RAG indexing)
             ShowMenu();
 
             bool running = true;
             while (running)
             {
-                var input = SafePromptForString("\nEnter command (1-16, c, m, q)", "q"); // Default to quit if Enter pressed
+                var input = SafePromptForString($"\nEnter command (1-{_maxMenuOption}, c, m, q)", "q"); // Default to quit if Enter pressed
 
                 try
                 {
+                    // Handle numbered options dynamically
+                    if (int.TryParse(input, out int optionNumber) && IsValidMenuOption(optionNumber))
+                    {
+                        running = await HandleMenuOptionAsync(optionNumber, server, config, configService, logger, mainErrorLoggingService, menuStateManager, ollamaModel, mode, running);
+                        continue;
+                    }
+                    
+                    // Handle string commands
                     switch (input?.ToLower())
                     {
-                        case "1":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoListFiles(server);
-                            else
-                            {
-                                var serverError = "Server not available for list files command";
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                                await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - list files");
-                            }
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "2":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoReadFile(server, config, configService, logger);
-                            else
-                            {
-                                var serverError = "Server not available for read file command";
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                                await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - read file");
-                            }
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "3":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoSearchFiles(server, config, configService, logger);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "4":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoAskAI(server, config, configService, logger);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "5":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoAnalyzeFile(server, config, configService, logger);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "6":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoRagSearch(server, config, configService, logger);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "7":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoRagAsk(server, config, configService, logger);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "8":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoReindex(server);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "9":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoShowModels(server);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "10":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoShowStatus(server);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "12":
-                            ClearScreen();
-                            if (server != null) 
-                                await DemoIndexingReport(server);
-                            else
-                                Console.WriteLine("❌ Server not available. Please restart the application.");
-                            ShowMenu(); // Restore main menu after command
-                            break;
-                        case "13":
                         case "server":
                             ClearScreen();
                             if (server != null) 
@@ -302,75 +452,47 @@ public static class Program
                                 Console.WriteLine("❌ Server not available. Please restart the application.");
                             ShowMenu(); // Restore main menu after command
                             break;
-                        case "15":
                         case "dir":
                         case "directory":
-                            ClearScreen();
                             if (server != null)
                             {
-                                server = await ChangeDirectoryAsync(server, logger, ollamaModel, mode, config);
-                                if (server == null)
-                                    running = false;
-                                else
-                                    ShowMenu(); // Restore main menu after command
+                                var newServer = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
+                                if (newServer != server)
+                                {
+                                    Console.WriteLine("⚠️ Directory changed. Please restart the application to use the new directory.");
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine("❌ Server not available. Please restart the application.");
                             }
                             break;
-                        case "16":
                         case "config":
                         case "configuration":
-                            menuStateManager.NavigateToMenu(MenuContext.Configuration);
-                            await ShowConfigurationMenuAsync(menuStateManager, logger);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
+                            await ShowConfigurationMenuAsync(menuStateManager);
                             break;
-                        case "17":
                         case "logs":
                         case "errorlogs":
-                            menuStateManager.NavigateToMenu(MenuContext.LogViewer);
                             await ShowLogViewerAsync(menuStateManager);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "18":
                         case "extractors":
                         case "extractor-management":
-                            menuStateManager.NavigateToMenu(MenuContext.ExtractorManagement);
-                            await ShowExtractorManagementMenuAsync(menuStateManager, config, logger);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
+                            await ShowExtractorManagementMenuAsync(menuStateManager);
                             break;
-                        case "19":
                         case "ai":
                         case "ai-provider":
-                            menuStateManager.NavigateToMenu(MenuContext.AiProviderManagement);
                             await ShowAiProviderMenuAsync(menuStateManager);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "20":
                         case "vector":
                         case "vector-db":
                         case "vector-database":
-                            menuStateManager.NavigateToMenu(MenuContext.VectorDatabaseManagement);
                             await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
                             break;
-                        case "21":
                         case "filter":
                         case "filtering":
                         case "file-filter":
                         case "file-filtering":
-                            menuStateManager.NavigateToMenu(MenuContext.FileFilteringManagement);
                             await ShowFileFilteringManagementMenuAsync(menuStateManager);
-                            menuStateManager.NavigateBack();
-                            ClearScreen();
-                            ShowMenu(); // Restore main menu after sub-menu
                             break;
                         case "c":
                         case "clear":
@@ -387,6 +509,7 @@ public static class Program
                             break;
                         default:
                             Console.WriteLine("❌ Invalid command. Please try again.");
+                            WaitForUserInput("Press any key to continue...");
                             ShowMenu(); // Show menu again after invalid input
                             break;
                     }
@@ -396,6 +519,7 @@ public static class Program
                     var errorMessage = $"Interactive mode error: {ex.Message}";
                     Console.WriteLine($"Error: {ex.Message}");
                     await mainErrorLoggingService.LogErrorAsync(errorMessage, ex, $"Interactive command: {input}");
+                    WaitForUserInput("Press any key to continue...");
                 }
             }
         }
@@ -480,14 +604,27 @@ public static class Program
             Console.WriteLine($"💾 Last used directory: {config.LastDirectory}");
             if (Directory.Exists(config.LastDirectory))
             {
-                using var lastDirPromptService = new PromptService(config, sharedConfigService, logger);
-                var useLastDir = await lastDirPromptService.PromptYesNoDefaultYesAsync($"Use last directory '{config.LastDirectory}'?");
-                
-                if (useLastDir)
+                var lastDirPromptService = new PromptService(config, sharedConfigService, logger);
+                try
                 {
-                    Console.WriteLine($"✅ Using directory: {config.LastDirectory}");
-                    directory = config.LastDirectory;
-                    Console.WriteLine();
+                    var useLastDir = await lastDirPromptService.PromptYesNoDefaultYesCancellableAsync($"Use last directory '{config.LastDirectory}'?");
+                    
+                    if (useLastDir == null)
+                    {
+                        Console.WriteLine("Setup cancelled.");
+                        return null;
+                    }
+                    
+                    if (useLastDir.Value)
+                    {
+                        Console.WriteLine($"✅ Using directory: {config.LastDirectory}");
+                        directory = config.LastDirectory;
+                        Console.WriteLine();
+                    }
+                }
+                finally
+                {
+                    lastDirPromptService.Dispose();
                 }
             }
             else
@@ -500,11 +637,20 @@ public static class Program
         while (directory == null)
         {
             using var directoryPromptService = new PromptService(config, sharedConfigService, logger);
-            var input = directoryPromptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path").Trim();
+            var input = directoryPromptService.PromptForValidatedStringCancellable("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path");
+            
+            if (input == null)
+            {
+                Console.WriteLine("Setup cancelled.");
+                return null;
+            }
+            
+            input = input.Trim();
             
             if (string.IsNullOrEmpty(input))
             {
                 Console.WriteLine("❌ Directory path cannot be empty. Please try again.");
+                WaitForUserInput("Press any key to continue...");
                 continue;
             }
             
@@ -516,6 +662,7 @@ public static class Program
             if (!Directory.Exists(input))
             {
                 Console.WriteLine($"❌ Directory '{input}' does not exist. Please enter a valid existing directory path, or type 'quit' to exit.");
+                WaitForUserInput("Press any key to continue...");
                 continue;
             }
             
@@ -534,6 +681,7 @@ public static class Program
         if (providerChanged == null) // User cancelled
         {
             Console.WriteLine("❌ Provider selection cancelled.");
+            WaitForUserInput("Press any key to continue...");
             return null;
         }
         
@@ -547,12 +695,19 @@ public static class Program
             Console.WriteLine("   • Install models if using Ollama (e.g., 'ollama pull llama3.2')");
             Console.WriteLine("   • Check your API keys for cloud providers");
             Console.WriteLine("   • Verify provider configuration");
+            WaitForUserInput("Press any key to continue...");
             Console.WriteLine();
             
             using var retryPromptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var retrySetup = await retryPromptService.PromptYesNoDefaultYesAsync("Would you like to retry the setup process?");
+            var retrySetup = await retryPromptService.PromptYesNoDefaultYesCancellableAsync("Would you like to retry the setup process?");
             
-            if (retrySetup)
+            if (retrySetup == null)
+            {
+                Console.WriteLine("Setup cancelled.");
+                return null;
+            }
+            
+            if (retrySetup.Value)
             {
                 Console.WriteLine("🔄 Restarting setup process...");
                 Console.WriteLine();
@@ -640,9 +795,15 @@ public static class Program
             Console.WriteLine($"Mode: {selectedMode}");
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-            var confirmResponse = await promptService.PromptYesNoDefaultYesAsync("Continue with this configuration?");
+            var confirmResponse = await promptService.PromptYesNoDefaultYesCancellableAsync("Continue with this configuration?");
             
-            if (confirmResponse)
+            if (confirmResponse == null)
+            {
+                Console.WriteLine("Setup cancelled.");
+                return null;
+            }
+            
+            if (confirmResponse.Value)
             {
                 configurationConfirmed = true;
             }
@@ -701,6 +862,7 @@ public static class Program
                         
                     default:
                         Console.WriteLine("❌ Invalid selection. Please try again.");
+                        WaitForUserInput("Press any key to continue...");
                         break;
                 }
                 Console.WriteLine();
@@ -741,6 +903,7 @@ public static class Program
             if (string.IsNullOrEmpty(input))
             {
                 Console.WriteLine("❌ Directory path cannot be empty. Please try again.");
+                WaitForUserInput("Press any key to continue...");
                 continue;
             }
             
@@ -752,6 +915,7 @@ public static class Program
             if (!Directory.Exists(input))
             {
                 Console.WriteLine($"❌ Directory '{input}' does not exist. Please enter a valid existing directory path, or type 'quit' to exit.");
+                WaitForUserInput("Press any key to continue...");
                 continue;
             }
             
@@ -921,6 +1085,7 @@ public static class Program
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing resources for export: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
             }
         }
 
@@ -994,6 +1159,7 @@ public static class Program
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Error during export: {ex.Message}");
+            WaitForUserInput("Press any key to continue...");
         }
     }
 
@@ -1064,8 +1230,7 @@ public static class Program
             return;
         }
 
-        Console.Write("Enter additional context (optional, press Enter to skip): ");
-        var context = SafePromptForString("", "");
+        var context = SafePromptForString("Enter additional context (optional, press Enter to skip)", "");
 
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
         var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
@@ -1239,10 +1404,8 @@ public static class Program
         try
         {
             // Create a new provider instance based on current configuration
-            string? providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
+            var providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
             var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
-            
-            IAiProvider newProvider;
             
             string? apiKey = null;
             
@@ -1269,7 +1432,7 @@ public static class Program
             }
             
             // Create provider (always use the overload with apiKey parameter)
-            newProvider = AiProviderFactory.CreateProvider(
+            var newProvider = AiProviderFactory.CreateProvider(
                 config.LastProvider, 
                 config.LastModel ?? "default", 
                 providerUrl, 
@@ -1391,6 +1554,7 @@ public static class Program
                     config.LastProvider,
                     config.LastModel ?? "default",
                     AiProviderFactory.GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                    apiKey: null,
                     logger: logger,
                     config: config
                 );
@@ -1487,8 +1651,15 @@ public static class Program
                         Console.WriteLine("\n🔄 Reset Settings");
                         Console.WriteLine("==================");
                         using var resetPromptService = new PromptService(config, logger);
-                        var resetConfirm = await resetPromptService.PromptYesNoDefaultNoAsync("Are you sure you want to reset all settings to defaults?");
-                        if (resetConfirm)
+                        var resetConfirm = await resetPromptService.PromptYesNoDefaultNoCancellableAsync("Are you sure you want to reset all settings to defaults?");
+                        
+                        if (resetConfirm == null)
+                        {
+                            Console.WriteLine("❌ Reset operation cancelled.");
+                            break;
+                        }
+                        
+                        if (resetConfirm.Value)
                         {
                             // Reset configuration to defaults and save to SQLite
                             config = new AppConfiguration();
@@ -1515,8 +1686,15 @@ public static class Program
                         Console.WriteLine("\n🗑️ Delete Configuration Database");
                         Console.WriteLine("=================================");
                         using var deletePromptService = new PromptService(config, logger);
-                        var deleteConfirm = await deletePromptService.PromptYesNoDefaultNoAsync("Are you sure you want to delete the configuration database?");
-                        if (deleteConfirm)
+                        var deleteConfirm = await deletePromptService.PromptYesNoDefaultNoCancellableAsync("Are you sure you want to delete the configuration database?");
+                        
+                        if (deleteConfirm == null)
+                        {
+                            Console.WriteLine("❌ Delete operation cancelled.");
+                            break;
+                        }
+                        
+                        if (deleteConfirm.Value)
                         {
                             try
                             {
@@ -1558,6 +1736,7 @@ public static class Program
                             config.LastProvider,
                             config.LastModel ?? "default",
                             AiProviderFactory.GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                            apiKey: null,
                             logger: logger,
                             config: config
                         );
@@ -1592,6 +1771,7 @@ public static class Program
                     
                 default:
                     Console.WriteLine("❌ Invalid option. Please try again.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
             }
             
@@ -1654,6 +1834,7 @@ public static class Program
                 
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
+                WaitForUserInput("Press any key to continue...");
                 break;
         }
         
@@ -1674,6 +1855,7 @@ public static class Program
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                apiKey: null,
                 logger: null,
                 config
             );
@@ -1724,6 +1906,7 @@ public static class Program
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+                apiKey: null,
                 logger: null,
                 config
             );
@@ -1925,6 +2108,7 @@ public static class Program
                 
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
+                WaitForUserInput("Press any key to continue...");
                 break;
         }
         
@@ -2115,6 +2299,7 @@ public static class Program
                 if (string.IsNullOrEmpty(testPath))
                 {
                     Console.WriteLine("❌ No path configured to test.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
                 }
                 
@@ -2167,6 +2352,7 @@ public static class Program
                 
             default:
                 Console.WriteLine("❌ Invalid option. Please try again.");
+                WaitForUserInput("Press any key to continue...");
                 break;
         }
         
@@ -2436,6 +2622,7 @@ public static class Program
                     break;
                 default:
                     Console.WriteLine("❌ Invalid option. Please try again.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
             }
             
@@ -2564,6 +2751,7 @@ public static class Program
                     break;
                 default:
                     Console.WriteLine("❌ Invalid option. Please try again.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
             }
             
@@ -2834,9 +3022,15 @@ public static class Program
             return;
         }
         using var promptService = new PromptService(configService, logger);
-        var confirm = await promptService.PromptYesNoDefaultNoAsync("Are you sure you want to delete all error logs? This cannot be undone.");
+        var confirm = await promptService.PromptYesNoDefaultNoCancellableAsync("Are you sure you want to delete all error logs? This cannot be undone.");
         
-        if (confirm)
+        if (confirm == null)
+        {
+            Console.WriteLine("❌ Delete operation cancelled.");
+            return;
+        }
+        
+        if (confirm.Value)
         {
             var success = await loggingService.ClearAllLogsAsync();
             if (success)
@@ -3356,6 +3550,7 @@ public static class Program
                     break;
                 default:
                     Console.WriteLine("❌ Invalid option. Please try again.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
             }
             
@@ -3394,6 +3589,7 @@ public static class Program
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             Console.WriteLine("❌ No API key entered. Operation cancelled.");
+            WaitForUserInput("Press any key to continue...");
             return Task.CompletedTask;
         }
         
@@ -3796,7 +3992,7 @@ public static class Program
                         break;
                     case "q":
                     case "quit":
-                        Environment.Exit(0);
+                        running = false;
                         break;
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
@@ -3869,7 +4065,7 @@ public static class Program
                         break;
                     case "q":
                     case "quit":
-                        Environment.Exit(0);
+                        running = false;
                         break;
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
@@ -4926,6 +5122,26 @@ private static Task WaitForKeyPress()
     {
         var config = ConfigurationService.LoadConfiguration();
         
+        // Get current provider capabilities for conditional menu display
+        bool supportsDynamicModelSelection = false;
+        try
+        {
+            var providerUrl = GetProviderUrl(config, config.LastProvider);
+            using var provider = AiProviderFactory.CreateProvider(
+                config.LastProvider,
+                config.LastModel ?? "default",
+                providerUrl ?? string.Empty,
+                null,
+                null
+            );
+            supportsDynamicModelSelection = provider.SupportsDynamicModelSelection;
+        }
+        catch
+        {
+            // If provider creation fails, assume no dynamic model selection
+            supportsDynamicModelSelection = false;
+        }
+        
         // Header with styled box
         Console.WriteLine();
         MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
@@ -4958,17 +5174,51 @@ private static Task WaitForKeyPress()
         
         // System Management Section
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🛠️ System Management"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(9, "Show available models", "📊"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(10, "Display system status", "📈"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(11, "Show comprehensive indexing report", "📋"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(12, "Run as MCP server (for integration)", "🔗"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(13, "Change document directory", "📁"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(14, "Configuration settings", "⚙️"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(15, "View error logs", "📝"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(16, "File extractor management", "🔧"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(17, "AI provider management", "🤖"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(18, "Vector database management", "💾"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(19, "File filtering management", "🗂️"));
+        
+        // Dynamic numbering for context-aware menu options
+        int currentOption = 9;
+        _currentMenuActions.Clear(); // Clear previous mappings
+        
+        // Show available models - only if provider supports dynamic model selection
+        if (supportsDynamicModelSelection)
+        {
+            Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Show available models", "📊"));
+            _currentMenuActions[currentOption] = "show_models";
+            currentOption++;
+        }
+        
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Display system status", "📈"));
+        _currentMenuActions[currentOption] = "show_status";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Show comprehensive indexing report", "📋"));
+        _currentMenuActions[currentOption] = "indexing_report";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Run as MCP server (for integration)", "🔗"));
+        _currentMenuActions[currentOption] = "server_mode";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Change document directory", "📁"));
+        _currentMenuActions[currentOption] = "change_directory";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Configuration settings", "⚙️"));
+        _currentMenuActions[currentOption] = "configuration";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "View error logs", "📝"));
+        _currentMenuActions[currentOption] = "log_viewer";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "File extractor management", "🔧"));
+        _currentMenuActions[currentOption] = "extractor_management";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "AI provider management", "🤖"));
+        _currentMenuActions[currentOption] = "ai_provider_management";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Vector database management", "💾"));
+        _currentMenuActions[currentOption] = "vector_db_management";
+        currentOption++;
+        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "File filtering management", "🗂️"));
+        _currentMenuActions[currentOption] = "file_filtering_management";
+        
+        // Store the maximum option number for input validation
+        _maxMenuOption = currentOption;
         Console.WriteLine();
         
         // Quick Actions Section
@@ -5084,6 +5334,11 @@ private static Task WaitForKeyPress()
         Console.WriteLine("  --show-log-stats                       Display error log statistics");
         Console.WriteLine("  --show-recent-logs [count]             Show recent error logs (default: 10)");
         Console.WriteLine();
+        Console.WriteLine("CONFIGURATION OPTIONS:");
+        Console.WriteLine("  --show-config                          Display current application configuration");
+        Console.WriteLine("  --get-remember-last-directory          Get current RememberLastDirectory setting");
+        Console.WriteLine("  --set-remember-last-directory <value>  Set RememberLastDirectory (true/false)");
+        Console.WriteLine();
         Console.WriteLine("FILE EXPORT OPTIONS:");
         Console.WriteLine("  --export-files [output_path]          Export file list to specified path");
         Console.WriteLine("  --list-files-export [output_path]     Display and export file list");
@@ -5117,6 +5372,10 @@ private static Task WaitForKeyPress()
         Console.WriteLine("  dotnet run -- --add-file-type text:docx,rtf         # Add .docx and .rtf to text extractor");
         Console.WriteLine("  dotnet run -- --test-extraction \"C:\\test.docx\"      # Test extraction of specific file");
         Console.WriteLine("  dotnet run -- --reset-extractor text                # Reset text extractor to defaults");
+        Console.WriteLine("  dotnet run -- --show-config                         # Display current configuration");
+        Console.WriteLine("  dotnet run -- --get-remember-last-directory         # Check RememberLastDirectory setting");
+        Console.WriteLine("  dotnet run -- --set-remember-last-directory true    # Enable RememberLastDirectory");
+        Console.WriteLine("  dotnet run -- --set-remember-last-directory false   # Disable RememberLastDirectory");
         Console.WriteLine();
         Console.WriteLine("OPERATION MODES:");
         Console.WriteLine("  hybrid   - Full MCP + RAG capabilities (recommended)");
@@ -5155,6 +5414,14 @@ private static Task WaitForKeyPress()
                     return;
                 }
             }
+        }
+        
+        // Check for errors and display them
+        if (response.Error != null)
+        {
+            Console.WriteLine($"\nError: {JsonSerializer.Serialize(response.Error, JsonOptions)}");
+            WaitForUserInput("Press any key to continue...");
+            return;
         }
         
         // Fallback to JSON if plain text extraction fails
@@ -5283,6 +5550,7 @@ private static Task WaitForKeyPress()
                     break;
                 default:
                     Console.WriteLine("❌ Invalid option. Please try again.");
+                    WaitForUserInput("Press any key to continue...");
                     break;
             }
             
@@ -5492,6 +5760,7 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 GetProviderUrl(config, config.LastProvider),
+                apiKey: null,
                 logger: null,
                 config
             );
@@ -5597,6 +5866,7 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 providerUrl ?? string.Empty,
+                apiKey: null,
                 logger: null,
                 config
             );
@@ -5731,7 +6001,7 @@ private static Task WaitForKeyPress()
                         validationResult.ErrorMessage.Contains("No default model configured"))
                     {
                         using var promptService = new PromptService(config);
-                        var shouldConfigure = await promptService.PromptYesNoDefaultNoAsync(
+                        var shouldConfigure = await promptService.PromptYesNoDefaultYesAsync(
                             $"This provider is not configured. Would you like to configure it now?");
                         
                         if (shouldConfigure)
@@ -5847,6 +6117,7 @@ private static Task WaitForKeyPress()
                 config.LastProvider,
                 config.LastModel ?? "default",
                 providerUrl ?? string.Empty,
+                apiKey: null,
                 logger: null,
                 config
             );
@@ -6443,7 +6714,7 @@ private static Task WaitForKeyPress()
                         break;
                     case "q":
                     case "quit":
-                        Environment.Exit(0);
+                        running = false;
                         break;
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
@@ -6578,9 +6849,15 @@ private static Task WaitForKeyPress()
                     Console.WriteLine();
                     
                     using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                    var configureNow = await promptService.PromptYesNoDefaultYesAsync("This provider is not configured. Would you like to configure it now?");
+                    var configureNow = await promptService.PromptYesNoDefaultYesCancellableAsync("This provider is not configured. Would you like to configure it now?");
                     
-                    if (configureNow)
+                    if (configureNow == null)
+                    {
+                        Console.WriteLine("Setup cancelled.");
+                        return null;
+                    }
+                    
+                    if (configureNow.Value)
                     {
                         // Navigate to configuration for this specific provider
                         var configResult = await ConfigureSpecificProviderAsync(selectedProvider, config, configService, logger);
@@ -6610,8 +6887,13 @@ private static Task WaitForKeyPress()
                         else
                         {
                             // Configuration failed, ask if they want to continue anyway
-                            var continueAnyway = await promptService.PromptYesNoDefaultNoAsync("Configuration failed. Continue with setup anyway?");
-                            if (!continueAnyway)
+                            var continueAnyway = await promptService.PromptYesNoDefaultYesCancellableAsync("Configuration failed. Continue with setup anyway?");
+                            if (continueAnyway == null)
+                            {
+                                Console.WriteLine("Setup cancelled.");
+                                return null;
+                            }
+                            if (!continueAnyway.Value)
                             {
                                 Console.WriteLine("Setup cancelled.");
                                 return null;
@@ -6645,6 +6927,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.WriteLine("❌ Invalid selection.");
+        WaitForUserInput("Press any key to continue...");
         return null; // Invalid selection, treat as cancelled
     }
     
@@ -6693,6 +6976,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.WriteLine("❌ Invalid selection.");
+        WaitForUserInput("Press any key to continue...");
         return await ConfigureProviderAsync(config, configService, logger);
     }
     
@@ -6732,7 +7016,7 @@ private static Task WaitForKeyPress()
             Console.WriteLine();
             
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var updateKey = await promptService.PromptYesNoDefaultNoAsync("Update the existing API key?");
+            var updateKey = await promptService.PromptYesNoDefaultYesAsync("Update the existing API key?");
             
             if (!updateKey)
             {
@@ -6748,6 +7032,7 @@ private static Task WaitForKeyPress()
         if (string.IsNullOrEmpty(apiKey))
         {
             Console.WriteLine("❌ API key cannot be empty.");
+            WaitForUserInput("Press any key to continue...");
             return null;
         }
         
@@ -6757,6 +7042,7 @@ private static Task WaitForKeyPress()
             {
                 Console.WriteLine("❌ Secure API key storage is only supported on Windows.");
                 Console.WriteLine("Please set your API key as an environment variable instead.");
+                WaitForUserInput("Press any key to continue...");
                 return false;
             }
             
@@ -6862,6 +7148,7 @@ private static Task WaitForKeyPress()
                 provider,
                 "default",
                 url,
+                apiKey: null,
                 logger,
                 config
             );
@@ -6918,6 +7205,7 @@ private static Task WaitForKeyPress()
             config.LastProvider,
             config.LastModel ?? "default",
             GetProviderUrl(config, config.LastProvider) ?? string.Empty,
+            apiKey: null,
             logger,
             config
         );
@@ -6945,7 +7233,7 @@ private static Task WaitForKeyPress()
             
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultNoAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
             
             if (!continueWithDefault)
             {
@@ -6984,7 +7272,7 @@ private static Task WaitForKeyPress()
             
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultNoAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
+            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
             
             if (!continueWithDefault)
             {

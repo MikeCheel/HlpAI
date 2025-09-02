@@ -242,7 +242,7 @@ public class PromptServiceTests
             var index = i;
             tasks.Add(Task.Run(async () =>
             {
-                using var service = new PromptService(_logger);
+                using var service = new PromptService(_configService, _logger);
                 await service.SetDefaultPromptBehaviorAsync(index % 2 == 0);
             }));
         }
@@ -250,7 +250,7 @@ public class PromptServiceTests
         await Task.WhenAll(tasks);
 
         // Assert
-        using var finalService = new PromptService(_logger);
+        using var finalService = new PromptService(_configService, _logger);
         var result = await finalService.GetDefaultPromptBehaviorAsync();
         
         // Result should be either true or false (not null), indicating one of the operations succeeded

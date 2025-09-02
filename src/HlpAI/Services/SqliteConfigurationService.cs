@@ -19,6 +19,9 @@ public class SqliteConfigurationService : IDisposable
     private static SqliteConfigurationService? _instance;
     private static readonly object _lock = new object();
     private static int _referenceCount = 0;
+    
+    // Semaphore to ensure thread-safe database operations
+    private static readonly SemaphoreSlim _dbSemaphore = new SemaphoreSlim(1, 1);
 
     /// <summary>
     /// Gets a shared instance of SqliteConfigurationService to prevent duplicate initialization logs
@@ -185,6 +188,7 @@ public class SqliteConfigurationService : IDisposable
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(category);
 
+        await _dbSemaphore.WaitAsync();
         try
         {
             const string sql = """
@@ -222,6 +226,10 @@ public class SqliteConfigurationService : IDisposable
             _logger?.LogError(ex, "Error setting configuration {Category}.{Key}", category, key);
             return false;
         }
+        finally
+        {
+            _dbSemaphore.Release();
+        }
     }
 
     /// <summary>
@@ -236,6 +244,7 @@ public class SqliteConfigurationService : IDisposable
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(category);
 
+        await _dbSemaphore.WaitAsync();
         try
         {
             const string sql = "SELECT value FROM configuration WHERE key = @key AND category = @category";
@@ -261,6 +270,10 @@ public class SqliteConfigurationService : IDisposable
         {
             _logger?.LogError(ex, "Error getting configuration {Category}.{Key}", category, key);
             return defaultValue;
+        }
+        finally
+        {
+            _dbSemaphore.Release();
         }
     }
 

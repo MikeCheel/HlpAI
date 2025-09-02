@@ -74,6 +74,18 @@ public class PromptService : IDisposable
     /// <returns>True if user responds with yes (or Enter when defaultToYes is true), false otherwise</returns>
     public async Task<bool> PromptYesNoAsync(string prompt, bool defaultToYes = true)
     {
+        var result = await PromptYesNoCancellableAsync(prompt, defaultToYes).ConfigureAwait(false);
+        return result ?? defaultToYes; // Convert null (cancelled) to default for backward compatibility
+    }
+
+    /// <summary>
+    /// Prompts the user for a yes/no response with configurable default, with cancellation support
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="defaultToYes">Whether to default to 'yes' when Enter is pressed</param>
+    /// <returns>True for yes, false for no, or null if cancelled</returns>
+    public async Task<bool?> PromptYesNoCancellableAsync(string prompt, bool defaultToYes = true)
+    {
         // In test environment, return the default to avoid hanging
         if (IsTestEnvironment())
         {
@@ -81,14 +93,27 @@ public class PromptService : IDisposable
         }
         
         // Get user preference for default behavior from configuration
-        var userPreference = await GetDefaultPromptBehaviorAsync();
+        var userPreference = await GetDefaultPromptBehaviorAsync().ConfigureAwait(false);
         var effectiveDefault = userPreference ?? defaultToYes;
         
         var promptSuffix = effectiveDefault ? " (Y/n, default: y)" : " (y/N, default: n)";
-        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        var cancelSuffix = " (or 'cancel'/'back'/'b' to cancel)";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         Console.Write(fullPrompt);
         var response = Console.ReadLine()?.Trim().ToLower();
+        
+        // Check for cancellation commands
+        if (!string.IsNullOrEmpty(response))
+        {
+            if (response == "cancel" || response == "back" || response == "b" || 
+                response == "quit" || response == "exit" || response == "q")
+            {
+                _logger?.LogDebug("User cancelled yes/no prompt with command: {Command}", response);
+                Console.WriteLine("❌ Operation cancelled.");
+                return null;
+            }
+        }
         
         // Handle empty response (Enter pressed)
         if (string.IsNullOrEmpty(response))
@@ -114,8 +139,8 @@ public class PromptService : IDisposable
         }
         
         // Handle invalid responses
-        Console.WriteLine($"Invalid response '{response}'. Please enter 'y' for yes or 'n' for no (or just press Enter for default).");
-        return await PromptYesNoAsync(prompt, effectiveDefault);
+        Console.WriteLine($"Invalid response '{response}'. Please enter 'y' for yes, 'n' for no, or 'cancel' to cancel (or just press Enter for default).");
+        return await PromptYesNoCancellableAsync(prompt, effectiveDefault).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -125,7 +150,7 @@ public class PromptService : IDisposable
     /// <returns>True if user responds with yes or presses Enter, false otherwise</returns>
     public async Task<bool> PromptYesNoDefaultYesAsync(string prompt)
     {
-        return await PromptYesNoAsync(prompt, true);
+        return await PromptYesNoAsync(prompt, true).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -135,7 +160,27 @@ public class PromptService : IDisposable
     /// <returns>True if user explicitly responds with yes, false otherwise</returns>
     public async Task<bool> PromptYesNoDefaultNoAsync(string prompt)
     {
-        return await PromptYesNoAsync(prompt, false);
+        return await PromptYesNoAsync(prompt, false).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Prompts the user for a yes/no response, always defaulting to 'yes' when Enter is pressed, with cancellation support
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <returns>True for yes or Enter, false for no, or null if cancelled</returns>
+    public async Task<bool?> PromptYesNoDefaultYesCancellableAsync(string prompt)
+    {
+        return await PromptYesNoCancellableAsync(prompt, true).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Prompts the user for a yes/no response, always defaulting to 'no' when Enter is pressed, with cancellation support
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <returns>True for yes, false for no or Enter, or null if cancelled</returns>
+    public async Task<bool?> PromptYesNoDefaultNoCancellableAsync(string prompt)
+    {
+        return await PromptYesNoCancellableAsync(prompt, false).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -144,7 +189,7 @@ public class PromptService : IDisposable
     /// <returns>True if configured to default to 'yes', false for 'no', null for use method default</returns>
     public async Task<bool?> GetDefaultPromptBehaviorAsync()
     {
-        var setting = await _configService.GetConfigurationAsync("default_prompt_behavior", "ui");
+        var setting = await _configService.GetConfigurationAsync("default_prompt_behavior", "ui").ConfigureAwait(false);
         
         return setting?.ToLowerInvariant() switch
         {
@@ -170,10 +215,10 @@ public class PromptService : IDisposable
         
         if (value == null)
         {
-            return await _configService.RemoveConfigurationAsync("default_prompt_behavior", "ui");
+            return await _configService.RemoveConfigurationAsync("default_prompt_behavior", "ui").ConfigureAwait(false);
         }
         
-        var result = await _configService.SetConfigurationAsync("default_prompt_behavior", value, "ui");
+        var result = await _configService.SetConfigurationAsync("default_prompt_behavior", value, "ui").ConfigureAwait(false);
         
         if (result)
         {
@@ -193,6 +238,20 @@ public class PromptService : IDisposable
     /// <returns>User input or default value, sanitized and validated</returns>
     public string PromptForString(string prompt, string? defaultValue = null, SanitizationOptions? sanitizationOptions = null, int maxLength = 1000)
     {
+        var result = PromptForStringCancellable(prompt, defaultValue, sanitizationOptions, maxLength);
+        return result ?? string.Empty; // Convert null (cancelled) to empty string for backward compatibility
+    }
+
+    /// <summary>
+    /// Prompts for string input with optional default value and input validation, with cancellation support
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="defaultValue">Default value if Enter is pressed</param>
+    /// <param name="sanitizationOptions">Options for input sanitization</param>
+    /// <param name="maxLength">Maximum allowed input length</param>
+    /// <returns>User input, default value, or null if cancelled</returns>
+    public string? PromptForStringCancellable(string prompt, string? defaultValue = null, SanitizationOptions? sanitizationOptions = null, int maxLength = 1000)
+    {
         // In test environment, return the default to avoid hanging
         if (IsTestEnvironment())
         {
@@ -200,10 +259,24 @@ public class PromptService : IDisposable
         }
         
         var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
-        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        var cancelSuffix = " (or 'cancel'/'back'/'b' to cancel)";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         Console.Write(fullPrompt);
         var response = Console.ReadLine()?.Trim();
+        
+        // Check for cancellation commands
+        if (!string.IsNullOrEmpty(response))
+        {
+            var lowerResponse = response.ToLowerInvariant();
+            if (lowerResponse == "cancel" || lowerResponse == "back" || lowerResponse == "b" || 
+                lowerResponse == "quit" || lowerResponse == "exit" || lowerResponse == "q")
+            {
+                _logger?.LogDebug("User cancelled input with command: {Command}", response);
+                Console.WriteLine("❌ Operation cancelled.");
+                return null;
+            }
+        }
         
         if (string.IsNullOrEmpty(response))
         {
@@ -224,6 +297,20 @@ public class PromptService : IDisposable
     /// <returns>Validated user input or default value</returns>
     public string PromptForValidatedString(string prompt, InputValidationType validationType, string? defaultValue = null, string? context = null)
     {
+        var result = PromptForValidatedStringCancellable(prompt, validationType, defaultValue, context);
+        return result ?? string.Empty; // Convert null (cancelled) to empty string for backward compatibility
+    }
+
+    /// <summary>
+    /// Prompts for string input with specific validation type, with cancellation support
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="validationType">Type of validation to apply</param>
+    /// <param name="defaultValue">Default value if Enter is pressed</param>
+    /// <param name="context">Context for validation (e.g., provider name for API keys)</param>
+    /// <returns>Validated user input, default value, or null if cancelled</returns>
+    public string? PromptForValidatedStringCancellable(string prompt, InputValidationType validationType, string? defaultValue = null, string? context = null)
+    {
         // In test environment, return the default to avoid hanging
         if (IsTestEnvironment())
         {
@@ -231,12 +318,26 @@ public class PromptService : IDisposable
         }
         
         var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
-        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        var cancelSuffix = " (or 'cancel'/'back'/'b' to cancel)";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         while (true)
         {
             Console.Write(fullPrompt);
             var response = Console.ReadLine()?.Trim();
+            
+            // Check for cancellation commands
+            if (!string.IsNullOrEmpty(response))
+            {
+                var lowerResponse = response.ToLowerInvariant();
+                if (lowerResponse == "cancel" || lowerResponse == "back" || lowerResponse == "b" || 
+                    lowerResponse == "quit" || lowerResponse == "exit" || lowerResponse == "q")
+                {
+                    _logger?.LogDebug("User cancelled input with command: {Command}", response);
+                    Console.WriteLine("❌ Operation cancelled.");
+                    return null;
+                }
+            }
             
             if (string.IsNullOrEmpty(response))
             {
@@ -245,7 +346,7 @@ public class PromptService : IDisposable
                     _logger?.LogDebug("User pressed Enter, using default: {Default}", defaultValue);
                     return ValidateSpecificInput(defaultValue, validationType, context);
                 }
-                Console.WriteLine("Input cannot be empty. Please try again.");
+                Console.WriteLine("Input cannot be empty. Please try again or type 'cancel' to cancel.");
                 continue;
             }
             
@@ -255,7 +356,7 @@ public class PromptService : IDisposable
                 return validatedInput;
             }
             
-            Console.WriteLine("Invalid input. Please try again.");
+            Console.WriteLine("Invalid input. Please try again or type 'cancel' to cancel.");
         }
     }
 
@@ -356,7 +457,6 @@ public class PromptService : IDisposable
     private static bool IsTestEnvironment()
     {
         return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
-               System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("dotnet") ||
                Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true);
     }

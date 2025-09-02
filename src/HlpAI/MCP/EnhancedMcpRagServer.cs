@@ -37,12 +37,23 @@ namespace HlpAI.MCP
         // Load configuration to get provider settings
         _config = ConfigurationService.LoadConfiguration(logger);
         
+        // Retrieve API key if required for cloud providers
+        string? apiKey = null;
+        if (AiProviderFactory.RequiresApiKey(_config.LastProvider))
+        {
+            if (_config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
+            {
+                var apiKeyStorage = new SecureApiKeyStorage(logger);
+                apiKey = apiKeyStorage.RetrieveApiKey(_config.LastProvider.ToString());
+            }
+        }
+        
         // Create AI provider based on configuration
         _aiProvider = AiProviderFactory.CreateProvider(
             _config.LastProvider,
             aiModel,
             GetProviderUrl(_config, _config.LastProvider),
-            null, // apiKey - will be handled by the factory method
+            apiKey,
             logger,
             _config
         );
@@ -61,12 +72,23 @@ namespace HlpAI.MCP
         _operationMode = mode;
         _config = config;
         
+        // Retrieve API key if required for cloud providers
+        string? apiKey = null;
+        if (AiProviderFactory.RequiresApiKey(_config.LastProvider))
+        {
+            if (_config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
+            {
+                var apiKeyStorage = new SecureApiKeyStorage(logger);
+                apiKey = apiKeyStorage.RetrieveApiKey(_config.LastProvider.ToString());
+            }
+        }
+        
         // Create AI provider based on configuration
         _aiProvider = AiProviderFactory.CreateProvider(
             _config.LastProvider,
             aiModel,
             GetProviderUrl(_config, _config.LastProvider),
-            null, // apiKey - will be handled by the factory method
+            apiKey,
             logger,
             _config
         );
@@ -840,7 +862,7 @@ namespace HlpAI.MCP
 
             if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
+                return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
 
             string? context = explicitContext;
@@ -970,7 +992,7 @@ namespace HlpAI.MCP
 
             if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
+                return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
 
             var analysis = await _aiProvider.GenerateAsync(prompt, context, 0.3);
@@ -1093,7 +1115,7 @@ namespace HlpAI.MCP
 
             if (!await _aiProvider.IsAvailableAsync())
             {
-                return CreateErrorResponse(request.Id, $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}");
+                return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
 
             var ragQuery = new RagQuery
@@ -1198,6 +1220,25 @@ namespace HlpAI.MCP
                     extractor?.Dispose();
                 }
                 _disposed = true;
+            }
+        }
+
+        /// <summary>
+        /// Get appropriate error message for provider unavailability based on provider type
+        /// </summary>
+        private string GetProviderUnavailableMessage()
+        {
+            var isCloudProvider = _aiProvider.ProviderType == AiProviderType.OpenAI ||
+                                 _aiProvider.ProviderType == AiProviderType.Anthropic ||
+                                 _aiProvider.ProviderType == AiProviderType.DeepSeek;
+
+            if (isCloudProvider)
+            {
+                return $"{_aiProvider.ProviderName} is not available. Please check your API key configuration and internet connection.";
+            }
+            else
+            {
+                return $"{_aiProvider.ProviderName} is not available. Please ensure the provider is running at {_aiProvider.BaseUrl}";
             }
         }
 

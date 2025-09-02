@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using HlpAI.MCP;
+using HlpAI.Services;
 using System.Runtime.Versioning;
 
 namespace HlpAI.Services;
@@ -322,6 +323,18 @@ public class CommandLineArgumentsService
                HasArgument("detect-providers") ||
                HasArgument("set-provider-url") ||
                HasArgument("set-default-model");
+    }
+
+    /// <summary>
+    /// Check if command contains only configuration management commands
+    /// </summary>
+    public bool IsConfigurationManagementCommand()
+    {
+        return HasArgument("show-config") ||
+               HasArgument("set-remember-last-directory") ||
+               HasArgument("get-remember-last-directory") ||
+               HasArgument("set-prompt-defaults") ||
+               HasArgument("get-prompt-defaults");
     }
 
     /// <summary>
@@ -1134,11 +1147,24 @@ public class CommandLineArgumentsService
                 
                 try
                 {
+                    // For cloud providers, try to load API key from secure storage
+                    string? apiKey = null;
+                    if (providerType == AiProviderType.OpenAI || 
+                        providerType == AiProviderType.Anthropic || 
+                        providerType == AiProviderType.DeepSeek)
+                    {
+                        var apiKeyStorage = new SecureApiKeyStorage();
+                        if (apiKeyStorage.HasApiKey(providerType.ToString()))
+                        {
+                            apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
+                        }
+                    }
+                    
                     var provider = AiProviderFactory.CreateProvider(
                         providerType,
                         GetDefaultModelForProvider(providerType, appConfig),
                         GetProviderUrl(appConfig, providerType),
-                        null, // apiKey - will be handled by the factory method
+                        apiKey, // Use stored API key for cloud providers
                         logger: null,
                         appConfig
                     );
@@ -1522,6 +1548,126 @@ public class CommandLineArgumentsService
 
         return result;
     }
+
+    /// <summary>
+    /// Apply configuration management from command line arguments
+    /// </summary>
+    public async Task<ConfigurationManagementResult> ApplyConfigurationManagementAsync(SqliteConfigurationService configService)
+    {
+        var result = new ConfigurationManagementResult();
+        var appConfig = await configService.LoadAppConfigurationAsync();
+
+        // Check for --show-config
+        if (HasArgument("show-config"))
+        {
+            result.ShowConfig = true;
+            
+            Console.WriteLine("\n⚙️ Current Configuration");
+            Console.WriteLine("========================");
+            Console.WriteLine($"Remember Last Directory: {appConfig.RememberLastDirectory}");
+            Console.WriteLine($"Last Directory: {appConfig.LastDirectory ?? "Not set"}");
+            Console.WriteLine($"Last Provider: {appConfig.LastProvider}");
+            Console.WriteLine($"Last Model: {appConfig.LastModel ?? "Not set"}");
+            Console.WriteLine($"Last Operation Mode: {appConfig.LastOperationMode}");
+            Console.WriteLine();
+        }
+
+        // Check for --get-remember-last-directory
+        if (HasArgument("get-remember-last-directory"))
+        {
+            result.GetRememberLastDirectory = true;
+            Console.WriteLine($"RememberLastDirectory: {appConfig.RememberLastDirectory}");
+        }
+
+        // Check for --set-remember-last-directory
+        if (HasArgument("set-remember-last-directory"))
+        {
+            var value = GetBooleanArgument("set-remember-last-directory", true);
+            appConfig.RememberLastDirectory = value;
+            result.SetRememberLastDirectory = true;
+            result.RememberLastDirectoryValue = value;
+            result.HasChanges = true;
+            
+            Console.WriteLine($"✅ RememberLastDirectory set to: {value}");
+        }
+
+        // Check for --get-prompt-defaults
+        if (HasArgument("get-prompt-defaults"))
+        {
+            using var promptService = new PromptService(configService, _logger);
+            var behavior = await promptService.GetDefaultPromptBehaviorAsync();
+            result.GetPromptDefaults = true;
+            
+            string behaviorText = behavior switch
+            {
+                true => "Always default to 'Yes'",
+                false => "Always default to 'No'", 
+                null => "Use individual prompt defaults"
+            };
+            
+            Console.WriteLine($"Default Prompt Behavior: {behaviorText}");
+        }
+
+        // Check for --set-prompt-defaults
+        if (HasArgument("set-prompt-defaults"))
+        {
+            var value = (GetArgument("set-prompt-defaults", "yes") ?? "yes").ToLowerInvariant();
+            using var promptService = new PromptService(configService, _logger);
+            
+            bool? promptBehavior = value switch
+            {
+                "yes" or "true" or "y" => true,
+                "no" or "false" or "n" => false,
+                "default" or "individual" => null,
+                _ => true // Default to yes for safe prompts
+            };
+            
+            var success = await promptService.SetDefaultPromptBehaviorAsync(promptBehavior);
+            if (success)
+            {
+                result.SetPromptDefaults = true;
+                result.PromptDefaultsValue = promptBehavior;
+                result.HasChanges = true;
+                
+                string behaviorText = promptBehavior switch
+                {
+                    true => "Always default to 'Yes'",
+                    false => "Always default to 'No'", 
+                    null => "Use individual prompt defaults"
+                };
+                
+                Console.WriteLine($"✅ Default prompt behavior set to: {behaviorText}");
+            }
+            else
+            {
+                Console.WriteLine("❌ Failed to set default prompt behavior.");
+            }
+        }
+
+        // Save changes if any
+        if (result.HasChanges)
+        {
+            await configService.SaveAppConfigurationAsync(appConfig);
+            Console.WriteLine("✅ Configuration updated successfully.");
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// Configuration management result from command line arguments
+/// </summary>
+public class ConfigurationManagementResult
+{
+    public bool ShowConfig { get; set; }
+    public bool GetRememberLastDirectory { get; set; }
+    public bool SetRememberLastDirectory { get; set; }
+    public bool RememberLastDirectoryValue { get; set; }
+    public bool GetPromptDefaults { get; set; }
+    public bool SetPromptDefaults { get; set; }
+    public bool? PromptDefaultsValue { get; set; }
+    public bool HasChanges { get; set; }
 }
 
 /// <summary>

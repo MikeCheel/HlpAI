@@ -51,19 +51,25 @@ public class DeepSeekProviderTests
     }
 
     [Test]
-    public async Task Constructor_WithNullApiKey_ThrowsArgumentException()
+    public async Task Constructor_WithNullApiKey_CreatesProvider()
     {
-        // Act & Assert
-        await Assert.That(() => new DeepSeekProvider(null!, TestModel))
-            .Throws<ArgumentException>();
+        // Act - Now allows null API key for local/testing scenarios
+        var provider = new DeepSeekProvider(null!, TestModel);
+        
+        // Assert
+        await Assert.That(provider).IsNotNull();
+        await Assert.That(provider.CurrentModel).IsEqualTo(TestModel);
     }
 
     [Test]
-    public async Task Constructor_WithEmptyApiKey_ThrowsArgumentException()
+    public async Task Constructor_WithEmptyApiKey_CreatesProvider()
     {
-        // Act & Assert
-        await Assert.That(() => new DeepSeekProvider("", TestModel))
-            .Throws<ArgumentException>();
+        // Act - Now allows empty API key for local/testing scenarios
+        var provider = new DeepSeekProvider("", TestModel);
+        
+        // Assert
+        await Assert.That(provider).IsNotNull();
+        await Assert.That(provider.CurrentModel).IsEqualTo(TestModel);
     }
 
     [Test]

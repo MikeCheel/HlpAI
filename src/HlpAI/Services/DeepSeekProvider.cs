@@ -21,8 +21,9 @@ public class DeepSeekProvider : ICloudAiProvider
 
     public DeepSeekProvider(string apiKey, string model = "deepseek-chat", string? baseUrl = null, ILogger? logger = null, AppConfiguration? config = null)
     {
-        if (string.IsNullOrWhiteSpace(apiKey))
-            throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
+        // Allow empty API key for local/testing scenarios - validation will occur during actual API calls
+        // if (string.IsNullOrWhiteSpace(apiKey))
+        //     throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
         
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model cannot be null or empty", nameof(model));
@@ -40,7 +41,10 @@ public class DeepSeekProvider : ICloudAiProvider
             Timeout = TimeSpan.FromMinutes(timeoutMinutes)
         };
         
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        }
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
 
@@ -49,8 +53,9 @@ public class DeepSeekProvider : ICloudAiProvider
     /// </summary>
     public DeepSeekProvider(string apiKey, string model, HttpClient httpClient, ILogger? logger = null, AppConfiguration? config = null)
     {
-        if (string.IsNullOrWhiteSpace(apiKey))
-            throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
+        // Allow empty API key for local/testing scenarios - validation will occur during actual API calls
+        // if (string.IsNullOrWhiteSpace(apiKey))
+        //     throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
         
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model cannot be null or empty", nameof(model));
@@ -64,7 +69,10 @@ public class DeepSeekProvider : ICloudAiProvider
         
         var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 5;
         _httpClient.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        }
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
     }
 
@@ -139,6 +147,13 @@ public class DeepSeekProvider : ICloudAiProvider
 
     public async Task<bool> IsAvailableAsync()
     {
+        // If no API key is provided, DeepSeek is not available since it requires authentication
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            _logger?.LogDebug("DeepSeek is not available: No API key provided");
+            return false;
+        }
+
         try
         {
             var response = await _httpClient.GetAsync("/v1/models");

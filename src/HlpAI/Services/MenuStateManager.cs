@@ -36,7 +36,7 @@ public class MenuStateManager
         _menuStack = new Stack<MenuContext>(_config.MenuHistory.AsEnumerable().Reverse());
         
         // Ensure main menu is always at the bottom of the stack
-        if (_menuStack.Count == 0 || _menuStack.Last() != MenuContext.MainMenu)
+        if (_menuStack.Count == 0 || _menuStack.First() != MenuContext.MainMenu)
         {
             _menuStack.Clear();
             _menuStack.Push(MenuContext.MainMenu);
