@@ -102,56 +102,87 @@ public class MenuStateManagerTests
     public async Task Constructor_WithNullLogger_InitializesCorrectly()
     {
         // Arrange
-        // Create a test configuration service with clean state
-        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_{Guid.NewGuid()}.db");
+        // Create a test configuration service with clean state using a more unique identifier
+        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_null_{Guid.NewGuid():N}_{DateTime.UtcNow.Ticks}.db");
         
-        // Ensure the database file doesn't exist before starting
-        if (File.Exists(testDbPath))
-        {
-            File.Delete(testDbPath);
-        }
-        
-        // Clear any existing singleton instance and connection pools
+        // Clear any existing singleton instance and connection pools before starting
         SqliteConfigurationService.ReleaseInstance();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        Thread.Sleep(100); // Allow time for cleanup
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        Thread.Sleep(200); // Allow time for cleanup
         
-        using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, null);
-        
-        // Initialize with default configuration to ensure clean state
-        var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
-        await testConfigService.SaveAppConfigurationAsync(defaultConfig);
-        
-        // Act
-        var manager = new MenuStateManager(testConfigService, null);
+        SqliteConfigurationService? testConfigService = null;
+        try
+        {
+            testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, null);
+            
+            // Initialize with default configuration to ensure clean state
+            var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
+            await testConfigService.SaveAppConfigurationAsync(defaultConfig);
+            
+            // Act
+            var manager = new MenuStateManager(testConfigService, null);
 
-        // Assert
-        await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
-        
-        // Cleanup
-        testConfigService.Dispose();
-        
-        // Release the singleton instance to ensure no conflicts
-        SqliteConfigurationService.ReleaseInstance();
-        
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        
-        // Additional wait to ensure file handles are released
-        Thread.Sleep(100);
-        
-        if (File.Exists(testDbPath))
+            // Assert
+            await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
+        }
+        finally
         {
-            for (int i = 0; i < 5; i++)
+            // Cleanup
+            testConfigService?.Dispose();
+            
+            // Release the singleton instance to ensure no conflicts
+            SqliteConfigurationService.ReleaseInstance();
+            
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            
+            // Additional wait to ensure file handles are released
+            Thread.Sleep(300);
+            
+            // Attempt to delete the test database file with retries
+            if (File.Exists(testDbPath))
             {
-                try
+                for (int i = 0; i < 15; i++)
                 {
-                    File.Delete(testDbPath);
-                    break;
-                }
-                catch (IOException) when (i < 4)
-                {
-                    Thread.Sleep(200 * (i + 1));
-                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                    try
+                    {
+                        // Force close any remaining connections
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        
+                        // Try to delete the file
+                        File.Delete(testDbPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 14)
+                    {
+                        // Exponential backoff with more aggressive cleanup
+                        Thread.Sleep(Math.Min(1000 * (i + 1), 5000));
+                        
+                        // Try to force unlock the file by attempting to open it exclusively
+                        try
+                        {
+                            using var fs = new FileStream(testDbPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                            fs.Close();
+                        }
+                        catch
+                        {
+                            // Ignore errors from this attempt
+                        }
+                        
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                    }
+                    catch (IOException)
+                    {
+                        // Final attempt failed, but don't throw - just leave the temp file
+                        break;
+                    }
                 }
             }
         }
@@ -162,67 +193,101 @@ public class MenuStateManagerTests
     {
         // Arrange
         var logger = new TestLogger();
-        // Create a test configuration service with clean state
-        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_logger_{Guid.NewGuid()}.db");
+        // Create a test configuration service with clean state using a more unique identifier
+        var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_logger_{Guid.NewGuid():N}_{DateTime.UtcNow.Ticks}.db");
         
-        // Ensure the database file doesn't exist before starting
-        if (File.Exists(testDbPath))
+        // Clear any existing singleton instance and connection pools before starting
+        SqliteConfigurationService.ReleaseInstance();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        Thread.Sleep(200); // Allow time for cleanup
+        
+        SqliteConfigurationService? testConfigService = null;
+        try
         {
-            File.Delete(testDbPath);
+            testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
+        
+            // Initialize with default configuration to ensure clean state
+            var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
+            var saveResult = await testConfigService.SaveAppConfigurationAsync(defaultConfig);
+            await Assert.That(saveResult).IsTrue(); // Ensure save was successful
+            
+            // Force a fresh load from the database to verify state
+            testConfigService.Dispose();
+            SqliteConfigurationService.ReleaseInstance();
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            
+            // Create a new instance to ensure we're loading from the clean database
+            using var freshConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
+            var loadedConfig = await freshConfigService.LoadAppConfigurationAsync();
+            await Assert.That(loadedConfig.CurrentMenuContext).IsEqualTo(MenuContext.MainMenu);
+
+            // Act
+            var manager = new MenuStateManager(freshConfigService, logger);
+
+            // Assert
+            await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
+            
+            // Cleanup - Dispose configuration service
+            freshConfigService?.Dispose();
         }
-        
-        // Clear any existing singleton instance and connection pools
-        SqliteConfigurationService.ReleaseInstance();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        Thread.Sleep(100); // Allow time for cleanup
-        
-        using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
-        
-        // Initialize with default configuration to ensure clean state
-        var defaultConfig = new AppConfiguration { CurrentMenuContext = MenuContext.MainMenu };
-        var saveResult = await testConfigService.SaveAppConfigurationAsync(defaultConfig);
-        await Assert.That(saveResult).IsTrue(); // Ensure save was successful
-        
-        // Force a fresh load from the database to verify state
-        testConfigService.Dispose();
-        SqliteConfigurationService.ReleaseInstance();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        
-        // Create a new instance to ensure we're loading from the clean database
-        using var freshConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, logger);
-        var loadedConfig = await freshConfigService.LoadAppConfigurationAsync();
-        await Assert.That(loadedConfig.CurrentMenuContext).IsEqualTo(MenuContext.MainMenu);
-
-        // Act
-        var manager = new MenuStateManager(freshConfigService, logger);
-
-        // Assert
-        await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
-        
-        // Cleanup - Dispose configuration service
-        freshConfigService?.Dispose();
-        
-        // Release the singleton instance to ensure no conflicts
-        SqliteConfigurationService.ReleaseInstance();
-        
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        
-        // Additional wait to ensure file handles are released
-        Thread.Sleep(200);
-        
-        if (File.Exists(testDbPath))
+        finally
         {
-            for (int i = 0; i < 5; i++)
+            // Cleanup
+            testConfigService?.Dispose();
+            
+            // Release the singleton instance to ensure no conflicts
+            SqliteConfigurationService.ReleaseInstance();
+            
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            
+            // Additional wait to ensure file handles are released
+            Thread.Sleep(300);
+            
+            // Attempt to delete the test database file with retries
+            if (File.Exists(testDbPath))
             {
-                try
+                for (int i = 0; i < 15; i++)
                 {
-                    File.Delete(testDbPath);
-                    break;
-                }
-                catch (IOException) when (i < 4)
-                {
-                    Thread.Sleep(200 * (i + 1));
-                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                    try
+                    {
+                        // Force close any remaining connections
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        
+                        // Try to delete the file
+                        File.Delete(testDbPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 14)
+                    {
+                        // Exponential backoff with more aggressive cleanup
+                        Thread.Sleep(Math.Min(1000 * (i + 1), 5000));
+                        
+                        // Try to force unlock the file by attempting to open it exclusively
+                        try
+                        {
+                            using var fs = new FileStream(testDbPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                            fs.Close();
+                        }
+                        catch
+                        {
+                            // Ignore errors from this attempt
+                        }
+                        
+                        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                    }
+                    catch (IOException)
+                    {
+                        // Final attempt failed, but don't throw - just leave the temp file
+                        break;
+                    }
                 }
             }
         }

@@ -10,7 +10,7 @@ using HlpAI.FileExtractors;
 namespace HlpAI.MCP
 {
     // Enhanced Server with RAG capabilities
-    public class EnhancedMcpRagServer : IDisposable
+    public class EnhancedMcpRagServer : IEnhancedMcpRagServer
     {
         private static readonly string[] RequiredQueryFields = ["query"];
         private static readonly string[] RequiredQuestionFields = ["question"];
@@ -99,7 +99,7 @@ namespace HlpAI.MCP
         /// Updates the AI provider instance for real-time provider switching
         /// </summary>
         /// <param name="newProvider">The new AI provider instance</param>
-        public void UpdateAiProvider(IAiProvider newProvider)
+        public virtual void UpdateAiProvider(IAiProvider newProvider)
         {
             if (newProvider == null)
             {

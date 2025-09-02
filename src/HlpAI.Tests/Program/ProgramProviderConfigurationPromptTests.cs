@@ -13,9 +13,7 @@ public class ProgramProviderConfigurationPromptTests
 {
     private readonly ILogger<ProgramProviderConfigurationPromptTests> _logger = new NullLogger<ProgramProviderConfigurationPromptTests>();
     private readonly AppConfiguration _testConfig;
-    private StringWriter _stringWriter = null!;
     private StringReader _stringReader = null!;
-    private TextWriter _originalOut;
     private TextReader _originalIn;
 
     public ProgramProviderConfigurationPromptTests()
@@ -27,22 +25,18 @@ public class ProgramProviderConfigurationPromptTests
             LastModel = "llama3.2:3b"
         };
         
-        _stringWriter = new StringWriter();
-        _originalOut = Console.Out;
         _originalIn = Console.In;
     }
 
     [Before(Test)]
     public async Task Setup()
     {
-        _stringWriter = new StringWriter();
         await Task.CompletedTask;
     }
 
     [After(Test)]
     public async Task Cleanup()
     {
-        _stringWriter?.Dispose();
         _stringReader?.Dispose();
         await Task.CompletedTask;
     }
@@ -99,7 +93,6 @@ public class ProgramProviderConfigurationPromptTests
         
         // Assert
         await Assert.That(_stringReader).IsNotNull();
-        await Assert.That(_stringWriter).IsNotNull();
     }
 
     /// <summary>

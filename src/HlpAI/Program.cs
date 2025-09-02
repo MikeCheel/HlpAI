@@ -1239,7 +1239,7 @@ public static class Program
         try
         {
             // Create a new provider instance based on current configuration
-            var providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
+            string? providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
             var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
             
             IAiProvider newProvider;

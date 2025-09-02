@@ -38,14 +38,30 @@ public class SqliteConfigurationService : IDisposable
                 // Check if the connection is still valid
                 try
                 {
-                    using var testCommand = new SqliteCommand("SELECT 1", _instance._connection);
-                    testCommand.ExecuteScalar();
+                    // First check if connection exists and is not disposed
+                    if (_instance._connection?.State == System.Data.ConnectionState.Open)
+                    {
+                        using var testCommand = new SqliteCommand("SELECT 1", _instance._connection);
+                        testCommand.ExecuteScalar();
+                    }
+                    else
+                    {
+                        // Connection is closed or null, recreate the instance
+                        throw new InvalidOperationException("Connection is not open");
+                    }
                 }
-                catch (Exception ex) when (ex is SqliteException || ex is InvalidOperationException)
+                catch (Exception ex) when (ex is SqliteException || ex is InvalidOperationException || ex is ObjectDisposedException)
                 {
                     // Connection is invalid, recreate the instance
                     logger?.LogWarning("Connection is invalid, recreating SqliteConfigurationService instance: {Message}", ex.Message);
-                    _instance.Dispose();
+                    try
+                    {
+                        _instance.Dispose();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        logger?.LogWarning("Error disposing invalid instance: {Message}", disposeEx.Message);
+                    }
                     _instance = new SqliteConfigurationService(null, logger, true);
                 }
             }
@@ -128,6 +144,13 @@ public class SqliteConfigurationService : IDisposable
             }
             
             _dbPath = Path.Combine(hlpAiDirectory, "config.db");
+        }
+        
+        // Ensure the directory exists for the database file
+        var dbDirectory = Path.GetDirectoryName(_dbPath);
+        if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+        {
+            Directory.CreateDirectory(dbDirectory);
         }
         
         // Initialize connection and database with better connection settings
