@@ -518,10 +518,8 @@ public static class Program
                 Console.WriteLine($"❌ Directory '{input}' does not exist. Please enter a valid existing directory path, or type 'quit' to exit.");
                 continue;
             }
-            else
-            {
-                directory = input;
-            }
+            
+            directory = input;
         }
 
         Console.WriteLine($"✅ Using directory: {directory}");
@@ -630,20 +628,83 @@ public static class Program
             Console.WriteLine($"✅ Selected mode: {selectedMode}");
             Console.WriteLine();
         }
-        // Summary
-        Console.WriteLine("📋 Configuration Summary");
-        Console.WriteLine("========================");
-        Console.WriteLine($"Directory: {directory}");
-        Console.WriteLine($"Model: {model}");
-        Console.WriteLine($"Mode: {selectedMode}");
-        Console.WriteLine();
-        using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-        var confirmResponse = await promptService.PromptYesNoDefaultYesAsync("Continue with this configuration?");
-        
-        if (!confirmResponse)
+        // Configuration confirmation loop
+        bool configurationConfirmed = false;
+        while (!configurationConfirmed)
         {
-            Console.WriteLine("❌ Configuration cancelled.");
-            return null;
+            // Summary
+            Console.WriteLine("📋 Configuration Summary");
+            Console.WriteLine("========================");
+            Console.WriteLine($"Directory: {directory}");
+            Console.WriteLine($"Model: {model}");
+            Console.WriteLine($"Mode: {selectedMode}");
+            Console.WriteLine();
+            using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
+            var confirmResponse = await promptService.PromptYesNoDefaultYesAsync("Continue with this configuration?");
+            
+            if (confirmResponse)
+            {
+                configurationConfirmed = true;
+            }
+            else
+            {
+                Console.WriteLine("❌ Configuration cancelled. Let's reconfigure...");
+                Console.WriteLine();
+                
+                // Ask what the user wants to reconfigure
+                Console.WriteLine("What would you like to reconfigure?");
+                Console.WriteLine("1. Document Directory");
+                Console.WriteLine("2. AI Provider & Model");
+                Console.WriteLine("3. Operation Mode");
+                Console.WriteLine("4. Start over completely");
+                Console.WriteLine("q. Quit application");
+                Console.WriteLine();
+                
+                var reconfigChoice = Console.ReadLine()?.Trim();
+                
+                if (reconfigChoice?.Equals("q", StringComparison.CurrentCultureIgnoreCase) == true ||
+                    reconfigChoice?.Equals("quit", StringComparison.CurrentCultureIgnoreCase) == true)
+                {
+                    return null;
+                }
+                
+                switch (reconfigChoice)
+                {
+                    case "1":
+                        // Reconfigure directory
+                        Console.WriteLine("📁 Reconfiguring Document Directory");
+                        Console.WriteLine("-----------------------------------");
+                        directory = await PromptForDirectoryAsync(config, logger, sharedConfigService);
+                        if (directory == null) return null;
+                        break;
+                        
+                    case "2":
+                        // Reconfigure model
+                        Console.WriteLine("🤖 Reconfiguring AI Provider & Model");
+                        Console.WriteLine("------------------------------------");
+                        model = await SelectModelAsync(logger, config, sharedConfigService);
+                        if (model == null) return null;
+                        break;
+                        
+                    case "3":
+                        // Reconfigure operation mode
+                        Console.WriteLine("⚙️ Reconfiguring Operation Mode");
+                        Console.WriteLine("-------------------------------");
+                        selectedMode = await SelectOperationModeAsync(config, logger, sharedConfigService);
+                        break;
+                        
+                    case "4":
+                        // Start over completely
+                        Console.WriteLine("🔄 Starting over completely...");
+                        Console.WriteLine();
+                        return await InteractiveSetupAsync(logger, configService);
+                        
+                    default:
+                        Console.WriteLine("❌ Invalid selection. Please try again.");
+                        break;
+                }
+                Console.WriteLine();
+            }
         }
 
         Console.WriteLine("✅ Starting application with selected configuration...");
@@ -666,6 +727,81 @@ public static class Program
         }
 
         return new SetupResult(directory, model, selectedMode);
+    }
+
+    private static Task<string?> PromptForDirectoryAsync(AppConfiguration config, ILogger logger, SqliteConfigurationService sharedConfigService)
+    {
+        string? directory = null;
+        
+        while (directory == null)
+        {
+            using var directoryPromptService = new PromptService(config, sharedConfigService, logger);
+            var input = directoryPromptService.PromptForValidatedString("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path").Trim();
+            
+            if (string.IsNullOrEmpty(input))
+            {
+                Console.WriteLine("❌ Directory path cannot be empty. Please try again.");
+                continue;
+            }
+            
+            if (input.Equals("quit", StringComparison.CurrentCultureIgnoreCase) || input.Equals("exit", StringComparison.CurrentCultureIgnoreCase))
+            {
+                return Task.FromResult<string?>(null);
+            }
+            
+            if (!Directory.Exists(input))
+            {
+                Console.WriteLine($"❌ Directory '{input}' does not exist. Please enter a valid existing directory path, or type 'quit' to exit.");
+                continue;
+            }
+            
+            directory = input;
+        }
+        
+        Console.WriteLine($"✅ Using directory: {directory}");
+        return Task.FromResult<string?>(directory);
+    }
+
+#pragma warning disable S1172 // Remove unused function parameters
+    private static Task<OperationMode> SelectOperationModeAsync(AppConfiguration _, ILogger _1, SqliteConfigurationService _2)
+    {
+#pragma warning restore S1172
+        Console.WriteLine("Available modes:");
+        Console.WriteLine("  1. Hybrid (recommended) - Full MCP + RAG capabilities");
+        Console.WriteLine("  2. MCP - Model Context Protocol server only");
+        Console.WriteLine("  3. RAG - Retrieval-Augmented Generation only");
+        Console.WriteLine();
+        
+        OperationMode selectedMode;
+        
+        while (true)
+        {
+            Console.Write("Select operation mode (1-3, default: 1): ");
+            var modeInput = SafePromptForString("", "1").Trim();
+            
+            if (string.IsNullOrEmpty(modeInput) || modeInput == "1")
+            {
+                selectedMode = OperationMode.Hybrid;
+                break;
+            }
+            else if (modeInput == "2")
+            {
+                selectedMode = OperationMode.MCP;
+                break;
+            }
+            else if (modeInput == "3")
+            {
+                selectedMode = OperationMode.RAG;
+                break;
+            }
+            else
+            {
+                Console.WriteLine("❌ Invalid selection. Please enter 1, 2, or 3.");
+            }
+        }
+        
+        Console.WriteLine($"✅ Selected mode: {selectedMode}");
+        return Task.FromResult(selectedMode);
     }
 
     private static async Task<string> SelectModelAsync(ILogger logger, AppConfiguration? config = null, SqliteConfigurationService? configService = null)

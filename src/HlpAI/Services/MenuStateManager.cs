@@ -117,8 +117,8 @@ public class MenuStateManager
     {
         var breadcrumbs = new List<string>();
         
-        // If there's no navigation history or only MainMenu in stack, just show the current context
-        if (_menuStack.Count == 0 || (_menuStack.Count == 1 && _menuStack.Peek() == MenuContext.MainMenu && _config.CurrentMenuContext != MenuContext.MainMenu))
+        // If there's no navigation history, just show the current context
+        if (_menuStack.Count == 0)
         {
             return GetMenuDisplayName(_config.CurrentMenuContext);
         }
@@ -129,14 +129,15 @@ public class MenuStateManager
             return GetMenuDisplayName(MenuContext.MainMenu);
         }
         
-        // Build breadcrumb from the navigation stack, but skip MainMenu if it's the only item
-        // and we're not currently at MainMenu (this handles the addToHistory: false case)
-        var stackItems = _menuStack.Reverse().ToList();
-        if (stackItems.Count == 1 && stackItems[0] == MenuContext.MainMenu)
+        // If stack only contains MainMenu and we're not at MainMenu, just show current context
+        // This handles the addToHistory: false case
+        if (_menuStack.Count == 1 && _menuStack.Peek() == MenuContext.MainMenu)
         {
             return GetMenuDisplayName(_config.CurrentMenuContext);
         }
         
+        // Build breadcrumb from the navigation stack
+        var stackItems = _menuStack.Reverse().ToList();
         foreach (var context in stackItems)
         {
             breadcrumbs.Add(GetMenuDisplayName(context));

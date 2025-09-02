@@ -104,6 +104,18 @@ public class MenuStateManagerTests
         // Arrange
         // Create a test configuration service with clean state
         var testDbPath = Path.Combine(Path.GetTempPath(), $"test_constructor_{Guid.NewGuid()}.db");
+        
+        // Ensure the database file doesn't exist before starting
+        if (File.Exists(testDbPath))
+        {
+            File.Delete(testDbPath);
+        }
+        
+        // Clear any existing singleton instance and connection pools
+        SqliteConfigurationService.ReleaseInstance();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        Thread.Sleep(100); // Allow time for cleanup
+        
         using var testConfigService = SqliteConfigurationService.SetTestInstance(testDbPath, null);
         
         // Initialize with default configuration to ensure clean state
@@ -187,8 +199,8 @@ public class MenuStateManagerTests
         // Assert
         await Assert.That(manager.CurrentContext).IsEqualTo(MenuContext.MainMenu);
         
-        // Cleanup
-        freshConfigService.Dispose();
+        // Cleanup - Dispose configuration service
+        freshConfigService?.Dispose();
         
         // Release the singleton instance to ensure no conflicts
         SqliteConfigurationService.ReleaseInstance();
@@ -196,7 +208,7 @@ public class MenuStateManagerTests
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         
         // Additional wait to ensure file handles are released
-        Thread.Sleep(100);
+        Thread.Sleep(200);
         
         if (File.Exists(testDbPath))
         {
