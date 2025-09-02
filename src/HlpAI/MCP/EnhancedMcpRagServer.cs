@@ -42,6 +42,7 @@ namespace HlpAI.MCP
             _config.LastProvider,
             aiModel,
             GetProviderUrl(_config, _config.LastProvider),
+            null, // apiKey - will be handled by the factory method
             logger,
             _config
         );
@@ -65,6 +66,7 @@ namespace HlpAI.MCP
             _config.LastProvider,
             aiModel,
             GetProviderUrl(_config, _config.LastProvider),
+            null, // apiKey - will be handled by the factory method
             logger,
             _config
         );

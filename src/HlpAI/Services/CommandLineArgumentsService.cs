@@ -1138,6 +1138,7 @@ public class CommandLineArgumentsService
                         providerType,
                         GetDefaultModelForProvider(providerType, appConfig),
                         GetProviderUrl(appConfig, providerType),
+                        null, // apiKey - will be handled by the factory method
                         logger: null,
                         appConfig
                     );

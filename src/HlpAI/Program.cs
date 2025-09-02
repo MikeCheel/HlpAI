@@ -42,7 +42,7 @@ public static class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
         
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var logger = loggerFactory.CreateLogger<EnhancedMcpRagServer>();
         using var configService = SqliteConfigurationService.GetInstance(logger);
 
@@ -1233,8 +1233,8 @@ public static class Program
             Console.WriteLine($"\n{server._aiProvider.ProviderName} is not available. Cannot retrieve models.");
         }
     }
-    
-    private static async Task<bool> UpdateActiveProviderAsync(EnhancedMcpRagServer server, AppConfiguration config)
+
+    private static async Task<bool> UpdateActiveProviderAsync(IEnhancedMcpRagServer server, AppConfiguration config)
     {
         try
         {
@@ -1244,38 +1244,38 @@ public static class Program
             
             IAiProvider newProvider;
             
+            string? apiKey = null;
+            
             // Check if this is a cloud provider that requires an API key
-            if (AiProviderFactory.RequiresApiKey(config.LastProvider) && config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
+            if (AiProviderFactory.RequiresApiKey(config.LastProvider))
             {
-                // Retrieve API key from secure storage
-                var apiKeyStorage = new SecureApiKeyStorage(logger);
-                var apiKey = apiKeyStorage.RetrieveApiKey(config.LastProvider.ToString());
-                
-                if (string.IsNullOrEmpty(apiKey))
+                if (config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
                 {
-                    Console.WriteLine($"No API key found for {config.LastProvider}. Please configure an API key first.");
+                    // Retrieve API key from secure storage
+                    var apiKeyStorage = new SecureApiKeyStorage(logger);
+                    apiKey = apiKeyStorage.RetrieveApiKey(config.LastProvider.ToString());
+                    
+                    if (string.IsNullOrEmpty(apiKey))
+                    {
+                        Console.WriteLine($"No API key found for {config.LastProvider}. Please configure an API key first.");
+                        return false;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"{config.LastProvider} provider requires an API key, but secure storage is not enabled or not supported on this platform.");
                     return false;
                 }
-                
-                // Create provider with API key
-                newProvider = AiProviderFactory.CreateProvider(
-                    config.LastProvider, 
-                    config.LastModel ?? "default", 
-                    providerUrl, 
-                    apiKey,
-                    logger,
-                    config);
             }
-            else
-            {
-                // Create provider without API key (for local providers)
-                newProvider = AiProviderFactory.CreateProvider(
-                    config.LastProvider, 
-                    config.LastModel ?? "default", 
-                    providerUrl, 
-                    logger,
-                    config);
-            }
+            
+            // Create provider (always use the overload with apiKey parameter)
+            newProvider = AiProviderFactory.CreateProvider(
+                config.LastProvider, 
+                config.LastModel ?? "default", 
+                providerUrl, 
+                apiKey,
+                logger,
+                config);
             
             // Check if the new provider is available
             if (await newProvider.IsAvailableAsync())

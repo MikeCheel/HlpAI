@@ -24,25 +24,21 @@ public class ProgramWorkflowTests
     }
     
     [Before(Test)]
-    public async Task Setup()
+    public void Setup()
     {
         // Store original input
         _originalIn = Console.In;
         
         // Setup mock server
         _mockServer = new Mock<EnhancedMcpRagServer>();
-        
-        await Task.CompletedTask;
     }
     
     [After(Test)]
-    public async Task Cleanup()
+    public void Cleanup()
     {
         // Restore console input
         Console.SetIn(_originalIn);
         _stringReader?.Dispose();
-        
-        await Task.CompletedTask;
     }
     
     private void SetupConsoleInput(string input)

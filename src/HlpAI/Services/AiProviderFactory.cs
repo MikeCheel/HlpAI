@@ -233,7 +233,7 @@ public static class AiProviderFactory
                 else
                 {
                     // Local providers don't need API keys
-                    provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, logger, null);
+                    provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, null, logger, null);
                 }
                 
                 var connectivityResult = await TestProviderConnectivityAsync(provider);
