@@ -352,27 +352,34 @@ public class HhExeDetectionServiceTests
         // Arrange
         using var service = new HhExeDetectionService(_configService, _logger);
 
-        // Act - Create many detection records (but not actually call CheckDefaultLocationAsync repeatedly)
-        var tasks = new List<Task>();
-        for (int i = 0; i < 50; i++)
+        // Act - Create many detection records in smaller batches to avoid SQLite locking issues
+        const int batchSize = 5;
+        const int totalRecords = 50;
+        
+        for (int batch = 0; batch < totalRecords / batchSize; batch++)
         {
-            tasks.Add(service.CheckDefaultLocationAsync());
-            if (i % 10 == 0)
+            var tasks = new List<Task>();
+            for (int i = 0; i < batchSize; i++)
             {
-                await Task.Delay(1); // Small delay to ensure different timestamps
+                tasks.Add(service.CheckDefaultLocationAsync());
             }
+            await Task.WhenAll(tasks);
+            await Task.Delay(10); // Small delay between batches to prevent database locking
         }
-        await Task.WhenAll(tasks);
 
         var history = await service.GetDetectionHistoryAsync();
 
         // Assert
         await Assert.That(history).HasCount().EqualTo(50);
         
-        // Verify the limit works (should return max 100 records)
+        // Verify the limit works (should return max 100 records) - run sequentially
         for (int i = 0; i < 60; i++)
         {
             await service.CheckDefaultLocationAsync();
+            if (i % 10 == 0)
+            {
+                await Task.Delay(5); // Small delay every 10 operations
+            }
         }
         
         var limitedHistory = await service.GetDetectionHistoryAsync();

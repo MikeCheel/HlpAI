@@ -3958,9 +3958,8 @@ public static class Program
                 Console.WriteLine("6. Reset extractor to default configuration");
                 Console.WriteLine("7. View configuration audit");
                 Console.WriteLine("b. Back to main menu");
-                Console.WriteLine("q. Quit application");
                 
-                Console.Write("\nEnter your choice (1-7, b, q): ");
+                Console.Write("\nEnter your choice (1-7, b): ");
                 var input = SafePromptForString("", "b").ToLower();
                 
                 switch (input)
@@ -3988,10 +3987,6 @@ public static class Program
                         break;
                     case "b":
                     case "back":
-                        running = false;
-                        break;
-                    case "q":
-                    case "quit":
                         running = false;
                         break;
                     default:
@@ -4034,9 +4029,8 @@ public static class Program
                 Console.WriteLine("5. Reindex all documents");
                 Console.WriteLine("6. View database statistics");
                 Console.WriteLine("b. Back to main menu");
-                Console.WriteLine("q. Quit application");
                 
-                Console.Write("\nEnter your choice (1-6, b, q): ");
+                Console.Write("\nEnter your choice (1-6, b): ");
                 var input = SafePromptForString("", "b").ToLower();
                 
                 switch (input)
@@ -4061,10 +4055,6 @@ public static class Program
                         break;
                     case "b":
                     case "back":
-                        running = false;
-                        break;
-                    case "q":
-                    case "quit":
                         running = false;
                         break;
                     default:
@@ -5610,26 +5600,38 @@ private static Task WaitForKeyPress()
         }
     }
 
+    [SupportedOSPlatform("windows")]
     static async Task SelectAiProviderAsync(AppConfiguration config, MenuStateManager? menuStateManager = null)
     {
         var breadcrumb = menuStateManager?.GetBreadcrumbPath() + " > Select Provider" ?? "Main Menu > AI Provider > Select Provider";
         ClearScreenWithHeader("🤖 Select AI Provider", breadcrumb);
         
         var providerDescriptions = AiProviderFactory.GetProviderDescriptions();
-        var providers = providerDescriptions.Keys.ToList();
-        
+        var allProviders = providerDescriptions.Keys.ToList();
+
+        // Detect available providers (API key + endpoint)
+        var availableProviders = await AiProviderFactory.DetectAvailableProvidersAsync(logger: null);
+        var filteredProviders = allProviders.Where(p => availableProviders.ContainsKey(p) && availableProviders[p].IsAvailable).ToList();
+
         // Show current provider status
         Console.WriteLine($"Current provider: {config.LastProvider} | Model: {config.LastModel ?? "Not set"}");
         Console.WriteLine();
-        
-        for (int i = 0; i < providers.Count; i++)
+
+        if (filteredProviders.Count == 0)
         {
-            var provider = providers[i];
+            Console.WriteLine("❌ No available providers detected. Please configure a provider first.");
+            await WaitForKeyPress();
+            return;
+        }
+
+        for (int i = 0; i < filteredProviders.Count; i++)
+        {
+            var provider = filteredProviders[i];
             var currentIndicator = (provider == config.LastProvider) ? " (current)" : "";
             Console.WriteLine($"{i + 1}. {providerDescriptions[provider]}{currentIndicator}");
         }
         
-        Console.Write($"\nSelect provider (1-{providers.Count}) or 'b' to go back: ");
+        Console.Write($"\nSelect provider (1-{filteredProviders.Count}) or 'b' to go back: ");
         var input = SafePromptForString("", "b").Trim();
         
         if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
@@ -5637,9 +5639,9 @@ private static Task WaitForKeyPress()
             return; // Return to parent menu
         }
         
-        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= providers.Count)
+        if (int.TryParse(input, out int selection) && selection >= 1 && selection <= filteredProviders.Count)
         {
-            var selectedProvider = providers[selection - 1];
+            var selectedProvider = filteredProviders[selection - 1];
             
             if (selectedProvider == config.LastProvider)
             {
@@ -6677,9 +6679,8 @@ private static Task WaitForKeyPress()
                 Console.WriteLine("7. Test patterns against files");
                 Console.WriteLine("8. Reset to default configuration");
                 Console.WriteLine("b. Back to main menu");
-                Console.WriteLine("q. Quit application");
                 
-                Console.Write("\nEnter your choice (1-8, b, q): ");
+                Console.Write("\nEnter your choice (1-8, b): ");
                 var input = SafePromptForString("", "b").ToLower();
                 
                 switch (input)
@@ -6710,10 +6711,6 @@ private static Task WaitForKeyPress()
                         break;
                     case "b":
                     case "back":
-                        running = false;
-                        break;
-                    case "q":
-                    case "quit":
                         running = false;
                         break;
                     default:
