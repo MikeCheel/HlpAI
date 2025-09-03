@@ -184,6 +184,78 @@ public class PromptService : IDisposable
     }
 
     /// <summary>
+    /// Prompts the user for a yes/no response with configurable default, without cancellation options (for setup contexts)
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="defaultToYes">Whether to default to 'yes' when Enter is pressed</param>
+    /// <returns>True for yes, false for no</returns>
+    public async Task<bool> PromptYesNoSetupAsync(string prompt, bool defaultToYes = true)
+    {
+        // In test environment, return the default to avoid hanging
+        if (IsTestEnvironment())
+        {
+            return defaultToYes;
+        }
+        
+        // Get user preference for default behavior from configuration
+        var userPreference = await GetDefaultPromptBehaviorAsync().ConfigureAwait(false);
+        var effectiveDefault = userPreference ?? defaultToYes;
+        
+        var promptSuffix = effectiveDefault ? " (Y/n, default: y)" : " (y/N, default: n)";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        
+        Console.Write(fullPrompt);
+        var response = Console.ReadLine()?.Trim().ToLower();
+        
+        // Handle empty response (Enter pressed)
+        if (string.IsNullOrEmpty(response))
+        {
+            _logger?.LogDebug("User pressed Enter, using default: {Default}", effectiveDefault);
+            return effectiveDefault;
+        }
+        
+        // Handle explicit responses
+        var isYes = response == "y" || response == "yes";
+        var isNo = response == "n" || response == "no";
+        
+        if (isYes)
+        {
+            _logger?.LogDebug("User explicitly chose 'yes'");
+            return true;
+        }
+        
+        if (isNo)
+        {
+            _logger?.LogDebug("User explicitly chose 'no'");
+            return false;
+        }
+        
+        // Handle invalid responses
+        Console.WriteLine($"Invalid response '{response}'. Please enter 'y' for yes or 'n' for no (or just press Enter for default).");
+        return await PromptYesNoSetupAsync(prompt, effectiveDefault).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Prompts the user for a yes/no response, always defaulting to 'yes' when Enter is pressed, without cancellation options (for setup contexts)
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <returns>True for yes or Enter, false for no</returns>
+    public async Task<bool> PromptYesNoDefaultYesSetupAsync(string prompt)
+    {
+        return await PromptYesNoSetupAsync(prompt, true).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Prompts the user for a yes/no response, always defaulting to 'no' when Enter is pressed, without cancellation options (for setup contexts)
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <returns>True for yes, false for no or Enter</returns>
+    public async Task<bool> PromptYesNoDefaultNoSetupAsync(string prompt)
+    {
+        return await PromptYesNoSetupAsync(prompt, false).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Gets the user's configured default prompt behavior
     /// </summary>
     /// <returns>True if configured to default to 'yes', false for 'no', null for use method default</returns>
@@ -243,6 +315,51 @@ public class PromptService : IDisposable
     }
 
     /// <summary>
+    /// Prompts for string input with optional default value and input validation, designed for setup contexts where cancellation is not appropriate
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="defaultValue">Default value if Enter is pressed</param>
+    /// <param name="sanitizationOptions">Options for input sanitization</param>
+    /// <param name="maxLength">Maximum allowed input length</param>
+    /// <returns>User input or default value (never null)</returns>
+    public string PromptForStringSetup(string prompt, string? defaultValue = null, SanitizationOptions? sanitizationOptions = null, int maxLength = 1000)
+    {
+        while (true)
+        {
+            var fullPrompt = string.IsNullOrEmpty(defaultValue) ? prompt : $"{prompt} (default: {defaultValue})";
+            Console.Write($"{fullPrompt}: ");
+            
+            var input = Console.ReadLine()?.Trim();
+            
+            // Handle empty input
+            if (string.IsNullOrEmpty(input))
+            {
+                if (!string.IsNullOrEmpty(defaultValue))
+                {
+                    return defaultValue;
+                }
+                Console.WriteLine("Input is required. Please try again.");
+                continue;
+            }
+            
+            // Check length
+            if (input.Length > maxLength)
+            {
+                Console.WriteLine($"Input too long. Maximum length is {maxLength} characters. Please try again.");
+                continue;
+            }
+            
+            // Apply sanitization if specified
+            if (sanitizationOptions != null)
+            {
+                input = _securityMiddleware.SanitizeInput(input, sanitizationOptions);
+            }
+            
+            return input;
+        }
+    }
+
+    /// <summary>
     /// Prompts for string input with optional default value and input validation, with cancellation support
     /// </summary>
     /// <param name="prompt">The prompt message to display</param>
@@ -299,6 +416,56 @@ public class PromptService : IDisposable
     {
         var result = PromptForValidatedStringCancellable(prompt, validationType, defaultValue, context);
         return result ?? string.Empty; // Convert null (cancelled) to empty string for backward compatibility
+    }
+
+    /// <summary>
+    /// Prompts for string input with specific validation type for setup contexts (no cancellation)
+    /// </summary>
+    /// <param name="prompt">The prompt message to display</param>
+    /// <param name="validationType">Type of validation to apply</param>
+    /// <param name="defaultValue">Default value if Enter is pressed</param>
+    /// <param name="context">Context for validation (e.g., provider name for API keys)</param>
+    /// <returns>Validated user input or default value</returns>
+    public string PromptForValidatedStringSetup(string prompt, InputValidationType validationType, string? defaultValue = null, string? context = null)
+    {
+        // In test environment, return the default to avoid hanging
+        if (IsTestEnvironment())
+        {
+            return ValidateSpecificInput(defaultValue ?? string.Empty, validationType, context) ?? string.Empty;
+        }
+        
+        var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
+        var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + ": ";
+        
+        while (true)
+        {
+            Console.Write(fullPrompt);
+            var response = Console.ReadLine()?.Trim();
+            
+            if (string.IsNullOrEmpty(response))
+            {
+                if (!string.IsNullOrEmpty(defaultValue))
+                {
+                    _logger?.LogDebug("User pressed Enter, using default: {Default}", defaultValue);
+                    var validatedDefault = ValidateSpecificInput(defaultValue, validationType, context);
+                    if (validatedDefault != null)
+                    {
+                        return validatedDefault;
+                    }
+                }
+                Console.WriteLine("❌ Input is required. Please provide a valid value.");
+                continue;
+            }
+            
+            var validatedInput = ValidateSpecificInput(response, validationType, context);
+            if (validatedInput != null)
+            {
+                _logger?.LogDebug("User provided valid input for {ValidationType}", validationType);
+                return validatedInput;
+            }
+            
+            Console.WriteLine("❌ Invalid input. Please try again.");
+        }
     }
 
     /// <summary>

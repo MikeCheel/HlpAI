@@ -212,7 +212,7 @@ public static class AiProviderFactory
                 var info = GetProviderInfo(providerType);
                 IAiProvider provider;
                 
-                // For cloud providers, check if API key is available
+                // For cloud providers, check if API key is available and valid
                 if (providerType == AiProviderType.OpenAI || 
                     providerType == AiProviderType.Anthropic || 
                     providerType == AiProviderType.DeepSeek)
@@ -221,6 +221,12 @@ public static class AiProviderFactory
                     if (hasApiKey)
                     {
                         var apiKey = apiKeyStorage.RetrieveApiKey(providerType.ToString());
+                        // Validate that the retrieved API key is not null or empty
+                        if (string.IsNullOrWhiteSpace(apiKey))
+                        {
+                            results[providerType] = new ConnectivityResult(false, 0, "API key is empty or invalid");
+                            continue;
+                        }
                         provider = CreateProvider(providerType, info.DefaultModel, info.DefaultUrl, apiKey, logger, null);
                     }
                     else

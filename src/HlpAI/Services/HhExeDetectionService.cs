@@ -11,6 +11,7 @@ public class HhExeDetectionService : IDisposable
     private readonly ILogger? _logger;
     private readonly SqliteConfigurationService _configService;
     private readonly SqliteConnection _connection;
+    private readonly SemaphoreSlim _databaseSemaphore = new(1, 1);
     private bool _disposed = false;
 
     public HhExeDetectionService(ILogger? logger = null)
@@ -224,30 +225,39 @@ public class HhExeDetectionService : IDisposable
         const int maxRetries = 3;
         const int retryDelayMs = 10;
         
-        for (int attempt = 0; attempt < maxRetries; attempt++)
+        await _databaseSemaphore.WaitAsync();
+        try
         {
-            try
+            
+            for (int attempt = 0; attempt < maxRetries; attempt++)
             {
-                using var transaction = _connection.BeginTransaction();
-                using var command = new SqliteCommand(sql, _connection, transaction);
-                command.Parameters.AddWithValue("@path", path);
-                command.Parameters.AddWithValue("@found", found);
-                command.Parameters.AddWithValue("@notes", notes ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@detected_at", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
-                
-                await command.ExecuteNonQueryAsync();
-                transaction.Commit();
-                
-                _logger?.LogDebug("Stored detection result: Path={Path}, Found={Found}, Notes={Notes}", 
-                    path, found, notes);
-                return;
-            }
-            catch (SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < maxRetries - 1) // SQLITE_BUSY
-            {
-                _logger?.LogWarning("Database busy, retrying attempt {Attempt}/{MaxRetries}", attempt + 1, maxRetries);
-                await Task.Delay(retryDelayMs * (attempt + 1));
+                try
+                {
+                    using var transaction = _connection.BeginTransaction();
+                    using var command = new SqliteCommand(sql, _connection, transaction);
+                    command.Parameters.AddWithValue("@path", path);
+                    command.Parameters.AddWithValue("@found", found);
+                    command.Parameters.AddWithValue("@notes", notes ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@detected_at", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+                    
+                    await command.ExecuteNonQueryAsync();
+                    transaction.Commit();
+                    
+                    _logger?.LogDebug("Stored detection result: Path={Path}, Found={Found}, Notes={Notes}", 
+                        path, found, notes);
+                    return;
+                }
+                catch (SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < maxRetries - 1) // SQLITE_BUSY
+                {
+                    _logger?.LogWarning("Database busy, retrying attempt {Attempt}/{MaxRetries}", attempt + 1, maxRetries);
+                    await Task.Delay(retryDelayMs * (attempt + 1));
+                }
             }
         }
+         finally
+         {
+             _databaseSemaphore.Release();
+         }
         
         // If we get here, all retries failed
         _logger?.LogError("Failed to store detection result after {MaxRetries} attempts", maxRetries);
@@ -261,6 +271,7 @@ public class HhExeDetectionService : IDisposable
             {
                 _connection?.Dispose();
                 _configService?.Dispose();
+                _databaseSemaphore?.Dispose();
             }
             catch (Exception ex)
             {

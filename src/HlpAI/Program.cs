@@ -20,6 +20,15 @@ public static class Program
     private static readonly Dictionary<int, string> _currentMenuActions = [];
     
     /// <summary>
+    /// Safely prompts for string input with default value handling (for menu contexts without cancel options)
+    /// </summary>
+    private static string SafePromptForStringMenu(string prompt, string defaultValue = "")
+    {
+        _promptService ??= new PromptService();
+        return _promptService.PromptForStringSetup(prompt, defaultValue);
+    }
+    
+    /// <summary>
     /// Gets the action for a given menu option number based on current context
     /// </summary>
     private static string? GetMenuAction(int optionNumber)
@@ -252,6 +261,37 @@ public static class Program
         return _promptService.PromptForString(prompt, defaultValue);
     }
 
+    private static string SafePromptForStringSetup(string prompt, string defaultValue = "", AppConfiguration? config = null, ILogger? logger = null)
+    {
+        if (config != null && logger != null)
+        {
+            _promptService ??= new PromptService(config, logger);
+        }
+        else
+        {
+            _promptService ??= new PromptService();
+        }
+        return _promptService.PromptForStringSetup(prompt, defaultValue);
+    }
+
+    private static async Task<bool> SafePromptYesNoSetup(string prompt, bool defaultToYes = true, AppConfiguration? config = null, ILogger? logger = null)
+    {
+        PromptService promptService;
+        if (config != null && logger != null)
+        {
+            promptService = new PromptService(config, logger);
+        }
+        else
+        {
+            promptService = new PromptService();
+        }
+        
+        using (promptService)
+        {
+            return await promptService.PromptYesNoSetupAsync(prompt, defaultToYes);
+        }
+    }
+
 
 
     [SupportedOSPlatform("windows")]
@@ -365,7 +405,7 @@ public static class Program
             }
             else
             {
-                ollamaModel = await SelectModelAsync(logger, null, configService);
+                ollamaModel = await SelectModelAsync(logger, null, configService, isSetup: false);
                 if (string.IsNullOrEmpty(ollamaModel))
                 {
                     Console.WriteLine("❌ No model selected. Exiting.");
@@ -430,7 +470,7 @@ public static class Program
             bool running = true;
             while (running)
             {
-                var input = SafePromptForString($"\nEnter command (1-{_maxMenuOption}, c, m, q)", "q"); // Default to quit if Enter pressed
+                var input = SafePromptForStringMenu($"\nEnter command (1-{_maxMenuOption}, c, m, q)", "q"); // Default to quit if Enter pressed
 
                 try
                 {
@@ -607,15 +647,9 @@ public static class Program
                 var lastDirPromptService = new PromptService(config, sharedConfigService, logger);
                 try
                 {
-                    var useLastDir = await lastDirPromptService.PromptYesNoDefaultYesCancellableAsync($"Use last directory '{config.LastDirectory}'?");
+                    var useLastDir = await lastDirPromptService.PromptYesNoDefaultYesSetupAsync($"Use last directory '{config.LastDirectory}'?");
                     
-                    if (useLastDir == null)
-                    {
-                        Console.WriteLine("Setup cancelled.");
-                        return null;
-                    }
-                    
-                    if (useLastDir.Value)
+                    if (useLastDir)
                     {
                         Console.WriteLine($"✅ Using directory: {config.LastDirectory}");
                         directory = config.LastDirectory;
@@ -637,13 +671,7 @@ public static class Program
         while (directory == null)
         {
             using var directoryPromptService = new PromptService(config, sharedConfigService, logger);
-            var input = directoryPromptService.PromptForValidatedStringCancellable("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path");
-            
-            if (input == null)
-            {
-                Console.WriteLine("Setup cancelled.");
-                return null;
-            }
+            var input = directoryPromptService.PromptForValidatedStringSetup("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path");
             
             input = input.Trim();
             
@@ -686,7 +714,7 @@ public static class Program
         }
         
         // Then proceed with model selection with enhanced validation
-        var model = await SelectModelForProviderAsync(logger, config, configService);
+        var model = await SelectModelForProviderAsync(logger, config, configService, isSetup: true);
         if (string.IsNullOrEmpty(model))
         {
             Console.WriteLine("❌ Model selection cancelled or no valid model available.");
@@ -735,7 +763,7 @@ public static class Program
         {
             Console.WriteLine($"💾 Last used operation mode: {config.LastOperationMode}");
             using var modePromptService = new PromptService(config, sharedConfigService, logger);
-            var useLastMode = await modePromptService.PromptYesNoDefaultYesAsync("Use last operation mode?");
+            var useLastMode = await modePromptService.PromptYesNoDefaultYesSetupAsync("Use last operation mode?");
             
             if (!useLastMode)
             {
@@ -795,78 +823,15 @@ public static class Program
             Console.WriteLine($"Mode: {selectedMode}");
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-            var confirmResponse = await promptService.PromptYesNoDefaultYesCancellableAsync("Continue with this configuration?");
+            var confirmResponse = await promptService.PromptYesNoDefaultYesSetupAsync("Continue with this configuration?");
             
-            if (confirmResponse == null)
+            if (!confirmResponse)
             {
-                Console.WriteLine("Setup cancelled.");
+                Console.WriteLine("❌ Configuration cancelled.");
                 return null;
             }
             
-            if (confirmResponse.Value)
-            {
-                configurationConfirmed = true;
-            }
-            else
-            {
-                Console.WriteLine("❌ Configuration cancelled. Let's reconfigure...");
-                Console.WriteLine();
-                
-                // Ask what the user wants to reconfigure
-                Console.WriteLine("What would you like to reconfigure?");
-                Console.WriteLine("1. Document Directory");
-                Console.WriteLine("2. AI Provider & Model");
-                Console.WriteLine("3. Operation Mode");
-                Console.WriteLine("4. Start over completely");
-                Console.WriteLine("q. Quit application");
-                Console.WriteLine();
-                
-                var reconfigChoice = Console.ReadLine()?.Trim();
-                
-                if (reconfigChoice?.Equals("q", StringComparison.CurrentCultureIgnoreCase) == true ||
-                    reconfigChoice?.Equals("quit", StringComparison.CurrentCultureIgnoreCase) == true)
-                {
-                    return null;
-                }
-                
-                switch (reconfigChoice)
-                {
-                    case "1":
-                        // Reconfigure directory
-                        Console.WriteLine("📁 Reconfiguring Document Directory");
-                        Console.WriteLine("-----------------------------------");
-                        directory = await PromptForDirectoryAsync(config, logger, sharedConfigService);
-                        if (directory == null) return null;
-                        break;
-                        
-                    case "2":
-                        // Reconfigure model
-                        Console.WriteLine("🤖 Reconfiguring AI Provider & Model");
-                        Console.WriteLine("------------------------------------");
-                        model = await SelectModelAsync(logger, config, sharedConfigService);
-                        if (model == null) return null;
-                        break;
-                        
-                    case "3":
-                        // Reconfigure operation mode
-                        Console.WriteLine("⚙️ Reconfiguring Operation Mode");
-                        Console.WriteLine("-------------------------------");
-                        selectedMode = await SelectOperationModeAsync(config, logger, sharedConfigService);
-                        break;
-                        
-                    case "4":
-                        // Start over completely
-                        Console.WriteLine("🔄 Starting over completely...");
-                        Console.WriteLine();
-                        return await InteractiveSetupAsync(logger, configService);
-                        
-                    default:
-                        Console.WriteLine("❌ Invalid selection. Please try again.");
-                        WaitForUserInput("Press any key to continue...");
-                        break;
-                }
-                Console.WriteLine();
-            }
+            configurationConfirmed = true;
         }
 
         Console.WriteLine("✅ Starting application with selected configuration...");
@@ -968,7 +933,7 @@ public static class Program
         return Task.FromResult(selectedMode);
     }
 
-    private static async Task<string> SelectModelAsync(ILogger logger, AppConfiguration? config = null, SqliteConfigurationService? configService = null)
+    private static async Task<string> SelectModelAsync(ILogger logger, AppConfiguration? config = null, SqliteConfigurationService? configService = null, bool isSetup = false)
     {
         Console.WriteLine("🤖 Model Selection");
         Console.WriteLine("==================");
@@ -978,7 +943,9 @@ public static class Program
         {
             Console.WriteLine($"💾 Last used model: {config.LastModel}");
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-            var useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+            var useLastModel = isSetup ? 
+                await SafePromptYesNoSetup("Use last model?", true, config, logger) :
+                await promptService.PromptYesNoDefaultYesAsync("Use last model?");
             
             if (useLastModel)
             {
@@ -997,7 +964,9 @@ public static class Program
             Console.WriteLine("   Install Ollama: https://ollama.ai");
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with the default model anyway?");
+            var continueWithDefault = isSetup ?
+                await SafePromptYesNoSetup("Would you like to continue with the default model anyway?", true, config, logger) :
+                await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with the default model anyway?");
             return continueWithDefault ? "llama3.2" : "";
         }
 
@@ -1009,7 +978,9 @@ public static class Program
             Console.WriteLine("   Install a model first: ollama pull llama3.2");
             Console.WriteLine();
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with 'llama3.2' anyway?");
+            var continueWithDefault = isSetup ?
+                await SafePromptYesNoSetup("Would you like to continue with 'llama3.2' anyway?", true, config, logger) :
+                await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with 'llama3.2' anyway?");
             return continueWithDefault ? "llama3.2" : "";
         }
 
@@ -1026,10 +997,17 @@ public static class Program
         
         while (true)
         {
-            Console.Write($"Select a model (1-{availableModels.Count + 1}, 'b' to go back, or 'q' to quit): ");
-            var input = SafePromptForString("", "b").Trim();
+            if (isSetup)
+            {
+                Console.Write($"Select a model (1-{availableModels.Count + 1}): ");
+            }
+            else
+            {
+                Console.Write($"Select a model (1-{availableModels.Count + 1}, 'b' to go back, or 'q' to quit): ");
+            }
+            var input = SafePromptForString("", isSetup ? "1" : "b").Trim();
             
-            if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
+            if (!isSetup && (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back"))
             {
                 return "";
             }
@@ -1404,8 +1382,8 @@ public static class Program
         try
         {
             // Create a new provider instance based on current configuration
-            var providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
-            var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
+            string? providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
+            ILogger<EnhancedMcpRagServer> logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
             
             string? apiKey = null;
             
@@ -5419,6 +5397,13 @@ private static Task WaitForKeyPress()
         Console.WriteLine(JsonSerializer.Serialize(response, JsonOptions));
     }
 
+    private static bool IsCloudProvider(AiProviderType provider)
+    {
+        return provider == AiProviderType.OpenAI || 
+               provider == AiProviderType.Anthropic || 
+               provider == AiProviderType.DeepSeek;
+    }
+
     [SupportedOSPlatform("windows")]
     static async Task ShowAiProviderMenuAsync(MenuStateManager? menuStateManager = null)
     {
@@ -5437,102 +5422,206 @@ private static Task WaitForKeyPress()
             await DisplayAllProvidersStatusAsync(config, menuStateManager);
             Console.WriteLine();
             
-            Console.WriteLine("Local Provider Settings:");
-            Console.WriteLine($"1. Ollama URL: {config.OllamaUrl}");
-            Console.WriteLine($"2. LM Studio URL: {config.LmStudioUrl}");
-            Console.WriteLine($"3. Open Web UI URL: {config.OpenWebUiUrl}");
+            // Build adaptive menu based on current provider
+            var menuOptions = new List<(string key, string description, string category)>();
+            var currentProvider = config.LastProvider;
+            
+            // Current Provider Settings (always show current provider's settings)
+            var currentProviderInfo = AiProviderFactory.GetProviderInfo(currentProvider);
+            Console.WriteLine($"Current Provider Settings ({currentProviderInfo.Name}):");
+            
+            switch (currentProvider)
+            {
+                case AiProviderType.Ollama:
+                    Console.WriteLine($"1. Ollama URL: {config.OllamaUrl}");
+                    Console.WriteLine($"2. Ollama Default Model: {config.OllamaDefaultModel}");
+                    menuOptions.Add(("1", "Configure Ollama URL", "provider"));
+                    menuOptions.Add(("2", "Configure Ollama Default Model", "provider"));
+                    break;
+                case AiProviderType.LmStudio:
+                    Console.WriteLine($"1. LM Studio URL: {config.LmStudioUrl}");
+                    Console.WriteLine($"2. LM Studio Default Model: {config.LmStudioDefaultModel}");
+                    menuOptions.Add(("1", "Configure LM Studio URL", "provider"));
+                    menuOptions.Add(("2", "Configure LM Studio Default Model", "provider"));
+                    break;
+                case AiProviderType.OpenWebUi:
+                    Console.WriteLine($"1. Open Web UI URL: {config.OpenWebUiUrl}");
+                    Console.WriteLine($"2. Open Web UI Default Model: {config.OpenWebUiDefaultModel}");
+                    menuOptions.Add(("1", "Configure Open Web UI URL", "provider"));
+                    menuOptions.Add(("2", "Configure Open Web UI Default Model", "provider"));
+                    break;
+                case AiProviderType.OpenAI:
+                    Console.WriteLine($"1. OpenAI Base URL: {config.OpenAiUrl}");
+                    Console.WriteLine($"2. OpenAI Default Model: {config.OpenAiDefaultModel}");
+                    menuOptions.Add(("1", "Configure OpenAI URL", "provider"));
+                    menuOptions.Add(("2", "Configure OpenAI Default Model", "provider"));
+                    break;
+                case AiProviderType.Anthropic:
+                    Console.WriteLine($"1. Anthropic Base URL: {config.AnthropicUrl}");
+                    Console.WriteLine($"2. Anthropic Default Model: {config.AnthropicDefaultModel}");
+                    menuOptions.Add(("1", "Configure Anthropic URL", "provider"));
+                    menuOptions.Add(("2", "Configure Anthropic Default Model", "provider"));
+                    break;
+                case AiProviderType.DeepSeek:
+                    Console.WriteLine($"1. DeepSeek Base URL: {config.DeepSeekUrl}");
+                    Console.WriteLine($"2. DeepSeek Default Model: {config.DeepSeekDefaultModel}");
+                    menuOptions.Add(("1", "Configure DeepSeek URL", "provider"));
+                    menuOptions.Add(("2", "Configure DeepSeek Default Model", "provider"));
+                    break;
+            }
+            
             Console.WriteLine();
-            Console.WriteLine("Cloud Provider Settings:");
-            Console.WriteLine($"4. OpenAI Base URL: {config.OpenAiUrl}");
-        Console.WriteLine($"5. Anthropic Base URL: {config.AnthropicUrl}");
-        Console.WriteLine($"6. DeepSeek Base URL: {config.DeepSeekUrl}");
-            Console.WriteLine();
-            Console.WriteLine("Default Models:");
-            Console.WriteLine($"7. Ollama Default: {config.OllamaDefaultModel}");
-            Console.WriteLine($"8. LM Studio Default: {config.LmStudioDefaultModel}");
-            Console.WriteLine($"9. Open Web UI Default: {config.OpenWebUiDefaultModel}");
-            Console.WriteLine($"10. OpenAI Default: {config.OpenAiDefaultModel}");
-            Console.WriteLine($"11. Anthropic Default: {config.AnthropicDefaultModel}");
-            Console.WriteLine($"12. DeepSeek Default: {config.DeepSeekDefaultModel}");
-            Console.WriteLine();
-            Console.WriteLine("API Key Management:");
-            Console.WriteLine($"13. Configure API Keys");
-            Console.WriteLine($"14. Test API Key Validation");
-            Console.WriteLine($"15. API Key Storage: {(config.UseSecureApiKeyStorage ? "Secure (DPAPI)" : "Not configured")}");
-            Console.WriteLine();
+            
+            // API Key Management (only for cloud providers)
+            if (IsCloudProvider(currentProvider))
+            {
+                Console.WriteLine("API Key Management:");
+                Console.WriteLine($"3. Configure API Keys");
+                Console.WriteLine($"4. Test API Key Validation");
+                Console.WriteLine($"5. API Key Storage: {(config.UseSecureApiKeyStorage ? "Secure (DPAPI)" : "Not configured")}");
+                Console.WriteLine();
+                menuOptions.Add(("3", "Configure API Keys", "api"));
+                menuOptions.Add(("4", "Test API Key Validation", "api"));
+                menuOptions.Add(("5", "Toggle Secure API Key Storage", "api"));
+            }
+            
             Console.WriteLine("Options:");
-            Console.WriteLine("16. Select AI Provider");
-            Console.WriteLine("17. Test Provider Connection");
-            Console.WriteLine("18. List Available Models");
-            Console.WriteLine("19. Detect Available Providers");
-            Console.WriteLine("20. Quick Switch to Available Provider");
+            var nextOption = IsCloudProvider(currentProvider) ? 6 : 3;
+            Console.WriteLine($"{nextOption}. Select AI Provider");
+            Console.WriteLine($"{nextOption + 1}. Test Provider Connection");
+            Console.WriteLine($"{nextOption + 2}. List Available Models");
+            Console.WriteLine($"{nextOption + 3}. Detect Available Providers");
+            Console.WriteLine($"{nextOption + 4}. Quick Switch to Available Provider");
             Console.WriteLine("b. Back to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-20, b): ");
+            menuOptions.Add((nextOption.ToString(), "Select AI Provider", "general"));
+            menuOptions.Add(((nextOption + 1).ToString(), "Test Provider Connection", "general"));
+            menuOptions.Add(((nextOption + 2).ToString(), "List Available Models", "general"));
+            menuOptions.Add(((nextOption + 3).ToString(), "Detect Available Providers", "general"));
+            menuOptions.Add(((nextOption + 4).ToString(), "Quick Switch to Available Provider", "general"));
+            
+            var maxOption = nextOption + 4;
+            Console.Write($"Select option (1-{maxOption}, b): ");
             var input = SafePromptForString("", "b").ToLower().Trim();
             
             switch (input)
             {
                 case "1":
-                    ConfigureProviderUrl("Ollama", url => config.OllamaUrl = url, config);
+                    // Configure current provider URL
+                    switch (currentProvider)
+                    {
+                        case AiProviderType.Ollama:
+                            ConfigureProviderUrl("Ollama", url => config.OllamaUrl = url, config);
+                            break;
+                        case AiProviderType.LmStudio:
+                            ConfigureProviderUrl("LM Studio", url => config.LmStudioUrl = url, config);
+                            break;
+                        case AiProviderType.OpenWebUi:
+                            ConfigureProviderUrl("Open Web UI", url => config.OpenWebUiUrl = url, config);
+                            break;
+                        case AiProviderType.OpenAI:
+                            ConfigureProviderUrl("OpenAI", url => config.OpenAiUrl = url, config);
+                            break;
+                        case AiProviderType.Anthropic:
+                            ConfigureProviderUrl("Anthropic", url => config.AnthropicUrl = url, config);
+                            break;
+                        case AiProviderType.DeepSeek:
+                            ConfigureProviderUrl("DeepSeek", url => config.DeepSeekUrl = url, config);
+                            break;
+                    }
                     break;
                 case "2":
-                    ConfigureProviderUrl("LM Studio", url => config.LmStudioUrl = url, config);
+                    // Configure current provider default model
+                    switch (currentProvider)
+                    {
+                        case AiProviderType.Ollama:
+                            ConfigureDefaultModel("Ollama", model => config.OllamaDefaultModel = model, config);
+                            break;
+                        case AiProviderType.LmStudio:
+                            ConfigureDefaultModel("LM Studio", model => config.LmStudioDefaultModel = model, config);
+                            break;
+                        case AiProviderType.OpenWebUi:
+                            ConfigureDefaultModel("Open Web UI", model => config.OpenWebUiDefaultModel = model, config);
+                            break;
+                        case AiProviderType.OpenAI:
+                            ConfigureDefaultModel("OpenAI", model => config.OpenAiDefaultModel = model, config);
+                            break;
+                        case AiProviderType.Anthropic:
+                            ConfigureDefaultModel("Anthropic", model => config.AnthropicDefaultModel = model, config);
+                            break;
+                        case AiProviderType.DeepSeek:
+                            ConfigureDefaultModel("DeepSeek", model => config.DeepSeekDefaultModel = model, config);
+                            break;
+                    }
                     break;
                 case "3":
-                    ConfigureProviderUrl("Open Web UI", url => config.OpenWebUiUrl = url, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await ConfigureApiKeysAsync(config);
+                    }
+                    else
+                    {
+                        await SelectAiProviderAsync(config, menuStateManager);
+                    }
                     break;
                 case "4":
-                    ConfigureProviderUrl("OpenAI", url => config.OpenAiUrl = url, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await TestApiKeyValidationAsync(config);
+                    }
+                    else
+                    {
+                        await TestProviderConnectionAsync(config);
+                    }
                     break;
                 case "5":
-                    ConfigureProviderUrl("Anthropic", url => config.AnthropicUrl = url, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await ToggleSecureApiKeyStorageAsync(config);
+                    }
+                    else
+                    {
+                        await ListAvailableModelsAsync(config, menuStateManager);
+                    }
                     break;
                 case "6":
-                    ConfigureProviderUrl("DeepSeek", url => config.DeepSeekUrl = url, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await SelectAiProviderAsync(config, menuStateManager);
+                    }
+                    else
+                    {
+                        await DetectAvailableProvidersAsync();
+                    }
                     break;
                 case "7":
-                    ConfigureDefaultModel("Ollama", model => config.OllamaDefaultModel = model, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await TestProviderConnectionAsync(config);
+                    }
+                    else
+                    {
+                        await QuickSwitchToAvailableProviderAsync(config);
+                    }
                     break;
                 case "8":
-                    ConfigureDefaultModel("LM Studio", model => config.LmStudioDefaultModel = model, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await ListAvailableModelsAsync(config, menuStateManager);
+                    }
                     break;
                 case "9":
-                    ConfigureDefaultModel("Open Web UI", model => config.OpenWebUiDefaultModel = model, config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await DetectAvailableProvidersAsync();
+                    }
                     break;
                 case "10":
-                    ConfigureDefaultModel("OpenAI", model => config.OpenAiDefaultModel = model, config);
-                    break;
-                case "11":
-                    ConfigureDefaultModel("Anthropic", model => config.AnthropicDefaultModel = model, config);
-                    break;
-                case "12":
-                    ConfigureDefaultModel("DeepSeek", model => config.DeepSeekDefaultModel = model, config);
-                    break;
-                case "13":
-                    await ConfigureApiKeysAsync(config);
-                    break;
-                case "14":
-                    await TestApiKeyValidationAsync(config);
-                    break;
-                case "15":
-                    await ToggleSecureApiKeyStorageAsync(config);
-                    break;
-                case "16":
-                    await SelectAiProviderAsync(config, menuStateManager);
-                    break;
-                case "17":
-                    await TestProviderConnectionAsync(config);
-                    break;
-                case "18":
-                    await ListAvailableModelsAsync(config, menuStateManager);
-                    break;
-                case "19":
-                    await DetectAvailableProvidersAsync();
-                    break;
-                case "20":
-                    await QuickSwitchToAvailableProviderAsync(config);
+                    if (IsCloudProvider(currentProvider))
+                    {
+                        await QuickSwitchToAvailableProviderAsync(config);
+                    }
                     break;
                 case "b":
                 case "back":
@@ -6798,7 +6887,7 @@ private static Task WaitForKeyPress()
         }
         
         Console.Write(prompt);
-        var input = SafePromptForString("", defaultValue).Trim();
+        var input = hasParentMenu ? SafePromptForString("", defaultValue).Trim() : SafePromptForStringSetup("", defaultValue).Trim();
         
         if (input?.ToLower() == "q")
         {
@@ -6846,15 +6935,9 @@ private static Task WaitForKeyPress()
                     Console.WriteLine();
                     
                     using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                    var configureNow = await promptService.PromptYesNoDefaultYesCancellableAsync("This provider is not configured. Would you like to configure it now?");
+                    var configureNow = await promptService.PromptYesNoDefaultYesSetupAsync("This provider is not configured. Would you like to configure it now?");
                     
-                    if (configureNow == null)
-                    {
-                        Console.WriteLine("Setup cancelled.");
-                        return null;
-                    }
-                    
-                    if (configureNow.Value)
+                    if (configureNow)
                     {
                         // Navigate to configuration for this specific provider
                         var configResult = await ConfigureSpecificProviderAsync(selectedProvider, config, configService, logger);
@@ -7177,7 +7260,7 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Model selection that works with the currently configured provider
     /// </summary>
-    private static async Task<string> SelectModelForProviderAsync(ILogger logger, AppConfiguration config, SqliteConfigurationService? configService)
+    private static async Task<string> SelectModelForProviderAsync(ILogger logger, AppConfiguration config, SqliteConfigurationService? configService, bool isSetup = false)
     {
         Console.WriteLine("\n🤖 Model Selection");
         Console.WriteLine("==================");
@@ -7186,8 +7269,16 @@ private static Task WaitForKeyPress()
         if (config.RememberLastModel && !string.IsNullOrEmpty(config.LastModel))
         {
             Console.WriteLine($"💾 Last used model: {config.LastModel}");
-            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+            bool useLastModel;
+            if (isSetup)
+            {
+                useLastModel = await SafePromptYesNoSetup("Use last model?", true, config, logger);
+            }
+            else
+            {
+                using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+                useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+            }
             
             if (useLastModel)
             {
@@ -7229,8 +7320,16 @@ private static Task WaitForKeyPress()
             }
             
             Console.WriteLine();
-            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+            bool continueWithDefault;
+            if (isSetup)
+            {
+                continueWithDefault = await SafePromptYesNoSetup($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?", true, config, logger);
+            }
+            else
+            {
+                using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+                continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+            }
             
             if (!continueWithDefault)
             {
@@ -7268,8 +7367,16 @@ private static Task WaitForKeyPress()
             }
             
             Console.WriteLine();
-            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
+            bool continueWithDefault;
+            if (isSetup)
+            {
+                continueWithDefault = await SafePromptYesNoSetup($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?", true, config, logger);
+            }
+            else
+            {
+                using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+                continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
+            }
             
             if (!continueWithDefault)
             {
