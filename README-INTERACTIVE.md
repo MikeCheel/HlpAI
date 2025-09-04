@@ -850,6 +850,47 @@ Command: q
 4. Use Command 16 to add custom file extensions
 ```
 
+## 🔍 Audit Mode
+
+HlpAI includes a powerful audit mode for analyzing document directories before indexing. This mode helps identify potential issues and provides comprehensive file analysis.
+
+### Using Audit Mode
+
+**Command Line Usage:**
+```bash
+dotnet run -- --audit "C:\MyDocuments"
+```
+
+**Features:**
+- ✅ **File type analysis**: Identifies supported vs unsupported file types
+- ✅ **Size analysis**: Detects large files that may impact performance
+- ✅ **Permission checking**: Identifies files with access restrictions
+- ✅ **Recommendations**: Provides actionable suggestions for optimization
+- ✅ **Recursive scanning**: Analyzes subdirectories comprehensively
+
+**Sample Output:**
+```
+🔍 Auditing directory: C:\MyDocuments
+📊 AUDIT SUMMARY
+================
+Total Files: 156
+✅ Indexable: 89 (57.1%)
+❌ Not Indexable: 45 (28.8%)
+📦 Too Large: 4 (2.6%)
+🔒 Access Denied: 3 (1.9%)
+
+💡 RECOMMENDATIONS
+• Consider excluding 12 temporary/log files
+• Review 4 large files (>100MB) for inclusion
+• Check permissions for 3 restricted files
+```
+
+**When to Use Audit Mode:**
+- Before first-time indexing of a new directory
+- When experiencing performance issues
+- To identify problematic files causing errors
+- For security analysis of document collections
+
 ## 🚨 Troubleshooting
 
 ### Common Interactive Mode Issues
@@ -864,6 +905,7 @@ Command: q
 2. Use 'quit' or 'exit' to intentionally cancel setup
 3. Check directory permissions if directory creation fails
 4. Verify at least one AI provider is available
+5. **Use audit mode first**: Run `--audit <directory>` to identify potential issues
 
 **Directory Validation Issues:**
 ```bash

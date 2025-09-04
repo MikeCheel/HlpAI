@@ -193,50 +193,11 @@ namespace HlpAI.MCP
                 IndexingStarted = DateTime.UtcNow
             };
 
-            string[] allFiles;
-            try
-            {
-                allFiles = Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories);
-                _logger?.LogInformation("Found {TotalFiles} files to process in {RootPath}", allFiles.Length, _rootPath);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger?.LogError(ex, "Access denied when scanning directory: {RootPath}. Skipping directory enumeration.", _rootPath);
-                result.FailedFiles.Add(new FailedFile
-                {
-                    FilePath = _rootPath,
-                    Error = $"Access denied: {ex.Message}",
-                    ExtractorType = "DirectoryScanner"
-                });
-                result.IndexingCompleted = DateTime.UtcNow;
-                return result;
-            }
-            catch (DirectoryNotFoundException ex)
-            {
-                _logger?.LogError(ex, "Directory not found: {RootPath}", _rootPath);
-                result.FailedFiles.Add(new FailedFile
-                {
-                    FilePath = _rootPath,
-                    Error = $"Directory not found: {ex.Message}",
-                    ExtractorType = "DirectoryScanner"
-                });
-                result.IndexingCompleted = DateTime.UtcNow;
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Unexpected error when scanning directory: {RootPath}", _rootPath);
-                result.FailedFiles.Add(new FailedFile
-                {
-                    FilePath = _rootPath,
-                    Error = $"Unexpected error: {ex.Message}",
-                    ExtractorType = "DirectoryScanner"
-                });
-                result.IndexingCompleted = DateTime.UtcNow;
-                return result;
-            }
+            var allFiles = SafeEnumerateFiles(_rootPath, result);
+            var fileList = allFiles.ToList();
+            _logger?.LogInformation("Found {TotalFiles} files to process in {RootPath}", fileList.Count, _rootPath);
 
-            foreach (var file in allFiles)
+            foreach (var file in fileList)
             {
                 try
                 {
@@ -317,6 +278,90 @@ namespace HlpAI.MCP
             LogIndexingSummary(result);
 
             return result;
+        }
+
+        /// <summary>
+        /// Safely enumerates files in a directory tree, handling access denied errors gracefully
+        /// by skipping restricted directories and continuing with accessible ones.
+        /// </summary>
+        /// <param name="rootPath">The root directory to start enumeration from</param>
+        /// <param name="result">The indexing result to record any access errors</param>
+        /// <returns>An enumerable of accessible file paths</returns>
+        private IEnumerable<string> SafeEnumerateFiles(string rootPath, IndexingResult result)
+        {
+            var directoriesToProcess = new Queue<string>();
+            directoriesToProcess.Enqueue(rootPath);
+
+            while (directoriesToProcess.Count > 0)
+            {
+                var currentDirectory = directoriesToProcess.Dequeue();
+
+                // Try to enumerate files in the current directory
+                IEnumerable<string> files;
+                try
+                {
+                    files = Directory.EnumerateFiles(currentDirectory, "*.*", SearchOption.TopDirectoryOnly);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    _logger?.LogWarning(ex, "Access denied to directory: {Directory}. Skipping.", currentDirectory);
+                    result.FailedFiles.Add(new FailedFile
+                    {
+                        FilePath = currentDirectory,
+                        Error = $"Access denied: {ex.Message}",
+                        ExtractorType = "DirectoryScanner"
+                    });
+                    continue;
+                }
+                catch (DirectoryNotFoundException ex)
+                {
+                    _logger?.LogWarning(ex, "Directory not found: {Directory}. Skipping.", currentDirectory);
+                    result.FailedFiles.Add(new FailedFile
+                    {
+                        FilePath = currentDirectory,
+                        Error = $"Directory not found: {ex.Message}",
+                        ExtractorType = "DirectoryScanner"
+                    });
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Error accessing directory: {Directory}. Skipping.", currentDirectory);
+                    result.FailedFiles.Add(new FailedFile
+                    {
+                        FilePath = currentDirectory,
+                        Error = $"Unexpected error: {ex.Message}",
+                        ExtractorType = "DirectoryScanner"
+                    });
+                    continue;
+                }
+
+                // Yield each accessible file
+                foreach (var file in files)
+                {
+                    yield return file;
+                }
+
+                // Try to enumerate subdirectories and add them to the processing queue
+                try
+                {
+                    var subdirectories = Directory.EnumerateDirectories(currentDirectory, "*", SearchOption.TopDirectoryOnly);
+                    foreach (var subdirectory in subdirectories)
+                    {
+                        directoriesToProcess.Enqueue(subdirectory);
+                    }
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    _logger?.LogWarning(ex, "Access denied to subdirectories in: {Directory}. Skipping subdirectory enumeration.", currentDirectory);
+                    // Don't add to failed files for subdirectory enumeration failures - we already processed files in this directory
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Error enumerating subdirectories in: {Directory}. Skipping subdirectory enumeration.", currentDirectory);
+                    // Don't add to failed files for subdirectory enumeration failures - we already processed files in this directory
+                }
+            }
         }
 
         private static bool ShouldSkipFile(string filePath, FileInfo fileInfo)
@@ -851,8 +896,10 @@ namespace HlpAI.MCP
             }
 
             var results = new List<object>();
+            var searchResult = new IndexingResult { IndexingStarted = DateTime.UtcNow };
+            var accessibleFiles = SafeEnumerateFiles(_rootPath, searchResult);
 
-            foreach (var file in Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories))
+            foreach (var file in accessibleFiles)
             {
                 var extractor = _extractors?.FirstOrDefault(e => e.CanHandle(file));
                 if (extractor != null)
@@ -874,6 +921,12 @@ namespace HlpAI.MCP
                         _logger?.LogWarning(ex, "Error searching file {File}", file);
                     }
                 }
+            }
+
+            // Log any directory access issues encountered during search
+            if (searchResult.FailedFiles.Count > 0)
+            {
+                _logger?.LogInformation("Search encountered {FailedDirectoryCount} inaccessible directories", searchResult.FailedFiles.Count);
             }
 
             return new McpResponse

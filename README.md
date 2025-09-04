@@ -30,6 +30,12 @@ A comprehensive .NET 9.0 application combining **Model Context Protocol (MCP)** 
 - **Incremental indexing**: Only processes new or modified files
 - **Smart chunking**: Optimized 1000-word chunks with overlap
 
+### 🛡️ Robust Error Handling
+- **Safe directory enumeration**: Gracefully handles restricted directories and access permissions
+- **Initialization protection**: Comprehensive error handling during startup and configuration
+- **Audit functionality**: Requires explicit directory specification for security and clarity
+- **Graceful degradation**: Continues operation when encountering inaccessible files or directories
+
 ## 🎯 Operation Modes
 
 HlpAI supports three distinct operation modes to suit different use cases:
@@ -180,7 +186,7 @@ start TestResults/CoverageReport/index.html
 - **Minimum Line Coverage**: 70%
 - **Minimum Branch Coverage**: 50%
 - **Current Status**: 39% line coverage, 25% branch coverage (improvement in progress)
-- **Test Count**: 877 tests (all passing)
+- **Test Count**: 1302 tests (all passing)
 
 #### Coverage Report Locations
 - **Raw Data**: `coverage.cobertura.xml`

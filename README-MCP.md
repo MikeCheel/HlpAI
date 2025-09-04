@@ -35,6 +35,37 @@ dotnet run "C:\YourDocuments" "llama3.2" "mcp"
 dotnet run "C:\YourDocuments" "mcp"
 ```
 
+### Audit Mode for Document Analysis
+
+Before running in MCP server mode, you can use audit mode to analyze your document directory:
+
+```bash
+# Audit a directory to understand its contents
+dotnet run -- --audit "C:\YourDocuments"
+
+# Example output:
+# 📊 File Audit Report for: C:\YourDocuments
+# ==========================================
+# 📁 Total Files: 156
+# 📄 Supported Types: 134 (85.9%)
+# ⚠️  Unsupported Types: 22 (14.1%)
+# 💾 Total Size: 45.2 MB
+# 🔒 Access Issues: 3 files
+```
+
+**Audit Features:**
+- **File type analysis** - Identifies supported vs unsupported formats
+- **Size analysis** - Shows file size distribution and totals
+- **Permission analysis** - Detects access-restricted files
+- **Recommendations** - Suggests optimizations for better processing
+- **Recursive scanning** - Analyzes all subdirectories
+
+**When to use audit mode:**
+- Before setting up a new document directory
+- To troubleshoot indexing issues
+- To understand document collection composition
+- To identify potential access problems
+
 #### Configuration Parameters
 ```bash
 # Full parameter format
@@ -2877,6 +2908,33 @@ public async Task MigrateToSecureStorageAsync()
 ```
 
 ## 🚨 Troubleshooting
+
+### Enhanced Error Handling
+
+HlpAI includes robust error handling for common issues:
+
+**Directory Access Issues:**
+- **Safe enumeration** - Continues processing when encountering restricted directories
+- **Graceful degradation** - Logs access issues without crashing
+- **Detailed reporting** - Shows which files/directories had access problems
+
+**Initialization Protection:**
+- **Startup validation** - Validates configuration before starting services
+- **Graceful failure** - Provides clear error messages for startup issues
+- **Recovery guidance** - Suggests solutions for common configuration problems
+
+**Audit-First Approach:**
+Use audit mode to identify potential issues before running MCP server:
+```bash
+# Run audit first to identify problems
+dotnet run -- --audit "C:\YourDocuments"
+
+# Look for:
+# - Access denied errors
+# - Unsupported file types
+# - Large files that might cause issues
+# - Directory structure problems
+```
 
 ### Common MCP Server Issues
 

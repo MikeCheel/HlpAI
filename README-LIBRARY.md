@@ -1351,7 +1351,164 @@ public static async Task<IActionResult> Run(
 }
 ```
 
+### Document Audit Functionality
+
+The library includes built-in audit capabilities to analyze document directories before processing:
+
+#### **FileAuditUtility**
+Static utility class for directory analysis.
+
+```csharp
+public static class FileAuditUtility
+{
+    public static void AuditDirectory(string directoryPath, 
+        ILogger? logger = null, 
+        TextWriter? output = null)
+    {
+        // Analyzes directory structure, file types, sizes, and permissions
+        // Provides recommendations for optimization
+        // Identifies potential processing issues
+    }
+}
+```
+
+**Usage Example:**
+```csharp
+public class DocumentAnalysisService
+{
+    private readonly ILogger<DocumentAnalysisService> _logger;
+    
+    public DocumentAnalysisService(ILogger<DocumentAnalysisService> logger)
+    {
+        _logger = logger;
+    }
+    
+    public async Task<AuditReport> AnalyzeDirectoryAsync(string directoryPath)
+    {
+        var report = new StringBuilder();
+        using var writer = new StringWriter(report);
+        
+        // Perform audit
+        FileAuditUtility.AuditDirectory(directoryPath, _logger, writer);
+        
+        return new AuditReport
+        {
+            DirectoryPath = directoryPath,
+            ReportContent = report.ToString(),
+            Timestamp = DateTime.UtcNow
+        };
+    }
+    
+    public async Task<bool> ValidateDirectoryForProcessingAsync(string directoryPath)
+    {
+        try
+        {
+            // Use audit to validate directory before processing
+            FileAuditUtility.AuditDirectory(directoryPath, _logger);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Directory validation failed for {DirectoryPath}", directoryPath);
+            return false;
+        }
+    }
+}
+```
+
+**Audit Features:**
+- **File type analysis**: Identifies supported vs unsupported formats
+- **Size analysis**: Reports file size distribution and large files
+- **Permission analysis**: Checks for access issues
+- **Recommendations**: Suggests optimizations and improvements
+- **Recursive scanning**: Processes subdirectories automatically
+
 ## 🚨 Troubleshooting
+
+### Enhanced Error Handling
+
+The library includes robust error handling for common scenarios:
+
+**Directory Access Issues:**
+```csharp
+// Safe directory enumeration with graceful degradation
+public async Task<IEnumerable<string>> SafeEnumerateFilesAsync(string directoryPath)
+{
+    var files = new List<string>();
+    
+    try
+    {
+        // Use the built-in safe enumeration
+        await foreach (var file in SafeEnumerateFiles(directoryPath))
+        {
+            files.Add(file);
+        }
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        _logger.LogWarning(ex, "Access denied to directory: {DirectoryPath}", directoryPath);
+        // Continue processing other directories
+    }
+    catch (DirectoryNotFoundException ex)
+    {
+        _logger.LogError(ex, "Directory not found: {DirectoryPath}", directoryPath);
+        throw; // Re-throw for critical errors
+    }
+    
+    return files;
+}
+```
+
+**Initialization Protection:**
+```csharp
+// Proper service initialization with error handling
+services.AddHlpAI(options =>
+{
+    options.DocumentDirectory = documentPath;
+    options.EnableGracefulDegradation = true; // New option
+    options.SkipInaccessibleDirectories = true; // New option
+});
+
+// Validate configuration on startup
+services.AddOptions<HlpAIOptions>()
+    .Validate(options => 
+    {
+        if (string.IsNullOrEmpty(options.DocumentDirectory))
+            return false;
+            
+        // Use audit to validate directory
+        try
+        {
+            FileAuditUtility.AuditDirectory(options.DocumentDirectory);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    })
+    .ValidateOnStart();
+```
+
+### Audit-First Approach
+
+Before processing documents, always audit the directory:
+
+```csharp
+public async Task<ProcessingResult> ProcessDocumentsAsync(string directoryPath)
+{
+    // Step 1: Audit directory first
+    var auditReport = await AnalyzeDirectoryAsync(directoryPath);
+    
+    if (!auditReport.IsValid)
+    {
+        return ProcessingResult.Failed($"Directory audit failed: {auditReport.Issues}");
+    }
+    
+    // Step 2: Process documents with confidence
+    return await ProcessValidatedDirectoryAsync(directoryPath);
+}
+```
 
 ### Common Issues and Solutions
 
@@ -1382,7 +1539,7 @@ dotnet-counters monitor --process-id <PID> --counters System.Net.Http
 
 **Configuration Issues:**
 ```csharp
-// Add configuration validation
+// Add configuration validation with audit
 services.AddOptions<HlpAIOptions>()
     .Validate(options => 
     {
@@ -1392,7 +1549,17 @@ services.AddOptions<HlpAIOptions>()
         if (!Directory.Exists(options.DocumentDirectory))
             Directory.CreateDirectory(options.DocumentDirectory);
             
-        return true;
+        // Validate with audit
+        try
+        {
+            FileAuditUtility.AuditDirectory(options.DocumentDirectory);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Directory audit failed: {ex.Message}");
+            return false;
+        }
     })
     .ValidateOnStart();
 ```
