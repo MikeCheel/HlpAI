@@ -353,7 +353,13 @@ public static class Program
             return;
         }
 
-
+        // Handle cleanup commands
+        if (cmdArgs.IsCleanupCommand())
+        {
+            using var cleanupService = new CleanupService(logger, configService);
+            await cmdArgs.ApplyCleanupConfigurationAsync(cleanupService);
+            return;
+        }
 
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
@@ -730,7 +736,11 @@ public static class Program
         while (directory == null)
         {
             using var directoryPromptService = new PromptService(config, sharedConfigService, logger);
-            var input = directoryPromptService.PromptForValidatedStringSetup("Enter the path to your documents directory", InputValidationType.FilePath, null, "directory path");
+            // Use last directory as default if RememberLastDirectory is enabled and directory exists
+            var defaultDirectory = (config.RememberLastDirectory && !string.IsNullOrEmpty(config.LastDirectory) && Directory.Exists(config.LastDirectory)) 
+                ? config.LastDirectory 
+                : null;
+            var input = directoryPromptService.PromptForValidatedStringSetup("Enter the path to your documents directory", InputValidationType.FilePath, defaultDirectory, "directory path");
             
             input = input.Trim();
             
@@ -1301,7 +1311,7 @@ public static class Program
         Console.WriteLine("💬 Interactive Chat Mode");
         Console.WriteLine("========================");
         Console.WriteLine("Welcome to interactive chat! You can have a continuous conversation with the AI.");
-        Console.WriteLine("Type 'quit', 'exit', 'q', 'cancel', 'back', or 'b' to return to the main menu.");
+        Console.WriteLine("Type 'quit', 'exit', 'q', or 'cancel' to return to the main menu.");
         Console.WriteLine("Type 'clear' or 'c' to clear the conversation history.");
         Console.WriteLine("Type 'help' or 'h' for available commands.");
         Console.WriteLine();
@@ -1345,8 +1355,6 @@ public static class Program
                 case "exit":
                 case "q":
                 case "cancel":
-                case "back":
-                case "b":
                     Console.WriteLine("👋 Goodbye! Returning to main menu...");
                     chatRunning = false;
                     continue;
@@ -1365,7 +1373,7 @@ public static class Program
                 case "h":
                     Console.WriteLine();
                     Console.WriteLine("📋 Available Commands:");
-                    Console.WriteLine("  • quit, exit, q, cancel, back, b - Exit chat mode");
+                    Console.WriteLine("  • quit, exit, q, cancel - Exit chat mode");
                     Console.WriteLine("  • clear, c - Clear conversation history");
                     Console.WriteLine("  • help, h - Show this help message");
                     Console.WriteLine();

@@ -434,8 +434,8 @@ FodyWeavers.xsd
 
 # AI Tools
 .claude/
-vector.db
-vectors.db
+.trae/
+.qodo/
 
 # Project-specific build and test output files
 build_output.txt

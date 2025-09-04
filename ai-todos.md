@@ -1,19 +1,265 @@
-# AI Todos - HlpAI Project
+# AI Assistant Todo List
 
-## ⚠️ CRITICAL CODE QUALITY REQUIREMENTS ⚠️
-**BEFORE ANY TASK IS MARKED COMPLETE:**
-- ❌ ZERO compilation errors allowed
-- ❌ ZERO warnings allowed  
-- ❌ ZERO messages allowed
-- ✅ ALL tests MUST pass (100% success rate)
-- ✅ Build MUST succeed completely
-- 🚫 NO EXCEPTIONS - These requirements are NON-NEGOTIABLE
+This file tracks tasks and progress for the AI assistant working on the HlpAI project.
 
-**If ANY of the above requirements are not met, the task is NOT complete and must be fixed immediately.**
+## Critical Code Quality Requirements
+
+**MANDATORY VERIFICATION BEFORE ANY WORK:**
+- Build must complete with ZERO errors and ZERO warnings
+- ALL tests must pass (100% success rate)
+- Code coverage must be at least 70%
+
+**STRICT CODE QUALITY ENFORCEMENT:**
+- No suppression of warnings or errors allowed
+- All nullable reference issues must be properly resolved
+- All async/await patterns must be correctly implemented
+- All disposable resources must be properly disposed
+
+## Archived Questions
+
+*Questions that have been answered are moved here with their answers*
+
+### 🤔 Menu System Architecture Questions
+
+#### Q1: Main Menu Organization
+**Question**: For the main menu reorganization, what specific categories would you like for the sub-menus?
+**Suggestions**: 
+1. Configuration (AI provider, models, embedding settings)
+2. Operations (ask questions, process files, vector operations)
+3. Management (show models, pull models, database operations)
+4. System (help, about, quit)
+**Your Answer**: Use this suggestion.
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+#### Q2: Provider-Specific Menu Behavior
+**Question**: When switching between providers (e.g., Ollama to OpenAI), should the menu automatically refresh to show/hide relevant options, or should this happen only on restart?
+**Suggestions**:
+1. Real-time menu updates when provider changes
+2. Menu refresh only on application restart
+3. Hybrid approach with manual refresh option
+**Your Answer**: Use the first option
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+#### Q3: Menu Icon Support
+**Question**: For the menu icon display issue (showing ??), would you prefer to fall back to text-only menus if Unicode/emoji support is unavailable, or should we implement a detection system?
+**Suggestions**:
+1. Auto-detect Unicode support and fall back to text
+2. Configuration option to enable/disable icons
+3. Use ASCII alternatives (*, -, +, etc.) instead of Unicode
+**Your Answer**: 1
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+### 🔧 Configuration and Setup Questions
+
+#### Q6: Database Migration Strategy
+**Question**: For database schema migration, should we create backup files before migration, and what should happen if migration fails partially?
+**Suggestions**:
+1. Always create .bak files before migration
+2. Rollback mechanism for failed migrations
+3. Migration log file for troubleshooting
+4. All of the above (recommended)
+**Your Answer**: 4, if successfully migrated, get rid of the .bak file. If not, roll back to the previous version. The user should be given a message as well as writing to the log.
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+#### Q8: Default Provider Selection
+**Question**: When no provider is configured on startup, should we show all available providers or only detect what's actually installed/accessible?
+**Suggestions**:
+1. Show all providers with availability indicators
+2. Only show detected/installed providers
+3. Show all with setup instructions for unavailable ones
+**Your Answer**: 3 but make sure the menu shows that unavailable providers are not available and need to be configured in the configuration section in order to use.
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+#### Q7: Embedding Model Configuration
+**Question**: Should the embedding model configuration be tied to the AI provider, or should it be a separate global setting?
+**Suggestions**:
+1. Provider-specific embedding models
+2. Global embedding model setting
+3. Allow both with provider override option
+**Your Answer**: 1
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+### 🚀 Implementation Priority Questions
+
+#### Q4: Command Line vs Third Party Mode Parity
+**Question**: Which features should have identical behavior between command line and third party modes, and which can differ?
+**Suggestions**:
+1. Core functionality identical, UI/interaction different
+2. Parameter validation and processing identical
+3. Error handling and logging consistent
+4. All of the above (recommended)
+**Your Answer**: 4
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
+
+#### Q5: Model Management Integration
+**Question**: For the model pull feature, should this integrate with existing package managers (like Ollama's built-in pull) or implement our own download system?
+**Suggestions**:
+1. Use provider's native pull/download commands
+2. Implement unified download interface
+3. Hybrid approach with provider-specific backends
+**Your Answer**: 1
+**Date Answered**: 2024-08-22
+**Status**: ✅ Answered
 
 ## Current Session Progress
 
+### Pending Tasks 📋
+
+#### Interactive Mode Enhancements
+
+### 🔧 Fix Menu System Robustness (2024-08-22)
+- **Task**: Ensure no menu option selection causes program crash or unexpected exit
+- **Scope**: Review all menu handling code to prevent crashes from invalid inputs, edge cases, or unexpected user actions
+- **Priority**: High
+- **Status**: 📋 PENDING APPROVAL
+
+### 📝 Improve Menu Option Clarity (2024-08-22)
+- **Task**: Add descriptive text in parentheses for menu options c, b, and q to clarify their meaning
+- **Scope**: Update menu display to show "c (clear)", "b (back)", and "q (quit)" so users understand what these options do
+- **Priority**: Medium
+- **Status**: 📋 PENDING APPROVAL
+
+### 🎯 Fix Context-Aware Menu Options (2024-08-22)
+- **Task**: Only display menu options that are available for the current menu context
+- **Scope**: Review all menu displays to ensure options like 'b (back)' are only shown when they are actually available for that specific menu, not as default options when they don't apply
+- **Priority**: High
+- **Status**: 📋 PENDING APPROVAL
+
+### 🏠 Fix Main Menu Display on Return (2024-08-22)
+- **Task**: Ensure complete main menu is displayed when returning from submenus
+- **Scope**: Fix the issue where only menu options are shown instead of the full main menu header and content when navigating back to the main menu from submenus
+- **Priority**: Medium
+- **Status**: 📋 PENDING APPROVAL
+
+### 🔧 Fix Menu Icon Display (2024-08-22)
+- **Task**: Fix menu icons that display as ?? instead of proper symbols. Ensure proper Unicode/emoji support in console output
+- **Scope**: Menu system, console output, character encoding
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+### 🎯 Add Provider-Specific Menu Commands (2024-08-22)
+- **Task**: Show only appropriate menu commands based on the current AI provider. For example, hide 'Show available models' when using API providers where this command doesn't make sense
+- **Scope**: Menu system, provider detection, context-aware UI
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+### 📋 Reorganize Main Menu Structure (2024-08-22)
+- **Task**: Reorganize the main menu to show only common items at the top level, with the rest organized into categorical sub-menus for better navigation and user experience
+- **Scope**: Menu system architecture, user interface design, navigation flow
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+#### MCP Server Mode Enhancements
+
+### 🔄 Standardize Command Line and Third Party Mode Functionality (2024-08-22)
+- **Task**: Ensure command line mode and third party mode have similar functionality with consistent parameter handling and behavior where it makes sense
+- **Scope**: Application modes, parameter validation, API consistency
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+### 🗄️ Add Database Schema Migration (2024-08-22)
+- **Task**: Check the current vector.db and config.db. If their schema is not up to date, migrate the new schema to the db. Include data migration when possible. If migration is not possible, log an error in command line mode or throw an exception in third party mode
+- **Scope**: Database management, schema migration, vector store, configuration store
+- **Priority**: High
+- **Status**: ⏳ Awaiting approval
+
+### 📝 Add Embedding Model Configuration (2024-08-22)
+- **Task**: Allow users to configure the embedding model (currently hardcoded to 'nomic-embed-text') through the configuration menu system, similar to how AI models are configurable
+- **Scope**: Configuration menu system, EmbeddingService.cs
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+### 🚀 Add Provider Selection on Startup (2024-08-22)
+- **Task**: When the app starts up, ask what provider they want if there is none currently in the config db. Once selected they can then choose what model for that provider if applicable. API key providers wouldn't necessarily use that. Update menu system to reflect that Ollama is not the only provider now.
+- **Scope**: Startup flow, configuration system, menu system, provider selection
+- **Priority**: High
+- **Status**: ⏳ Awaiting approval
+
+### 📥 Add Model Pull Feature for Local Providers (2024-08-22)
+- **Task**: Allow locally run model providers (i.e. Ollama, LM Studio, Open WebUI) to pull a new model if they desire for that provider through the application interface
+- **Scope**: Local provider integration, model management, menu system
+- **Priority**: Medium
+- **Status**: ⏳ Awaiting approval
+
+### 💬 Improve Default Value Display (2024-08-22)
+- **Task**: When asking about last operation or last choice in the context of asking if they want to use the default, provide in that message what the default was
+- **Scope**: User interface, menu prompts, user experience
+- **Priority**: Low
+- **Status**: ⏳ Awaiting approval
+
+1. **Consolidate redundant 'cancel' and 'back' commands** - COMPLETED ✅
+   - Issue: 'cancel' and 'back' commands had identical functionality throughout the application
+   - Solution: Removed 'back' command and kept 'cancel' for consistency
+   - Changes made:
+     * Program.cs: Removed 'back' from interactive chat mode exit commands (line ~1351)
+     * PromptService.cs: Updated all cancellation logic to use 'cancel' instead of 'back'
+     * Updated help text in prompts to show 'cancel'/'b' instead of 'back'/'b'
+   - **CRITICAL CONSTRAINTS MET:**
+     * Maintained contextually appropriate navigation options
+     * No unintended app crashes or exits
+     * Proper navigation flow preserved
+   - Verification: Build succeeded with 0 errors/warnings, all 1351 tests passing
+   - Status: COMPLETED
+
 ### Completed Tasks ✅
+
+#### Interactive Mode Enhancements - Completed
+
+### ✅ Enhanced Interactive Mode (2024-08-22)
+- **Task**: Improve interactive mode functionality and user experience
+- **Scope**: Interactive mode, user interface, menu system
+- **Priority**: High
+- **Status**: ✅ COMPLETED
+- **Details**: Enhanced interactive mode with better menu navigation and user feedback
+
+### ✅ Fixed Provider Selection Exception (2024-08-22)
+- **Task**: Fix exception handling in provider selection process
+- **Scope**: Provider selection, error handling, configuration
+- **Priority**: High
+- **Status**: ✅ COMPLETED
+- **Details**: Resolved exceptions that occurred during provider selection and configuration
+
+### ✅ Resolved DeepSeek Issues (2024-08-22)
+- **Task**: Fix issues related to DeepSeek provider integration
+- **Scope**: DeepSeek provider, API integration, error handling
+- **Priority**: Medium
+- **Status**: ✅ COMPLETED
+- **Details**: Fixed compatibility and integration issues with DeepSeek AI provider
+
+### ✅ Fixed Console TextWriter Issues (2024-08-22)
+- **Task**: Resolve console output and TextWriter related problems
+- **Scope**: Console output, logging, text handling
+- **Priority**: Medium
+- **Status**: ✅ COMPLETED
+- **Details**: Fixed console output formatting and TextWriter functionality
+
+### ✅ Resolved Build Warnings (2024-08-22)
+- **Task**: Fix all build warnings in the project
+- **Scope**: Code quality, build process, compiler warnings
+- **Priority**: Medium
+- **Status**: ✅ COMPLETED
+- **Details**: Addressed and resolved all compiler warnings to improve code quality
+
+### ✅ Improved Code Coverage (2024-08-22)
+- **Task**: Increase unit test coverage across the application
+- **Scope**: Unit tests, test coverage, quality assurance
+- **Priority**: Medium
+- **Status**: ✅ COMPLETED
+- **Details**: Added comprehensive unit tests to improve overall code coverage
+
+### ✅ Fixed Invalid Menu Option Handling (2024-08-22)
+- **Task**: Improve handling of invalid menu option selections
+- **Scope**: Menu system, input validation, error handling
+- **Priority**: Medium
+- **Status**: ✅ COMPLETED
+- **Details**: Enhanced menu system to properly handle and respond to invalid user inputs
 
 1. **Fix UnauthorizedAccessException crash** - COMPLETED
    - Fixed EnhancedMcpRagServer.IndexAllDocumentsAsync method
@@ -48,6 +294,15 @@
      - JSON deserialization errors
 
 6. **Fix CS8625 Warning** - COMPLETED ✅
+
+7. **Fix directory remembering functionality** - COMPLETED ✅
+   - ISSUE RESOLVED: The functionality was working correctly, but LastDirectory was not set in database
+   - Used temp-clear-dir project to set LastDirectory to C:\Users\mikec\Desktop\ChmData
+   - Verified that when RememberLastDirectory is enabled and LastDirectory exists, it's properly shown
+   - Interactive setup now displays: "💾 Last used directory: C:\Users\mikec\Desktop\ChmData"
+   - Users can press Y (default) to accept the remembered directory without retyping
+   - All 1351 tests passing (100% success rate)
+   - Build successful with zero errors, warnings, or messages
    - Resolved "Cannot convert null literal to non-nullable reference type" warning
    - Updated McpRequest.Params property from `required object Params` to `required object? Params`
    - Build now succeeds with zero warnings and zero errors

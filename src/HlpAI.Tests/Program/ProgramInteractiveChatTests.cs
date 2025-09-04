@@ -295,12 +295,12 @@ public class ProgramInteractiveChatTests
     public async Task ChatCommands_QuitVariations_ShouldAllBeRecognized()
     {
         // Test that all quit command variations are properly recognized
-        var quitCommands = new[] { "quit", "exit", "q", "cancel", "back", "b" };
+        var quitCommands = new[] { "quit", "exit", "q", "cancel" };
         
         foreach (var command in quitCommands)
         {
             var lowerCommand = command.ToLower();
-            var isQuitCommand = lowerCommand is "quit" or "exit" or "q" or "cancel" or "back" or "b";
+            var isQuitCommand = lowerCommand is "quit" or "exit" or "q" or "cancel";
             await Assert.That(isQuitCommand).IsTrue();
         }
     }
