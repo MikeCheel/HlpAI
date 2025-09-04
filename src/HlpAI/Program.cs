@@ -173,6 +173,155 @@ public static class Program
     {
         switch (action)
         {
+            // Main menu actions for frequently used features
+            case "interactive_chat":
+                if (server != null)
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoInteractiveChat(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "rag_question":
+                if (server != null)
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoRagAsk(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "ask_ai":
+                if (server != null)
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoAskAI(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+                
+            // Sub-menu navigation
+            case "operations_menu":
+                await HandleOperationsMenu(server, logger, menuStateManager, ollamaModel, mode);
+                break;
+            case "configuration_menu":
+                await HandleConfigurationMenu(server, logger, menuStateManager, ollamaModel, mode);
+                break;
+            case "management_menu":
+                await HandleManagementMenu(server, logger, menuStateManager, ollamaModel, mode);
+                break;
+                
+            // Operations menu actions
+            case "list_files":
+                if (server != null) 
+                {
+                    await DemoListFiles(server);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+            case "read_file":
+                if (server != null) 
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoReadFile(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+            case "search_files":
+                if (server != null) 
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoSearchFiles(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+            case "analyze_files":
+                if (server != null) 
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoAnalyzeFile(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+            case "semantic_search":
+                if (server != null) 
+                {
+                    var config = ConfigurationService.LoadConfiguration();
+                    await DemoRagSearch(server, config, new SqliteConfigurationService(), logger);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+            case "reindex":
+                if (server != null) 
+                {
+                    await DemoReindex(server);
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                }
+                WaitForUserInput("Press any key to continue...");
+                break;
+                
+            // Configuration menu actions
+            case "ai_provider_management":
+                await ShowAiProviderMenuAsync(menuStateManager);
+                break;
+            case "configuration":
+                await ShowConfigurationMenuAsync(menuStateManager);
+                break;
+            case "change_directory":
+                if (server != null)
+                {
+                    var newServer = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
+                    if (newServer != server)
+                    {
+                        Console.WriteLine("⚠️ Directory changed. Please restart the application to use the new directory.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case "extractor_management":
+                await ShowExtractorManagementMenuAsync(menuStateManager);
+                break;
+            case "file_filtering_management":
+                await ShowFileFilteringManagementMenuAsync(menuStateManager);
+                break;
             case "show_models":
                 if (server?._aiProvider.SupportsDynamicModelSelection == true)
                 {
@@ -184,6 +333,8 @@ public static class Program
                     WaitForUserInput("Press any key to continue...");
                 }
                 break;
+                
+            // Management menu actions
             case "show_status":
                 if (server != null) 
                     await DemoShowStatus(server);
@@ -202,6 +353,12 @@ public static class Program
                     WaitForUserInput("Press any key to continue...");
                 }
                 break;
+            case "log_viewer":
+                await ShowLogViewerAsync(menuStateManager);
+                break;
+            case "vector_db_management":
+                await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
+                break;
             case "server_mode":
                 if (server != null)
                 {
@@ -213,39 +370,7 @@ public static class Program
                     WaitForUserInput("Press any key to continue...");
                 }
                 break;
-            case "change_directory":
-                if (server != null)
-                {
-                    var newServer = await ChangeDirectoryAsync(server, logger, ollamaModel, mode);
-                    if (newServer != server)
-                    {
-                        Console.WriteLine("⚠️ Directory changed. Please restart the application to use the new directory.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case "configuration":
-                await ShowConfigurationMenuAsync(menuStateManager);
-                break;
-            case "log_viewer":
-                await ShowLogViewerAsync(menuStateManager);
-                break;
-            case "extractor_management":
-                await ShowExtractorManagementMenuAsync(menuStateManager);
-                break;
-            case "ai_provider":
-                await ShowAiProviderMenuAsync(menuStateManager);
-                break;
-            case "vector_database":
-                await ShowVectorDatabaseManagementMenuAsync(menuStateManager);
-                break;
-            case "file_filtering":
-                await ShowFileFilteringManagementMenuAsync(menuStateManager);
-                break;
+                
             default:
                 Console.WriteLine($"❌ Unknown action: {action}");
                 WaitForUserInput("Press any key to continue...");
@@ -1074,12 +1199,13 @@ public static class Program
             }
             else
             {
-                Console.Write($"Select a model (1-{availableModels.Count + 1}, 'b' to go back, or 'q' to quit): ");
+                Console.Write($"Select a model (1-{availableModels.Count + 1}, 'c' to cancel, or 'q' to quit): ");
             }
-            var input = SafePromptForString("", isSetup ? "1" : "b").Trim();
+            var input = SafePromptForString("", isSetup ? "1" : "c").Trim();
             
-            if (!isSetup && (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back"))
+            if (!isSetup && (input?.ToLower() == "q" || input?.ToLower() == "c" || input?.ToLower() == "cancel"))
             {
+                Console.Clear();
                 return "";
             }
             
@@ -5312,7 +5438,110 @@ private static Task WaitForKeyPress()
     {
         var config = ConfigurationService.LoadConfiguration();
         
-        // Get current provider capabilities for conditional menu display
+        // Header with styled box
+        Console.WriteLine();
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
+        
+        // AI Provider Status
+        var providerStatus = GetProviderStatusDisplay(config);
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Provider Status"), MenuStyler.InfoColor);
+        MenuStyler.WriteColoredLine($"  🤖 Current Provider: {providerStatus}", MenuStyler.StatusColor);
+        Console.WriteLine();
+        
+        // Frequently Used Features - Based on Q11 Answer: Interactive Chat (4), RAG Search (8), Ask AI (5)
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⭐ Most Used Features"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(1, "Interactive Chat Mode (continuous conversation)", "💬"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(2, "RAG-enhanced AI questioning", "🧠"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Ask AI questions (with optional RAG enhancement)", "🤖"));
+        Console.WriteLine();
+        
+        // Sub-Menu Categories - Based on Q10 Answer: Configuration, Operations, Management, Quick Actions
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📂 Menu Categories"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Operations (Files, Analysis, Search)", "⚙️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Configuration (Settings, Providers, Directory)", "🔧"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Management (Database, Logs, System)", "🛠️"));
+        Console.WriteLine();
+        
+        // Clear the menu actions and set up new mappings
+        _currentMenuActions.Clear();
+        _currentMenuActions[1] = "interactive_chat";
+        _currentMenuActions[2] = "rag_question";
+        _currentMenuActions[3] = "ask_ai";
+        _currentMenuActions[4] = "operations_menu";
+        _currentMenuActions[5] = "configuration_menu";
+        _currentMenuActions[6] = "management_menu";
+        
+        // Store the maximum option number for input validation
+        _maxMenuOption = 6;
+        Console.WriteLine();
+        
+        // Quick Actions Section
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen (clear)", "🖥️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu (menu)", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit (quit)", "🚪"));
+        Console.WriteLine();
+    }
+
+    public static void ShowOperationsMenu()
+    {
+        Console.WriteLine();
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("⚙️ Operations Menu"), MenuStyler.HeaderColor);
+        Console.WriteLine();
+        
+        // File Operations
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📁 File Operations"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(1, "List all available files", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(2, "Read specific file content", "📄"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Search files by text content", "🔍"));
+        Console.WriteLine();
+        
+        // AI Analysis
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🔬 AI Analysis"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Analyze specific files with AI", "🔬"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Semantic search using vector embeddings", "🎯"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Reindex documents", "🔄"));
+        Console.WriteLine();
+        
+        // Quick Actions
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Cancel - Return to main menu (cancel)", "↩️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Main menu (main)", "🏠"));
+        Console.WriteLine();
+        
+        // Set up menu actions for operations
+        _currentMenuActions.Clear();
+        _currentMenuActions[1] = "list_files";
+        _currentMenuActions[2] = "read_file";
+        _currentMenuActions[3] = "search_files";
+        _currentMenuActions[4] = "analyze_files";
+        _currentMenuActions[5] = "semantic_search";
+        _currentMenuActions[6] = "reindex";
+        _maxMenuOption = 6;
+    }
+    
+    public static void ShowConfigurationMenu()
+    {
+        var config = ConfigurationService.LoadConfiguration();
+        
+        Console.WriteLine();
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("🔧 Configuration Menu"), MenuStyler.HeaderColor);
+        Console.WriteLine();
+        
+        // AI Configuration
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Configuration"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(1, "AI provider management", "🤖"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(2, "Configuration settings", "⚙️"));
+        Console.WriteLine();
+        
+        // Directory & Files
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📁 Directory & Files"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Change document directory", "📁"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "File extractor management", "🔧"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "File filtering management", "🗂️"));
+        Console.WriteLine();
+        
+        // Show available models - only if provider supports it
         bool supportsDynamicModelSelection = false;
         try
         {
@@ -5328,96 +5557,231 @@ private static Task WaitForKeyPress()
         }
         catch
         {
-            // If provider creation fails, assume no dynamic model selection
             supportsDynamicModelSelection = false;
         }
         
-        // Header with styled box
-        Console.WriteLine();
-        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
-        
-        // AI Provider Status
-        var providerStatus = GetProviderStatusDisplay(config);
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Provider Status"), MenuStyler.InfoColor);
-        MenuStyler.WriteColoredLine($"  🤖 Current Provider: {providerStatus}", MenuStyler.StatusColor);
-        Console.WriteLine();
-        
-        // File Operations Section
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📁 File Operations"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(1, "List all available files", "📋"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(2, "Read specific file content", "📄"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Search files by text content", "🔍"));
-        Console.WriteLine();
-        
-        // AI Features Section
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Features"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Interactive Chat Mode (continuous conversation)", "💬"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Ask AI questions (with optional RAG enhancement)", "🤖"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Analyze specific files with AI", "🔬"));
-        Console.WriteLine();
-        
-        // RAG Features Section
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🔍 RAG Features"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(7, "Semantic search using vector embeddings", "🎯"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(8, "RAG-enhanced AI questioning", "🧠"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(9, "Reindex documents", "🔄"));
-        Console.WriteLine();
-        
-        // System Management Section
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🛠️ System Management"), MenuStyler.AccentColor);
-        
-        // Dynamic numbering for context-aware menu options
-        int currentOption = 10;
-        _currentMenuActions.Clear(); // Clear previous mappings
-        
-        // Show available models - only if provider supports dynamic model selection
+        int currentOption = 6;
         if (supportsDynamicModelSelection)
         {
+            MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📊 Model Management"), MenuStyler.AccentColor);
             Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Show available models", "📊"));
             _currentMenuActions[currentOption] = "show_models";
             currentOption++;
+            Console.WriteLine();
         }
         
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Display system status", "📈"));
-        _currentMenuActions[currentOption] = "show_status";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Show comprehensive indexing report", "📋"));
-        _currentMenuActions[currentOption] = "indexing_report";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Run as MCP server (for integration)", "🔗"));
-        _currentMenuActions[currentOption] = "server_mode";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Change document directory", "📁"));
-        _currentMenuActions[currentOption] = "change_directory";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Configuration settings", "⚙️"));
-        _currentMenuActions[currentOption] = "configuration";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "View error logs", "📝"));
-        _currentMenuActions[currentOption] = "log_viewer";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "File extractor management", "🔧"));
-        _currentMenuActions[currentOption] = "extractor_management";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "AI provider management", "🤖"));
-        _currentMenuActions[currentOption] = "ai_provider_management";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "Vector database management", "💾"));
-        _currentMenuActions[currentOption] = "vector_db_management";
-        currentOption++;
-        Console.WriteLine(MenuStyler.FormatMenuOption(currentOption, "File filtering management", "🗂️"));
-        _currentMenuActions[currentOption] = "file_filtering_management";
-        
-        // Store the maximum option number for input validation
-        _maxMenuOption = currentOption;
-        Console.WriteLine();
-        
-        // Quick Actions Section
+        // Quick Actions
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen (clear)", "🖥️"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu (menu)", "📋"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit (quit)", "🚪"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Cancel - Return to main menu (cancel)", "↩️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Main menu (main)", "🏠"));
         Console.WriteLine();
+        
+        // Set up menu actions for configuration
+        _currentMenuActions.Clear();
+        _currentMenuActions[1] = "ai_provider_management";
+        _currentMenuActions[2] = "configuration";
+        _currentMenuActions[3] = "change_directory";
+        _currentMenuActions[4] = "extractor_management";
+        _currentMenuActions[5] = "file_filtering_management";
+        _maxMenuOption = currentOption - 1;
+    }
+    
+    public static void ShowManagementMenu()
+    {
+        Console.WriteLine();
+        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("🛠️ Management Menu"), MenuStyler.HeaderColor);
+        Console.WriteLine();
+        
+        // System Status & Monitoring
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📈 System Status"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(1, "Display system status", "📈"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(2, "Show comprehensive indexing report", "📋"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(3, "View error logs", "📝"));
+        Console.WriteLine();
+        
+        // Database Management
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("💾 Database Management"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Vector database management", "💾"));
+        Console.WriteLine();
+        
+        // Server & Integration
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🔗 Server & Integration"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Run as MCP server (for integration)", "🔗"));
+        Console.WriteLine();
+        
+        // Quick Actions
+        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
+        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Cancel - Return to main menu (cancel)", "↩️"));
+        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Main menu (main)", "🏠"));
+        Console.WriteLine();
+        
+        // Set up menu actions for management
+        _currentMenuActions.Clear();
+        _currentMenuActions[1] = "show_status";
+        _currentMenuActions[2] = "indexing_report";
+        _currentMenuActions[3] = "log_viewer";
+        _currentMenuActions[4] = "vector_db_management";
+        _currentMenuActions[5] = "server_mode";
+        _maxMenuOption = 5;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static async Task HandleOperationsMenu(EnhancedMcpRagServer? server, ILogger<EnhancedMcpRagServer> logger, 
+        MenuStateManager menuStateManager, string ollamaModel, OperationMode mode)
+    {
+        bool inOperationsMenu = true;
+        while (inOperationsMenu)
+        {
+            ClearScreen();
+            ShowOperationsMenu();
+            
+            var input = SafePromptForStringMenu($"\nEnter command (1-{_maxMenuOption}, c, m)", "c");
+            
+            try
+            {
+                if (int.TryParse(input, out int optionNumber) && IsValidMenuOption(optionNumber))
+                {
+                    var action = GetMenuAction(optionNumber);
+                    if (action != null)
+                    {
+                        await HandleDynamicMenuActionAsync(action, server, ConfigurationService.LoadConfiguration(), 
+                            new SqliteConfigurationService(), logger, new ErrorLoggingService(), 
+                            menuStateManager, ollamaModel, mode, true);
+                    }
+                }
+                else
+                {
+                    switch (input.ToLower())
+                    {
+                        case "c":
+                        case "cancel":
+                            ClearScreen();
+                            inOperationsMenu = false;
+                            break;
+                        case "m":
+                        case "main":
+                            ClearScreen();
+                            inOperationsMenu = false;
+                            break;
+                        default:
+                            Console.WriteLine("❌ Invalid command. Please try again.");
+                            WaitForUserInput("Press any key to continue...");
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+            }
+        }
+    }
+    
+    [SupportedOSPlatform("windows")]
+    private static async Task HandleConfigurationMenu(EnhancedMcpRagServer? server, ILogger<EnhancedMcpRagServer> logger, 
+        MenuStateManager menuStateManager, string ollamaModel, OperationMode mode)
+    {
+        bool inConfigurationMenu = true;
+        while (inConfigurationMenu)
+        {
+            ClearScreen();
+            ShowConfigurationMenu();
+            
+            var input = SafePromptForStringMenu($"\nEnter command (1-{_maxMenuOption}, c, m)", "c");
+            
+            try
+            {
+                if (int.TryParse(input, out int optionNumber) && IsValidMenuOption(optionNumber))
+                {
+                    var action = GetMenuAction(optionNumber);
+                    if (action != null)
+                    {
+                        await HandleDynamicMenuActionAsync(action, server, ConfigurationService.LoadConfiguration(), 
+                            new SqliteConfigurationService(), logger, new ErrorLoggingService(), 
+                            menuStateManager, ollamaModel, mode, true);
+                    }
+                }
+                else
+                {
+                    switch (input.ToLower())
+                    {
+                        case "c":
+                        case "cancel":
+                            ClearScreen();
+                            inConfigurationMenu = false;
+                            break;
+                        case "m":
+                        case "main":
+                            ClearScreen();
+                            inConfigurationMenu = false;
+                            break;
+                        default:
+                            Console.WriteLine("❌ Invalid command. Please try again.");
+                            WaitForUserInput("Press any key to continue...");
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+            }
+        }
+    }
+    
+    [SupportedOSPlatform("windows")]
+    private static async Task HandleManagementMenu(EnhancedMcpRagServer? server, ILogger<EnhancedMcpRagServer> logger, 
+        MenuStateManager menuStateManager, string ollamaModel, OperationMode mode)
+    {
+        bool inManagementMenu = true;
+        while (inManagementMenu)
+        {
+            ClearScreen();
+            ShowManagementMenu();
+            
+            var input = SafePromptForStringMenu($"\nEnter command (1-{_maxMenuOption}, c, m)", "c");
+            
+            try
+            {
+                if (int.TryParse(input, out int optionNumber) && IsValidMenuOption(optionNumber))
+                {
+                    var action = GetMenuAction(optionNumber);
+                    if (action != null)
+                    {
+                        await HandleDynamicMenuActionAsync(action, server, ConfigurationService.LoadConfiguration(), 
+                            new SqliteConfigurationService(), logger, new ErrorLoggingService(), 
+                            menuStateManager, ollamaModel, mode, true);
+                    }
+                }
+                else
+                {
+                    switch (input.ToLower())
+                    {
+                        case "c":
+                        case "cancel":
+                            ClearScreen();
+                            inManagementMenu = false;
+                            break;
+                        case "m":
+                        case "main":
+                            ClearScreen();
+                            inManagementMenu = false;
+                            break;
+                        default:
+                            Console.WriteLine("❌ Invalid command. Please try again.");
+                            WaitForUserInput("Press any key to continue...");
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+            }
+        }
     }
 
     public static void ClearScreen()
