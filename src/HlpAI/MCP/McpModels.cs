@@ -5,7 +5,7 @@ public class McpRequest
     public string Jsonrpc { get; set; } = "2.0";
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public required string Method { get; set; }
-    public required object Params { get; set; }
+    public required object? Params { get; set; }
 }
 
 public class McpResponse

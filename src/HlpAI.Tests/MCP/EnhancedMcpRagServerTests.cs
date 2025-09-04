@@ -649,6 +649,41 @@ public class EnhancedMcpRagServerTests : IDisposable
         }
     }
 
+    // Note: IndexAllDocumentsAsync is a private method, so we test the public methods that use it
+    // The error handling is tested through the public InitializeAsync method
+
+    [Test]
+    public async Task InitializeAsync_WithValidDirectory_CompletesSuccessfully()
+    {
+        // Arrange
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.RAG);
+        
+        // Create a test file to index
+        var testFile = Path.Combine(_testRootPath, "initialize-test.txt");
+        await File.WriteAllTextAsync(testFile, "This is content to be indexed during initialization");
+
+        // Act & Assert - Should not throw any exceptions
+        await server.InitializeAsync();
+        
+        // If we reach here, initialization was successful
+        await Assert.That(server._vectorStore).IsNotNull();
+    }
+
+    [Test]
+    public async Task InitializeAsync_WithNonExistentDirectory_HandlesGracefully()
+    {
+        // Arrange
+        var nonExistentPath = Path.Combine(Path.GetTempPath(), "NonExistentInitDir", Guid.NewGuid().ToString());
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, nonExistentPath, "test-model", OperationMode.RAG);
+        
+        // Act & Assert - Should not throw any exceptions
+        await server.InitializeAsync();
+        
+        // The initialization should complete even with a non-existent directory
+        // The IndexAllDocumentsAsync method should handle the DirectoryNotFoundException
+        await Assert.That(server._vectorStore).IsNotNull();
+    }
+
     /// <summary>
     /// Test that prevents the "DeepSeek is not available" error by verifying
     /// that MCP server constructors properly retrieve API keys from SecureApiKeyStorage

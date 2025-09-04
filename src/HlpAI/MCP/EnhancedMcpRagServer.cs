@@ -101,11 +101,33 @@ namespace HlpAI.MCP
 
     private void InitializeVectorStore()
     {
-        // Use optimized SQLite-backed vector store with MD5 checksum optimization
-        var dbPath = Path.Combine(_rootPath, "vectors.db");
-        var connectionString = $"Data Source={dbPath}";
-        var changeDetectionService = new FileChangeDetectionService(null);
-        _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
+        try
+        {
+            // Ensure the root directory exists before creating the database
+            if (!Directory.Exists(_rootPath))
+            {
+                Directory.CreateDirectory(_rootPath);
+                _logger?.LogDebug("Created root directory: {RootPath}", _rootPath);
+            }
+            
+            // Use optimized SQLite-backed vector store with MD5 checksum optimization
+            var dbPath = Path.Combine(_rootPath, "vectors.db");
+            var connectionString = $"Data Source={dbPath}";
+            var changeDetectionService = new FileChangeDetectionService(null);
+            _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to initialize vector store with path: {RootPath}", _rootPath);
+            // Create a fallback in-memory vector store or use a temp directory
+            var tempPath = Path.Combine(Path.GetTempPath(), "hlpai_fallback");
+            Directory.CreateDirectory(tempPath);
+            var dbPath = Path.Combine(tempPath, "vectors.db");
+            var connectionString = $"Data Source={dbPath}";
+            var changeDetectionService = new FileChangeDetectionService(null);
+            _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
+            _logger?.LogWarning("Using fallback vector store path: {FallbackPath}", tempPath);
+        }
     }
 
     private void InitializeExtractors()
@@ -171,8 +193,48 @@ namespace HlpAI.MCP
                 IndexingStarted = DateTime.UtcNow
             };
 
-            var allFiles = Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories);
-            _logger?.LogInformation("Found {TotalFiles} files to process in {RootPath}", allFiles.Length, _rootPath);
+            string[] allFiles;
+            try
+            {
+                allFiles = Directory.GetFiles(_rootPath, "*.*", SearchOption.AllDirectories);
+                _logger?.LogInformation("Found {TotalFiles} files to process in {RootPath}", allFiles.Length, _rootPath);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger?.LogError(ex, "Access denied when scanning directory: {RootPath}. Skipping directory enumeration.", _rootPath);
+                result.FailedFiles.Add(new FailedFile
+                {
+                    FilePath = _rootPath,
+                    Error = $"Access denied: {ex.Message}",
+                    ExtractorType = "DirectoryScanner"
+                });
+                result.IndexingCompleted = DateTime.UtcNow;
+                return result;
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                _logger?.LogError(ex, "Directory not found: {RootPath}", _rootPath);
+                result.FailedFiles.Add(new FailedFile
+                {
+                    FilePath = _rootPath,
+                    Error = $"Directory not found: {ex.Message}",
+                    ExtractorType = "DirectoryScanner"
+                });
+                result.IndexingCompleted = DateTime.UtcNow;
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Unexpected error when scanning directory: {RootPath}", _rootPath);
+                result.FailedFiles.Add(new FailedFile
+                {
+                    FilePath = _rootPath,
+                    Error = $"Unexpected error: {ex.Message}",
+                    ExtractorType = "DirectoryScanner"
+                });
+                result.IndexingCompleted = DateTime.UtcNow;
+                return result;
+            }
 
             foreach (var file in allFiles)
             {

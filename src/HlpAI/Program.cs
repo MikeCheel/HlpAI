@@ -358,7 +358,21 @@ public static class Program
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
         {
-            string auditPath = args.Length > 1 ? args[1] : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (args.Length < 2)
+            {
+                Console.WriteLine("❌ Error: --audit requires a directory path.");
+                Console.WriteLine("Usage: --audit <directory>");
+                Console.WriteLine("Example: --audit \"C:\\MyDocuments\"");
+                return;
+            }
+            
+            string auditPath = args[1];
+            if (!Directory.Exists(auditPath))
+            {
+                Console.WriteLine($"❌ Error: Directory '{auditPath}' does not exist.");
+                return;
+            }
+            
             var auditConfig = ConfigurationService.LoadConfiguration(logger);
             FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: auditConfig.MaxFileAuditSizeBytes);
             return;
@@ -458,7 +472,41 @@ public static class Program
             if (mode == OperationMode.RAG || mode == OperationMode.Hybrid)
             {
                 Console.WriteLine("Initializing RAG system...");
-                await server.InitializeAsync();
+                try
+                {
+                    await server.InitializeAsync();
+                    Console.WriteLine("✅ RAG system initialized successfully.");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Console.WriteLine($"❌ Access denied during RAG initialization: {ex.Message}");
+                    Console.WriteLine("This may occur when the directory contains restricted folders.");
+                    Console.WriteLine("Consider using --audit <directory> first to identify problematic files.");
+                    
+                    // Log the error
+                    using var initErrorLoggingService = new ErrorLoggingService(logger);
+                    await initErrorLoggingService.LogErrorAsync($"RAG initialization failed due to access denied: {ex.Message}", ex, "RAG system initialization");
+                    return;
+                }
+                catch (DirectoryNotFoundException ex)
+                {
+                    Console.WriteLine($"❌ Directory not found during RAG initialization: {ex.Message}");
+                    
+                    // Log the error
+                    using var initErrorLoggingService = new ErrorLoggingService(logger);
+                    await initErrorLoggingService.LogErrorAsync($"RAG initialization failed due to directory not found: {ex.Message}", ex, "RAG system initialization");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ RAG initialization failed: {ex.Message}");
+                    Console.WriteLine("Please check the error logs for more details.");
+                    
+                    // Log the error
+                    using var initErrorLoggingService = new ErrorLoggingService(logger);
+                    await initErrorLoggingService.LogErrorAsync($"RAG initialization failed: {ex.Message}", ex, "RAG system initialization");
+                    return;
+                }
             }
 
             // Initialize menu state manager with existing configuration service
@@ -5528,7 +5576,7 @@ private static Task WaitForKeyPress()
         Console.WriteLine("  • Ollama installed and running (for AI features)");
         Console.WriteLine("  • Models: ollama pull llama3.2 && ollama pull nomic-embed-text");
         Console.WriteLine();
-        Console.WriteLine("TIP: Run with --audit first to analyze your documents before indexing!");
+        Console.WriteLine("TIP: Run with --audit <directory> first to analyze your documents before indexing!");
     }
 
     static void DisplayResponse(McpResponse response, string fallbackTitle = "Response")
