@@ -1279,7 +1279,7 @@ public static class Program
             temperature = temp;
         }
 
-        var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement?");
+        var useRag = await promptService.PromptYesNoSetupAsync("Use RAG enhancement?");
 
         var arguments = new { question, context, useRag, temperature };
         var request = new McpRequest
@@ -1307,7 +1307,7 @@ public static class Program
         Console.WriteLine();
         
         // Chat configuration
-        var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement for all responses?");
+        var useRag = await promptService.PromptYesNoSetupAsync("Use RAG enhancement for all responses?");
         
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
         var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
@@ -1471,7 +1471,7 @@ public static class Program
             temperature = temp;
         }
 
-        var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement?");
+        var useRag = await promptService.PromptYesNoSetupAsync("Use RAG enhancement?");
 
         var request = new McpRequest
         {

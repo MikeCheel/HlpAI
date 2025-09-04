@@ -73,11 +73,14 @@ public class DeepSeekProviderTests
     }
 
     [Test]
-    public async Task Constructor_WithNullModel_ThrowsArgumentException()
+    public async Task Constructor_WithNullModel_UsesDefaultModel()
     {
-        // Act & Assert
-        await Assert.That(() => new DeepSeekProvider(TestApiKey, null!))
-            .Throws<ArgumentException>();
+        // Act
+        var provider = new DeepSeekProvider(TestApiKey, null!);
+        
+        // Assert
+        await Assert.That(provider).IsNotNull();
+        await Assert.That(provider.CurrentModel).IsEqualTo("deepseek-chat");
     }
 
     [Test]

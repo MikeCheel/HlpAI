@@ -26,7 +26,7 @@ public class DeepSeekProvider : ICloudAiProvider
         //     throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
         
         if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Model cannot be null or empty", nameof(model));
+            model = AiProviderConstants.DefaultModels.DeepSeek;
 
         _apiKey = apiKey;
         _currentModel = model;
@@ -58,7 +58,7 @@ public class DeepSeekProvider : ICloudAiProvider
         //     throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
         
         if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Model cannot be null or empty", nameof(model));
+            model = AiProviderConstants.DefaultModels.DeepSeek;
 
         _apiKey = apiKey;
         _currentModel = model;
