@@ -91,7 +91,7 @@ public static class Program
                 break;
             case 4:
                 if (server != null) 
-                    await DemoAskAI(server, config, configService, logger);
+                    await DemoInteractiveChat(server, config, configService, logger);
                 else
                 {
                     Console.WriteLine("❌ Server not available. Please restart the application.");
@@ -100,7 +100,7 @@ public static class Program
                 break;
             case 5:
                 if (server != null) 
-                    await DemoAnalyzeFile(server, config, configService, logger);
+                    await DemoAskAI(server, config, configService, logger);
                 else
                 {
                     Console.WriteLine("❌ Server not available. Please restart the application.");
@@ -109,7 +109,7 @@ public static class Program
                 break;
             case 6:
                 if (server != null) 
-                    await DemoRagSearch(server, config, configService, logger);
+                    await DemoAnalyzeFile(server, config, configService, logger);
                 else
                 {
                     Console.WriteLine("❌ Server not available. Please restart the application.");
@@ -118,7 +118,7 @@ public static class Program
                 break;
             case 7:
                 if (server != null) 
-                    await DemoRagAsk(server, config, configService, logger);
+                    await DemoRagSearch(server, config, configService, logger);
                 else
                 {
                     Console.WriteLine("❌ Server not available. Please restart the application.");
@@ -126,6 +126,15 @@ public static class Program
                 }
                 break;
             case 8:
+                if (server != null) 
+                    await DemoRagAsk(server, config, configService, logger);
+                else
+                {
+                    Console.WriteLine("❌ Server not available. Please restart the application.");
+                    WaitForUserInput("Press any key to continue...");
+                }
+                break;
+            case 9:
                 if (server != null) 
                     await DemoReindex(server);
                 else
@@ -344,12 +353,7 @@ public static class Program
             return;
         }
 
-        // Test command to set LastDirectory
-        if (args.Length > 0 && args[0] == "--test-set-last-directory")
-        {
-            await TestSetLastDirectory.SetTestDirectoryAsync();
-            return;
-        }
+
 
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
@@ -396,6 +400,13 @@ public static class Program
                 await cmdErrorLoggingService.LogErrorAsync($"Directory does not exist: {rootPath}", null, "Command line mode - directory validation");
                 WaitForUserInput("Press any key to continue...");
                 return;
+            }
+
+            // Save the directory to configuration if RememberLastDirectory is enabled
+            var tempConfig = ConfigurationService.LoadConfiguration(logger);
+            if (tempConfig.RememberLastDirectory)
+            {
+                ConfigurationService.UpdateLastDirectory(rootPath, logger);
             }
 
             // Handle model selection
@@ -710,6 +721,7 @@ public static class Program
         {
             Console.WriteLine("❌ Provider selection cancelled.");
             WaitForUserInput("Press any key to continue...");
+            Console.Clear();
             return null;
         }
         
@@ -828,6 +840,7 @@ public static class Program
             if (!confirmResponse)
             {
                 Console.WriteLine("❌ Configuration cancelled.");
+                Console.Clear();
                 return null;
             }
             
@@ -1211,7 +1224,7 @@ public static class Program
         var context = SafePromptForString("Enter additional context (optional, press Enter to skip)", "");
 
         Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
-        var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
+        var tempInput = promptService.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
         double temperature = 0.7;
         if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
         {
@@ -1230,6 +1243,152 @@ public static class Program
         var response = await server.HandleRequestAsync(request);
         Console.WriteLine("\nAI Response:");
         DisplayResponse(response, "AI Response");
+    }
+
+    private static async Task DemoInteractiveChat(EnhancedMcpRagServer server, AppConfiguration config, SqliteConfigurationService? configService, ILogger? logger)
+    {
+        using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+        
+        Console.Clear();
+        Console.WriteLine("💬 Interactive Chat Mode");
+        Console.WriteLine("========================");
+        Console.WriteLine("Welcome to interactive chat! You can have a continuous conversation with the AI.");
+        Console.WriteLine("Type 'quit', 'exit', 'q', 'cancel', 'back', or 'b' to return to the main menu.");
+        Console.WriteLine("Type 'clear' or 'c' to clear the conversation history.");
+        Console.WriteLine("Type 'help' or 'h' for available commands.");
+        Console.WriteLine();
+        
+        // Chat configuration
+        var useRag = await promptService.PromptYesNoDefaultYesAsync("Use RAG enhancement for all responses?");
+        
+        Console.Write("Enter temperature (0.0-2.0, default 0.7): ");
+        var tempInput = _promptService?.PromptForValidatedString("", InputValidationType.Temperature, "0.7", "temperature") ?? "0.7";
+        double temperature = 0.7;
+        if (!string.IsNullOrEmpty(tempInput) && double.TryParse(tempInput, out var temp))
+        {
+            temperature = temp;
+        }
+        
+        var context = SafePromptForString("Enter initial context (optional, press Enter to skip)", "");
+        
+        Console.WriteLine();
+        Console.WriteLine("🎯 Chat session started! Ask me anything...");
+        Console.WriteLine();
+        
+        var conversationHistory = new List<string>();
+        bool chatRunning = true;
+        
+        while (chatRunning)
+        {
+            Console.Write("You: ");
+            var userInput = Console.ReadLine()?.Trim() ?? "";
+            
+            if (string.IsNullOrEmpty(userInput))
+            {
+                Console.WriteLine("Please enter a message or type 'quit' to exit.");
+                continue;
+            }
+            
+            // Handle special commands
+            var lowerInput = userInput.ToLower();
+            switch (lowerInput)
+            {
+                case "quit":
+                case "exit":
+                case "q":
+                case "cancel":
+                case "back":
+                case "b":
+                    Console.WriteLine("👋 Goodbye! Returning to main menu...");
+                    chatRunning = false;
+                    continue;
+                    
+                case "clear":
+                case "c":
+                    conversationHistory.Clear();
+                    Console.Clear();
+                    Console.WriteLine("💬 Interactive Chat Mode");
+                    Console.WriteLine("========================");
+                    Console.WriteLine("🧹 Conversation history cleared!");
+                    Console.WriteLine();
+                    continue;
+                    
+                case "help":
+                case "h":
+                    Console.WriteLine();
+                    Console.WriteLine("📋 Available Commands:");
+                    Console.WriteLine("  • quit, exit, q, cancel, back, b - Exit chat mode");
+                    Console.WriteLine("  • clear, c - Clear conversation history");
+                    Console.WriteLine("  • help, h - Show this help message");
+                    Console.WriteLine();
+                    continue;
+            }
+            
+            // Add user message to conversation history
+            conversationHistory.Add($"User: {userInput}");
+            
+            try
+            {
+                // Build context from conversation history
+                var chatContext = context;
+                if (conversationHistory.Count > 1)
+                {
+                    var recentHistory = conversationHistory.TakeLast(10).ToList(); // Keep last 10 exchanges
+                    var historyContext = string.Join("\n", recentHistory.Take(recentHistory.Count - 1)); // Exclude current message
+                    chatContext = string.IsNullOrEmpty(context) ? historyContext : $"{context}\n\nConversation History:\n{historyContext}";
+                }
+                
+                var arguments = new { question = userInput, context = chatContext, useRag, temperature };
+                var request = new McpRequest
+                {
+                    Method = "tools/call",
+                    Params = new { name = "ask_ai", arguments }
+                };
+                
+                var response = await server.HandleRequestAsync(request);
+                
+                // Extract and display AI response as plain text
+                var aiResponse = ExtractPlainTextResponse(response);
+                if (!string.IsNullOrEmpty(aiResponse))
+                {
+                    Console.WriteLine($"AI: {aiResponse}");
+                    conversationHistory.Add($"AI: {aiResponse}");
+                }
+                else
+                {
+                    Console.WriteLine("AI: I'm sorry, I couldn't generate a response. Please try again.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error: {ex.Message}");
+                Console.WriteLine("Please try again or type 'quit' to exit.");
+            }
+            
+            Console.WriteLine();
+        }
+    }
+    
+    private static string ExtractPlainTextResponse(McpResponse response)
+    {
+        if (response.Result != null)
+        {
+            var resultJson = JsonSerializer.Serialize(response.Result);
+            var resultElement = JsonSerializer.Deserialize<JsonElement>(resultJson);
+            
+            if (resultElement.TryGetProperty("content", out var contentArray) && 
+                contentArray.ValueKind == JsonValueKind.Array &&
+                contentArray.GetArrayLength() > 0)
+            {
+                var firstContent = contentArray[0];
+                if (firstContent.TryGetProperty("text", out var textElement))
+                {
+                    return textElement.GetString() ?? "";
+                }
+            }
+        }
+        
+        return "";
     }
 
     private static async Task DemoAnalyzeFile(EnhancedMcpRagServer server, AppConfiguration config, SqliteConfigurationService? configService, ILogger? logger)
@@ -1634,6 +1793,7 @@ public static class Program
                         if (resetConfirm == null)
                         {
                             Console.WriteLine("❌ Reset operation cancelled.");
+                            Console.Clear();
                             break;
                         }
                         
@@ -1655,6 +1815,7 @@ public static class Program
                         else
                         {
                             Console.WriteLine("❌ Reset cancelled.");
+                            Console.Clear();
                         }
                         break;
                     }
@@ -1669,6 +1830,7 @@ public static class Program
                         if (deleteConfirm == null)
                         {
                             Console.WriteLine("❌ Delete operation cancelled.");
+                            Console.Clear();
                             break;
                         }
                         
@@ -1702,6 +1864,7 @@ public static class Program
                         else
                         {
                             Console.WriteLine("❌ Delete cancelled.");
+                            Console.Clear();
                         }
                         break;
                     }
@@ -3005,6 +3168,7 @@ public static class Program
         if (confirm == null)
         {
             Console.WriteLine("❌ Delete operation cancelled.");
+            Console.Clear();
             return;
         }
         
@@ -3023,6 +3187,7 @@ public static class Program
         else
         {
             Console.WriteLine("❌ Clear operation cancelled.");
+            Console.Clear();
         }
     }
 
@@ -3568,6 +3733,7 @@ public static class Program
         {
             Console.WriteLine("❌ No API key entered. Operation cancelled.");
             WaitForUserInput("Press any key to continue...");
+            Console.Clear();
             return Task.CompletedTask;
         }
         
@@ -5129,22 +5295,23 @@ private static Task WaitForKeyPress()
         
         // AI Features Section
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Features"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Ask AI questions (with optional RAG enhancement)", "💬"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Analyze specific files with AI", "🔬"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Interactive Chat Mode (continuous conversation)", "💬"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Ask AI questions (with optional RAG enhancement)", "🤖"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Analyze specific files with AI", "🔬"));
         Console.WriteLine();
         
         // RAG Features Section
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🔍 RAG Features"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Semantic search using vector embeddings", "🎯"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(7, "RAG-enhanced AI questioning", "🧠"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(8, "Reindex documents", "🔄"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(7, "Semantic search using vector embeddings", "🎯"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(8, "RAG-enhanced AI questioning", "🧠"));
+        Console.WriteLine(MenuStyler.FormatMenuOption(9, "Reindex documents", "🔄"));
         Console.WriteLine();
         
         // System Management Section
         MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🛠️ System Management"), MenuStyler.AccentColor);
         
         // Dynamic numbering for context-aware menu options
-        int currentOption = 9;
+        int currentOption = 10;
         _currentMenuActions.Clear(); // Clear previous mappings
         
         // Show available models - only if provider supports dynamic model selection

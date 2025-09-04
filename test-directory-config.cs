@@ -1,13 +1,11 @@
 using HlpAI.Services;
 using Microsoft.Extensions.Logging;
 
-namespace HlpAI;
-
-public static class TestSetLastDirectory
+class Program
 {
-    public static async Task SetTestDirectoryAsync()
+    static async Task Main(string[] args)
     {
-        var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("TestSetLastDirectory");
+        var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("TestDirectoryConfig");
         
         try
         {
@@ -20,6 +18,11 @@ public static class TestSetLastDirectory
             if (result)
             {
                 Console.WriteLine("✅ LastDirectory updated successfully!");
+                
+                // Verify it was saved
+                var config = await configService.LoadAppConfigurationAsync();
+                Console.WriteLine($"Verified LastDirectory: {config.LastDirectory}");
+                Console.WriteLine($"RememberLastDirectory: {config.RememberLastDirectory}");
             }
             else
             {

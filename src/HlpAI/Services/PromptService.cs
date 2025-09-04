@@ -111,6 +111,7 @@ public class PromptService : IDisposable
             {
                 _logger?.LogDebug("User cancelled yes/no prompt with command: {Command}", response);
                 Console.WriteLine("❌ Operation cancelled.");
+                Console.Clear();
                 return null;
             }
         }
@@ -391,6 +392,7 @@ public class PromptService : IDisposable
             {
                 _logger?.LogDebug("User cancelled input with command: {Command}", response);
                 Console.WriteLine("❌ Operation cancelled.");
+                Console.Clear();
                 return null;
             }
         }
@@ -502,6 +504,7 @@ public class PromptService : IDisposable
                 {
                     _logger?.LogDebug("User cancelled input with command: {Command}", response);
                     Console.WriteLine("❌ Operation cancelled.");
+                    Console.Clear();
                     return null;
                 }
             }
