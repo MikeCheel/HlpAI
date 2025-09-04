@@ -6,7 +6,7 @@ namespace HlpAI.FileExtractors;
 
 public class TextFileExtractor : IFileExtractor
 {
-    private static readonly string[] TextExtensions = [".txt", ".md", ".log", ".csv"];
+    private static readonly string[] TextExtensions = [".txt", ".md", ".log", ".csv", ".json", ".rst"];
 
     public bool CanHandle(string filePath)
     {

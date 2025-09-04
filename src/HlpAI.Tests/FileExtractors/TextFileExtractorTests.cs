@@ -28,8 +28,10 @@ public class TextFileExtractorTests
     [Arguments(".md")]
     [Arguments(".log")]
     [Arguments(".csv")]
+    [Arguments(".json")]
     [Arguments(".TXT")]
     [Arguments(".MD")]
+    [Arguments(".JSON")]
     public async Task CanHandle_SupportedExtensions_ReturnsTrue(string extension)
     {
         // Arrange

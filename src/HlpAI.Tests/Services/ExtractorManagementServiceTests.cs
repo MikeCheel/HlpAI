@@ -73,6 +73,7 @@ public class ExtractorManagementServiceTests
         await Assert.That(textExtractor.DefaultExtensions.Contains(".md")).IsTrue();
         await Assert.That(textExtractor.DefaultExtensions.Contains(".log")).IsTrue();
         await Assert.That(textExtractor.DefaultExtensions.Contains(".csv")).IsTrue();
+        await Assert.That(textExtractor.DefaultExtensions.Contains(".json")).IsTrue();
         
         // Initially, custom extensions should match default extensions
         await Assert.That(textExtractor.CustomExtensions.Count).IsEqualTo(textExtractor.DefaultExtensions.Count);
@@ -299,7 +300,7 @@ public class ExtractorManagementServiceTests
 
         // Assert
         await Assert.That(stats.TotalExtractors).IsEqualTo(5);
-        await Assert.That(stats.TotalSupportedExtensions).IsEqualTo(9); // .txt,.md,.log,.csv,.html,.htm,.pdf,.chm,.hhc
+        await Assert.That(stats.TotalSupportedExtensions).IsEqualTo(11); // .txt,.md,.log,.csv,.json,.rst,.html,.htm,.pdf,.chm,.hhc
         
         await Assert.That(stats.ExtractorStats.ContainsKey("text")).IsTrue();
         await Assert.That(stats.ExtractorStats.ContainsKey("html")).IsTrue();
@@ -308,13 +309,15 @@ public class ExtractorManagementServiceTests
         await Assert.That(stats.ExtractorStats.ContainsKey("hhc")).IsTrue();
         
         var textStats = stats.ExtractorStats["text"];
-        await Assert.That(textStats.SupportedExtensionCount).IsEqualTo(4);
-        await Assert.That(textStats.DefaultExtensionCount).IsEqualTo(4);
+        await Assert.That(textStats.SupportedExtensionCount).IsEqualTo(6);
+        await Assert.That(textStats.DefaultExtensionCount).IsEqualTo(6);
         await Assert.That(textStats.CustomExtensionCount).IsEqualTo(0);
         await Assert.That(textStats.SupportedExtensions.Contains(".txt")).IsTrue();
         await Assert.That(textStats.SupportedExtensions.Contains(".md")).IsTrue();
         await Assert.That(textStats.SupportedExtensions.Contains(".log")).IsTrue();
         await Assert.That(textStats.SupportedExtensions.Contains(".csv")).IsTrue();
+        await Assert.That(textStats.SupportedExtensions.Contains(".json")).IsTrue();
+        await Assert.That(textStats.SupportedExtensions.Contains(".rst")).IsTrue();
     }
 
     [Test]
@@ -328,10 +331,10 @@ public class ExtractorManagementServiceTests
         var stats = await _service.GetExtractionStatisticsAsync();
 
         // Assert
-        await Assert.That(stats.TotalSupportedExtensions).IsEqualTo(11); // 9 + 2 added
+        await Assert.That(stats.TotalSupportedExtensions).IsEqualTo(13); // 11 + 2 added
         
         var textStats = stats.ExtractorStats["text"];
-        await Assert.That(textStats.SupportedExtensionCount).IsEqualTo(5);
+        await Assert.That(textStats.SupportedExtensionCount).IsEqualTo(7);
         await Assert.That(textStats.CustomExtensionCount).IsEqualTo(1); // 1 added
         await Assert.That(textStats.SupportedExtensions.Contains(".docx")).IsTrue();
         
@@ -432,7 +435,7 @@ public class ExtractorManagementServiceTests
 
         // Assert
         // After reset, text extractor should be back to defaults
-        await Assert.That(extractors["text"].CustomExtensions.Count).IsEqualTo(4); // Back to default count
+        await Assert.That(extractors["text"].CustomExtensions.Count).IsEqualTo(6); // Back to default count
         await Assert.That(extractors["text"].CustomExtensions.Contains(".log")).IsTrue(); // Default extension restored
         await Assert.That(extractors["text"].CustomExtensions.Contains(".docx")).IsFalse(); // Custom extension removed
         await Assert.That(extractors["text"].CustomExtensions.Contains(".rtf")).IsFalse(); // Custom extension removed

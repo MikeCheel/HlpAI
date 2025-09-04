@@ -12,7 +12,15 @@ public static class TestConfiguration
     [After(Assembly)]
     public static void TearDownAssembly()
     {
-        // Global test cleanup
-        Console.WriteLine("✅ Test execution completed.");
+        // Global test cleanup - handle potential console redirection issues
+        try
+        {
+            Console.WriteLine("✅ Test execution completed.");
+        }
+        catch (ObjectDisposedException)
+        {
+            // Console output may have been redirected and disposed by tests
+            // This is expected behavior and can be safely ignored
+        }
     }
 }

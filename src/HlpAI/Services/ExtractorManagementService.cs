@@ -21,7 +21,7 @@ public class ExtractorManagementService : IDisposable
         { 
             Name = "Text File Extractor", 
             Type = "TextFileExtractor",
-            DefaultExtensions = [".txt", ".md", ".log", ".csv"],
+            DefaultExtensions = [".txt", ".md", ".log", ".csv", ".json", ".rst"],
             MimeType = "text/plain",
             Description = "Extracts plain text content from text-based files"
         },

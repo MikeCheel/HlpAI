@@ -16,7 +16,7 @@ public class FileTypeFilterService : IDisposable
     // Default supported file types from current extractors
     private static readonly string[] DefaultSupportedTypes = 
     {
-        ".txt", ".md", ".log", ".csv",    // TextFileExtractor
+        ".txt", ".md", ".log", ".csv", ".json", ".rst",    // TextFileExtractor
         ".html", ".htm",                  // HtmlFileExtractor
         ".pdf",                          // PdfFileExtractor
         ".chm",                          // ChmFileExtractor

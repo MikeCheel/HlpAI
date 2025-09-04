@@ -507,6 +507,11 @@ namespace HlpAI.MCP
 
         public async Task<McpResponse> HandleRequestAsync(McpRequest request)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(EnhancedMcpRagServer));
+            }
+            
             try
             {
                 return request.Method switch
