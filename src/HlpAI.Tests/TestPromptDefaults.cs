@@ -28,7 +28,7 @@ public class TestPromptDefaults
     public void Cleanup()
     {
         // Restore original user profile
-        Environment.SetEnvironmentVariable("USERPROPLATE", _originalUserProfile);
+        Environment.SetEnvironmentVariable("USERPROFILE", _originalUserProfile);
         
         // Clean up test directory
         if (Directory.Exists(_testDirectory))

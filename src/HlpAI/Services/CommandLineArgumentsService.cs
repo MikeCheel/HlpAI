@@ -334,7 +334,12 @@ public class CommandLineArgumentsService
                HasArgument("set-remember-last-directory") ||
                HasArgument("get-remember-last-directory") ||
                HasArgument("set-prompt-defaults") ||
-               HasArgument("get-prompt-defaults");
+               HasArgument("get-prompt-defaults") ||
+               HasArgument("backup-preferences") ||
+               HasArgument("restore-preferences") ||
+               HasArgument("check-protection") ||
+               HasArgument("debug-flags") ||
+               HasArgument("clear-intent-flags");
     }
 
     /// <summary>
@@ -1637,11 +1642,96 @@ public class CommandLineArgumentsService
                 };
                 
                 Console.WriteLine($"✅ Default prompt behavior set to: {behaviorText}");
+                
+                // Update explicit intent flags based on current choice
+                if (promptBehavior == false)
+                {
+                    // User explicitly wants "always no"
+                    await ConfigurationValidationService.MarkUserWantsAlwaysNoAsync(configService);
+                }
+                else
+                {
+                    // User changed their mind - clear the "always no" flag
+                    await configService.RemoveConfigurationAsync("user_wants_always_no", "system");
+                }
             }
             else
             {
                 Console.WriteLine("❌ Failed to set default prompt behavior.");
             }
+        }
+
+        // Check for --backup-preferences
+        if (HasArgument("backup-preferences"))
+        {
+            var protectionService = new ConfigurationProtectionService(configService, _logger);
+            var success = await protectionService.BackupUserPreferencesAsync();
+            result.BackupPreferences = true;
+            Console.WriteLine(success ? 
+                "✅ User preferences backed up successfully" : 
+                "❌ Failed to backup user preferences");
+        }
+
+        // Check for --restore-preferences
+        if (HasArgument("restore-preferences"))
+        {
+            var protectionService = new ConfigurationProtectionService(configService, _logger);
+            var success = await protectionService.RestoreUserPreferencesAsync();
+            result.RestorePreferences = true;
+            Console.WriteLine(success ? 
+                "✅ User preferences restored successfully" : 
+                "❌ No backup found or restore failed");
+        }
+
+        // Check for --check-protection
+        if (HasArgument("check-protection"))
+        {
+            var protectionService = new ConfigurationProtectionService(configService, _logger);
+            result.CheckProtection = true;
+            
+            var backupExists = await configService.GetConfigurationAsync("protected_user_preferences", "system");
+            var pendingReset = await configService.GetConfigurationAsync("pending_reset", "system");
+            
+            Console.WriteLine("🛡️ Configuration Protection Status");
+            Console.WriteLine("==================================");
+            Console.WriteLine($"Backup exists: {(string.IsNullOrEmpty(backupExists) ? "❌ No" : "✅ Yes")}");
+            Console.WriteLine($"Pending reset: {(pendingReset == "true" ? "⚠️ Yes" : "✅ No")}");
+            Console.WriteLine($"Auto-restore enabled: ✅ Yes");
+        }
+
+        // Check for --debug-flags
+        if (HasArgument("debug-flags"))
+        {
+            result.DebugFlags = true;
+            
+            Console.WriteLine("🔍 Configuration Flags Debug");
+            Console.WriteLine("============================");
+            
+            var userWantsAlwaysNo = await configService.GetConfigurationAsync("user_wants_always_no", "system");
+            var userDisabledRemember = await configService.GetConfigurationAsync("user_disabled_remember_directory", "system");
+            var defaultPromptBehavior = await configService.GetConfigurationAsync("default_prompt_behavior", "ui");
+            var pendingReset = await configService.GetConfigurationAsync("pending_reset", "system");
+            
+            Console.WriteLine($"user_wants_always_no: '{userWantsAlwaysNo ?? "NULL"}'");
+            Console.WriteLine($"user_disabled_remember_directory: '{userDisabledRemember ?? "NULL"}'");
+            Console.WriteLine($"default_prompt_behavior: '{defaultPromptBehavior ?? "NULL"}'");
+            Console.WriteLine($"pending_reset: '{pendingReset ?? "NULL"}'");
+            
+            using var promptService = new PromptService(configService, _logger);
+            var behavior = await promptService.GetDefaultPromptBehaviorAsync();
+            Console.WriteLine($"Computed behavior: {behavior?.ToString() ?? "NULL"}");
+        }
+
+        // Check for --clear-intent-flags
+        if (HasArgument("clear-intent-flags"))
+        {
+            result.ClearIntentFlags = true;
+            
+            await configService.RemoveConfigurationAsync("user_wants_always_no", "system");
+            await configService.RemoveConfigurationAsync("user_disabled_remember_directory", "system");
+            
+            Console.WriteLine("✅ Cleared all explicit intent flags");
+            Console.WriteLine("Your prompt behavior will now use individual defaults as intended");
         }
 
         // Save changes if any
@@ -1668,6 +1758,13 @@ public class ConfigurationManagementResult
     public bool SetPromptDefaults { get; set; }
     public bool? PromptDefaultsValue { get; set; }
     public bool HasChanges { get; set; }
+    
+    // Configuration protection
+    public bool BackupPreferences { get; set; }
+    public bool RestorePreferences { get; set; }
+    public bool CheckProtection { get; set; }
+    public bool DebugFlags { get; set; }
+    public bool ClearIntentFlags { get; set; }
 }
 
 /// <summary>
@@ -1786,4 +1883,9 @@ public class AppConfigurationResult
     // Text chunking changes
     public bool ChunkSizeChanged { get; set; }
     public bool ChunkOverlapChanged { get; set; }
+    
+    // Configuration protection
+    public bool BackupPreferences { get; set; }
+    public bool RestorePreferences { get; set; }
+    public bool CheckProtection { get; set; }
 }

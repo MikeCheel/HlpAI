@@ -34,8 +34,13 @@ public class DeepSeekProvider : ICloudAiProvider
         _logger = logger;
         _config = config;
         
-        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 5;
-        _httpClient = new HttpClient
+        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 2; // Reduced from 5 to 2 minutes
+        _httpClient = new HttpClient(new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(15), // Connection pooling
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+            MaxConnectionsPerServer = 10 // Allow multiple concurrent connections
+        })
         {
             BaseAddress = new Uri(_baseUrl),
             Timeout = TimeSpan.FromMinutes(timeoutMinutes)
@@ -46,6 +51,7 @@ public class DeepSeekProvider : ICloudAiProvider
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         }
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
+        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive"); // Keep connections alive
     }
 
     /// <summary>
@@ -67,13 +73,14 @@ public class DeepSeekProvider : ICloudAiProvider
         _config = config;
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         
-        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 5;
+        var timeoutMinutes = config?.DeepSeekTimeoutMinutes ?? 2; // Reduced from 5 to 2 minutes
         _httpClient.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
         if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
         }
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "HlpAI/1.0");
+        _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive"); // Keep connections alive
     }
 
     public AiProviderType ProviderType => AiProviderType.DeepSeek;
@@ -98,22 +105,35 @@ public class DeepSeekProvider : ICloudAiProvider
             
             messages.Add(new { role = "user", content = prompt });
 
+            // Optimize token limits for better performance
+            var maxTokens = _config?.DeepSeekMaxTokens ?? 1000; // Reduced from 4000 to 1000 for faster responses
+            
             var requestBody = new
             {
                 model = _currentModel,
                 messages = messages,
                 temperature = Math.Max(0.0, Math.Min(2.0, temperature)),
-                max_tokens = _config?.DeepSeekMaxTokens ?? 4000,
-                stream = false
+                max_tokens = maxTokens,
+                stream = false,
+                top_p = 0.9, // Add top_p for more focused responses
+                frequency_penalty = 0.1 // Slight penalty to reduce repetition
             };
 
-            var json = JsonSerializer.Serialize(requestBody);
+            // Use optimized JSON serialization options
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            };
+            
+            var json = JsonSerializer.Serialize(requestBody, jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            _logger?.LogDebug("Sending request to DeepSeek API with model {Model}", _currentModel);
+            _logger?.LogDebug("Sending request to DeepSeek API with model {Model}, max_tokens: {MaxTokens}", _currentModel, maxTokens);
             
-            var response = await _httpClient.PostAsync("/v1/chat/completions", content);
-            var responseContent = await response.Content.ReadAsStringAsync();
+            // Use ConfigureAwait(false) for better async performance
+            var response = await _httpClient.PostAsync("/v1/chat/completions", content).ConfigureAwait(false);
+            var responseContent = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

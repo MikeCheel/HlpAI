@@ -1,0 +1,10 @@
+{
+  "LastDirectory": "C:\\Users\\mikec\\source\\repos\\HlpAI\\src\\HlpAI",
+  "RememberLastDirectory": true,
+  "LastProvider": "Ollama",
+  "LastModel": "llama3.2",
+  "RememberLastModel": true,
+  "RememberLastProvider": true,
+  "OllamaUrl": "http://localhost:11434",
+  "LmStudioUrl": "http://localhost:1234"
+}

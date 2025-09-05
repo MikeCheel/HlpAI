@@ -44,8 +44,24 @@ public class SqliteConfigurationService : IDisposable
                     // First check if connection exists and is not disposed
                     if (_instance._connection?.State == System.Data.ConnectionState.Open)
                     {
-                        using var testCommand = new SqliteCommand("SELECT 1", _instance._connection);
-                        testCommand.ExecuteScalar();
+                        SqliteCommand? testCommand = null;
+                        try
+                        {
+                            testCommand = new SqliteCommand("SELECT 1", _instance._connection);
+                            testCommand.ExecuteScalar();
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                testCommand?.Dispose();
+                            }
+                            catch (ArgumentOutOfRangeException)
+                            {
+                                // Ignore disposal errors from SQLite command cleanup
+                                // This can happen in concurrent scenarios with the singleton pattern
+                            }
+                        }
                     }
                     else
                     {

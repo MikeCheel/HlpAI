@@ -55,107 +55,16 @@ public static class Program
     {
         ClearScreen();
         
-        // Handle fixed options (1-8) that don't change
-        switch (optionNumber)
+        // Use dynamic menu actions based on current menu context
+        var action = GetMenuAction(optionNumber);
+        if (action != null)
         {
-            case 1:
-                if (server != null) 
-                    await DemoListFiles(server);
-                else
-                {
-                    var serverError = "Server not available for list files command";
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - list files");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 2:
-                if (server != null) 
-                    await DemoReadFile(server, config, configService, logger);
-                else
-                {
-                    var serverError = "Server not available for read file command";
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    await mainErrorLoggingService.LogErrorAsync(serverError, null, "Interactive command - read file");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 3:
-                if (server != null) 
-                    await DemoSearchFiles(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 4:
-                if (server != null) 
-                    await DemoInteractiveChat(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 5:
-                if (server != null) 
-                    await DemoAskAI(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 6:
-                if (server != null) 
-                    await DemoAnalyzeFile(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 7:
-                if (server != null) 
-                    await DemoRagSearch(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 8:
-                if (server != null) 
-                    await DemoRagAsk(server, config, configService, logger);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            case 9:
-                if (server != null) 
-                    await DemoReindex(server);
-                else
-                {
-                    Console.WriteLine("❌ Server not available. Please restart the application.");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
-            default:
-                // Handle dynamic options (9+) based on current menu context
-                var action = GetMenuAction(optionNumber);
-                if (action != null)
-                {
-                    running = await HandleDynamicMenuActionAsync(action, server, config, configService, logger, mainErrorLoggingService, menuStateManager, ollamaModel, mode, running);
-                }
-                else
-                {
-                    Console.WriteLine($"❌ Invalid option: {optionNumber}");
-                    WaitForUserInput("Press any key to continue...");
-                }
-                break;
+            running = await HandleDynamicMenuActionAsync(action, server, config, configService, logger, mainErrorLoggingService, menuStateManager, ollamaModel, mode, running);
+        }
+        else
+        {
+            Console.WriteLine($"❌ Invalid option: {optionNumber}");
+            WaitForUserInput("Press any key to continue...");
         }
         
         ShowMenu(); // Restore main menu after command
@@ -435,9 +344,18 @@ public static class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
         
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        using var loggerFactory = LoggerFactory.Create(builder => 
+            builder.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Warning)
+                   .SetMinimumLevel(LogLevel.Warning));
         var logger = loggerFactory.CreateLogger<EnhancedMcpRagServer>();
         using var configService = SqliteConfigurationService.GetInstance(logger);
+
+        // Check and restore user preferences after any reset operations
+        var protectionService = new ConfigurationProtectionService(configService, logger);
+        await protectionService.CheckAndRestoreAfterResetAsync();
+        
+        // Enforce configuration rules to prevent unwanted resets
+        await ConfigurationValidationService.EnforceConfigurationRulesAsync(configService, logger);
 
         // Parse command line arguments
         var cmdArgs = new CommandLineArgumentsService(args, logger);
@@ -527,6 +445,19 @@ public static class Program
             rootPath = setupResult.Directory;
             ollamaModel = setupResult.Model;
             mode = setupResult.Mode;
+            
+            // Update configuration with selected provider if it changed
+            if (!string.IsNullOrEmpty(setupResult.Provider))
+            {
+                var currentConfig = ConfigurationService.LoadConfiguration(logger);
+                if (Enum.TryParse<AiProviderType>(setupResult.Provider, out var selectedProvider) &&
+                    currentConfig.LastProvider != selectedProvider)
+                {
+                    currentConfig.LastProvider = selectedProvider;
+                    currentConfig.LastModel = setupResult.Model;
+                    ConfigurationService.SaveConfiguration(currentConfig, logger);
+                }
+            }
         }
         else
         {
@@ -571,8 +502,8 @@ public static class Program
             }
         }
 
-        // Load configuration once to avoid duplicate initialization logs
-        var config = ConfigurationService.LoadConfiguration(logger);
+        // Load configuration from SQLite database
+        var config = await configService.LoadAppConfigurationAsync();
         
         currentServer = new EnhancedMcpRagServer(logger, rootPath, config, ollamaModel, mode);
         var server = currentServer;
@@ -651,8 +582,6 @@ public static class Program
                 await RestoreMenuContextAsync(startupContext, server, menuStateManager, config, logger);
             }
             
-            // Clear screen after initial configuration before showing main menu
-            ClearScreen();
             
             // Always show menu after initialization (including after RAG indexing)
             ShowMenu();
@@ -802,22 +731,61 @@ public static class Program
         };
     }
 
-    internal sealed record SetupResult(string Directory, string Model, OperationMode Mode);
+    internal sealed record SetupResult(string Directory, string Provider, string Model, OperationMode Mode);
 
     [SupportedOSPlatform("windows")]
     internal static async Task<SetupResult?> InteractiveSetupAsync(ILogger logger, SqliteConfigurationService? configService = null)
     {
-        Console.WriteLine("🎯 HlpAI - Interactive Setup");
+        Console.WriteLine("🎯 HlpAI - Configuration Setup");
         Console.WriteLine("=============================================");
         Console.WriteLine();
-        Console.WriteLine("Welcome! Let's configure your document intelligence system.");
+        Console.WriteLine("Let's review and configure your document intelligence system.");
         Console.WriteLine();
         
         // Create or use shared configuration service to prevent duplicate loading
         var sharedConfigService = configService ?? SqliteConfigurationService.GetInstance(logger);
         
-        // Load saved configuration once
-        var config = ConfigurationService.LoadConfiguration(logger);
+        // Load saved configuration from SQLite database
+        var config = await sharedConfigService.LoadAppConfigurationAsync();
+        
+        // Always show current configuration for confirmation
+        Console.WriteLine("📋 Current Configuration:");
+        Console.WriteLine("-------------------------");
+        if (!string.IsNullOrEmpty(config.LastDirectory) && Directory.Exists(config.LastDirectory))
+        {
+            Console.WriteLine($"Directory: {config.LastDirectory}");
+        }
+        else
+        {
+            Console.WriteLine("Directory: Not configured or doesn't exist");
+        }
+        
+        Console.WriteLine($"AI Provider: {config.LastProvider}");
+        Console.WriteLine($"Model: {(string.IsNullOrEmpty(config.LastModel) ? "Not configured" : config.LastModel)}");
+        Console.WriteLine($"Operation Mode: {config.LastOperationMode}");
+        Console.WriteLine();
+        
+        // Only ask to keep configuration if there's a valid, complete configuration
+        if (!string.IsNullOrEmpty(config.LastDirectory) && Directory.Exists(config.LastDirectory) &&
+            !string.IsNullOrEmpty(config.LastModel))
+        {
+            using var confirmPromptService = new PromptService(config, sharedConfigService, logger);
+            var keepCurrentConfig = await confirmPromptService.PromptYesNoDefaultYesSetupAsync("Keep current configuration?");
+            
+            if (keepCurrentConfig)
+            {
+                Console.WriteLine("✅ Using current configuration.");
+                return new SetupResult(
+                    config.LastDirectory,
+                    config.LastProvider.ToString(),
+                    config.LastModel,
+                    config.LastOperationMode
+                );
+            }
+        }
+        
+        Console.WriteLine("🔧 Let's configure the core settings...");
+        Console.WriteLine();
         
         // Initialize error logging service for interactive mode with shared config
         using var errorLoggingService = new ErrorLoggingService(logger, config);
@@ -892,6 +860,14 @@ public static class Program
         }
 
         Console.WriteLine($"✅ Using directory: {directory}");
+        
+        // Save the directory immediately if RememberLastDirectory is enabled
+        if (config.RememberLastDirectory)
+        {
+            config.LastDirectory = directory;
+            ConfigurationService.SaveConfiguration(config, logger);
+        }
+        
         Console.WriteLine();
 
         // Step 2: AI Provider & Model Selection
@@ -1049,7 +1025,7 @@ public static class Program
             SqliteConfigurationService.ReleaseInstance();
         }
 
-        return new SetupResult(directory, model, selectedMode);
+        return new SetupResult(directory, config.LastProvider.ToString(), model, selectedMode);
     }
 
     private static Task<string?> PromptForDirectoryAsync(AppConfiguration config, ILogger logger, SqliteConfigurationService sharedConfigService)
@@ -1141,12 +1117,17 @@ public static class Program
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
             var useLastModel = isSetup ? 
                 await SafePromptYesNoSetup("Use last model?", true, config, logger) :
-                await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+                await promptService.PromptYesNoDefaultYesCancellableAsync("Use last model?");
             
-            if (useLastModel)
+            if (useLastModel == true)
             {
                 Console.WriteLine($"✅ Using model: {config.LastModel}");
                 return config.LastModel;
+            }
+            else if (useLastModel == null)
+            {
+                // User cancelled - return empty to indicate no model selection
+                return "";
             }
             Console.WriteLine();
         }
@@ -1162,8 +1143,8 @@ public static class Program
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
             var continueWithDefault = isSetup ?
                 await SafePromptYesNoSetup("Would you like to continue with the default model anyway?", true, config, logger) :
-                await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with the default model anyway?");
-            return continueWithDefault ? "llama3.2" : "";
+                await promptService.PromptYesNoDefaultYesCancellableAsync("Would you like to continue with the default model anyway?");
+            return (continueWithDefault == true) ? "llama3.2" : "";
         }
 
         var availableModels = await tempClient.GetModelsAsync();
@@ -1176,8 +1157,8 @@ public static class Program
             using var promptService = configService != null ? new PromptService(config!, configService, logger) : new PromptService(config!, logger);
             var continueWithDefault = isSetup ?
                 await SafePromptYesNoSetup("Would you like to continue with 'llama3.2' anyway?", true, config, logger) :
-                await promptService.PromptYesNoDefaultYesAsync("Would you like to continue with 'llama3.2' anyway?");
-            return continueWithDefault ? "llama3.2" : "";
+                await promptService.PromptYesNoDefaultYesCancellableAsync("Would you like to continue with 'llama3.2' anyway?");
+            return (continueWithDefault == true) ? "llama3.2" : "";
         }
 
         Console.WriteLine("✅ Ollama connected! Available models:");
@@ -1311,7 +1292,7 @@ public static class Program
                 fileName = $"file_list_{DateTime.Now:yyyyMMdd_HHmmss}.{format.ToString().ToLower()}";
             }
 
-            Console.Write("Include file metadata? (y/N): ");
+            Console.Write("Include file metadata? (Y/n): ");
             var metadataChoice = SafePromptForString("", "y").Trim().ToLower();
             var includeMetadata = metadataChoice == "y" || metadataChoice == "yes";
 
@@ -1724,7 +1705,9 @@ public static class Program
         {
             // Create a new provider instance based on current configuration
             string? providerUrl = AiProviderFactory.GetProviderUrl(config, config.LastProvider);
-            ILogger<EnhancedMcpRagServer> logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EnhancedMcpRagServer>();
+            ILogger<EnhancedMcpRagServer> logger = LoggerFactory.Create(builder => 
+                builder.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Warning)
+                       .SetMinimumLevel(LogLevel.Warning)).CreateLogger<EnhancedMcpRagServer>();
             
             string? apiKey = null;
             
@@ -1818,8 +1801,10 @@ public static class Program
         
         while (configRunning)
         {
-            var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Configuration";
-            ClearScreenWithHeader("⚙️ Configuration Settings", breadcrumb);
+            try
+            {
+                var breadcrumb = menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Configuration";
+                ClearScreenWithHeader("⚙️ Configuration Settings", breadcrumb);
             // Get current hh.exe configuration from SQLite
             var configuredHhPath = await hhExeService.GetConfiguredHhExePathAsync();
             var isAutoDetected = await hhExeService.IsHhExePathAutoDetectedAsync();
@@ -1981,18 +1966,26 @@ public static class Program
                         
                         if (resetConfirm.Value)
                         {
+                            // Backup user preferences before reset
+                            var protectionService = new ConfigurationProtectionService(sqliteConfig, logger);
+                            await protectionService.PreResetBackupAsync();
+                            
                             // Reset configuration to defaults and save to SQLite
                             config = new AppConfiguration();
                             ConfigurationService.SaveConfiguration(config);
                             
-                            // Clear SQLite categories
-                            await sqliteConfig.ClearCategoryAsync("system");
+                            // Clear SQLite categories (but not 'system' which contains our backup)
                             await sqliteConfig.ClearCategoryAsync("application");
                             await sqliteConfig.ClearCategoryAsync("logging");
                             await sqliteConfig.ClearCategoryAsync("error_logs");
                             await sqliteConfig.ClearCategoryAsync("cleanup");
+                            await sqliteConfig.ClearCategoryAsync("ui");
+                            
+                            // Restore critical user preferences
+                            await protectionService.RestoreUserPreferencesAsync();
                             
                             Console.WriteLine("✅ All settings have been reset to defaults.");
+                            Console.WriteLine("💾 Your directory and prompt preferences have been preserved.");
                         }
                         else
                         {
@@ -2102,6 +2095,13 @@ public static class Program
             if (configRunning && input != "x" && input != "cancel")
             {
                 await ShowBriefPauseAsync();
+            }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Configuration menu error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+                config = ConfigurationService.LoadConfiguration(); // Reload config in case of error
             }
         }
     }
@@ -2603,8 +2603,8 @@ public static class Program
                     {
                         Console.WriteLine("❌ Invalid path or file not found.");
                         using var savePromptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                        var saveAnyway = await savePromptService.PromptYesNoDefaultNoAsync("Save anyway?");
-                        if (saveAnyway)
+                        var saveAnyway = await savePromptService.PromptYesNoDefaultNoCancellableAsync("Save anyway?");
+                        if (saveAnyway == true)
                         {
                             await hhExeService.SetHhExePathAsync(customPath, false);
                             Console.WriteLine("⚠️  Path saved (validation failed).");
@@ -2823,11 +2823,11 @@ public static class Program
                 Console.WriteLine("==========================");
                 
                 // Test different types of prompts
-                var testResult1 = await promptService.PromptYesNoAsync("Continue with operation?", true);
-                Console.WriteLine($"Result 1 (default yes): {testResult1}");
+                var testResult1 = await promptService.PromptYesNoCancellableAsync("Continue with operation?", true);
+                Console.WriteLine($"Result 1 (default yes): {(testResult1?.ToString() ?? "cancelled")}");
                 
-                var testResult2 = await promptService.PromptYesNoAsync("Delete all data?", false);
-                Console.WriteLine($"Result 2 (default no): {testResult2}");
+                var testResult2 = await promptService.PromptYesNoCancellableAsync("Delete all data?", false);
+                Console.WriteLine($"Result 2 (default no): {(testResult2?.ToString() ?? "cancelled")}");
                 
                 Console.WriteLine("Test completed.");
                 break;
@@ -2855,7 +2855,9 @@ public static class Program
         
         while (running)
         {
-            Console.WriteLine("\n⏱️ Configure Timeout and Token Limits");
+            try
+            {
+                Console.WriteLine("\n⏱️ Configure Timeout and Token Limits");
             Console.WriteLine("=====================================");
             
             // Display current configuration
@@ -2959,6 +2961,13 @@ public static class Program
             {
                 await ShowBriefPauseAsync("Updating configuration", 500);
             }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Timeout configuration error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+                config = ConfigurationService.LoadConfiguration(); // Reload config in case of error
+            }
         }
         
         // Save configuration after changes
@@ -3038,7 +3047,9 @@ public static class Program
         
         while (running)
         {
-            Console.WriteLine("\n📏 Configure File Size Limits");
+            try
+            {
+                Console.WriteLine("\n📏 Configure File Size Limits");
             Console.WriteLine("==============================");
             
             // Display current configuration
@@ -3088,6 +3099,13 @@ public static class Program
             if (running && choice != "4")
             {
                 await ShowBriefPauseAsync("Updating configuration", 500);
+            }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ File size configuration error: {ex.Message}");
+                WaitForUserInput("Press any key to continue...");
+                config = ConfigurationService.LoadConfiguration(); // Reload config in case of error
             }
         }
         
@@ -3577,8 +3595,8 @@ public static class Program
         Console.WriteLine("  • Cache files: 7 days");
         Console.WriteLine();
         
-        Console.Write("Are you sure you want to reset to defaults? (y/n): ");
-        var input = SafePromptForString("", "n").ToLower().Trim();
+        Console.Write("Are you sure you want to reset to defaults? (Y/n): ");
+        var input = SafePromptForString("", "y").ToLower().Trim();
         
         if (input == "y" || input == "yes")
         {
@@ -5351,9 +5369,9 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine($"❌ Error: Directory '{newPath}' does not exist.");
             using var createPromptService = new PromptService(config, logger);
-            var createResponse = await createPromptService.PromptYesNoDefaultYesAsync("Would you like to create it?");
+            var createResponse = await createPromptService.PromptYesNoDefaultYesCancellableAsync("Would you like to create it?");
             
-            if (createResponse)
+            if (createResponse == true)
             {
                 try
                 {
@@ -5385,9 +5403,9 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine("⚠️  Warning: No supported files found in the directory.");
             using var continuePromptService = new PromptService(config, logger);
-            var continueResponse = await continuePromptService.PromptYesNoDefaultYesAsync("Continue anyway?");
+            var continueResponse = await continuePromptService.PromptYesNoDefaultYesCancellableAsync("Continue anyway?");
             
-            if (!continueResponse)
+            if (continueResponse != true)
             {
                 Console.WriteLine("Directory change cancelled.");
                 return currentServer;
@@ -5449,6 +5467,20 @@ private static Task WaitForKeyPress()
     public static void ShowMenu()
     {
         var config = ConfigurationService.LoadConfiguration();
+        
+        // Clear screen after config load to ensure clean display
+        try
+        {
+            // Only clear console if not in test environment
+            if (!IsTestEnvironment())
+            {
+                Console.Clear();
+            }
+        }
+        catch
+        {
+            // Ignore console clear errors in test environments
+        }
         
         // Header with styled box
         Console.WriteLine();
@@ -5858,14 +5890,16 @@ private static Task WaitForKeyPress()
     }
     
     /// <summary>
-    /// Determines if running in a test environment to avoid console blocking
+    /// Determines if running in a test environment or with redirected input to avoid console blocking
     /// </summary>
     static bool IsTestEnvironment()
     {
         return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
-               System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("dotnet") ||
                Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
-               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true);
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true) ||
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit") == true) ||
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("nunit") == true) ||
+               Console.IsInputRedirected; // Don't block when input is redirected
     }
 
     public static void ShowUsage()
@@ -6692,10 +6726,10 @@ private static Task WaitForKeyPress()
                         validationResult.ErrorMessage.Contains("No default model configured"))
                     {
                         using var promptService = new PromptService(config);
-                        var shouldConfigure = await promptService.PromptYesNoDefaultYesAsync(
+                        var shouldConfigure = await promptService.PromptYesNoDefaultYesCancellableAsync(
                             $"This provider is not configured. Would you like to configure it now?");
                         
-                        if (shouldConfigure)
+                        if (shouldConfigure == true)
                         {
                             var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("HlpAI.Program");
                             await ConfigureSpecificProviderAsync(selectedProvider, config, null, logger);
@@ -6804,11 +6838,30 @@ private static Task WaitForKeyPress()
         try
         {
             var providerUrl = GetProviderUrl(config, config.LastProvider);
+            
+            // Load API key for cloud providers
+            string? apiKey = null;
+            if ((config.LastProvider == AiProviderType.OpenAI || 
+                config.LastProvider == AiProviderType.Anthropic || 
+                config.LastProvider == AiProviderType.DeepSeek) &&
+                config.UseSecureApiKeyStorage && OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var apiKeyStorage = new SecureApiKeyStorage();
+                    apiKey = apiKeyStorage.RetrieveApiKey(config.LastProvider.ToString());
+                }
+                catch
+                {
+                    // Ignore errors in status display
+                }
+            }
+            
             var provider = AiProviderFactory.CreateProvider(
                 config.LastProvider,
                 config.LastModel ?? "default",
                 providerUrl ?? string.Empty,
-                apiKey: null,
+                apiKey: apiKey,
                 logger: null,
                 config
             );
@@ -7435,12 +7488,17 @@ private static Task WaitForKeyPress()
             Console.WriteLine();
             
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var useCurrentProvider = await promptService.PromptYesNoDefaultYesAsync("Use current AI provider?");
+            var useCurrentProvider = await promptService.PromptYesNoDefaultYesCancellableAsync("Use current AI provider?");
             
-            if (useCurrentProvider)
+            if (useCurrentProvider == true)
             {
                 Console.WriteLine($"✅ Using current provider: {config.LastProvider}");
                 return false; // No change needed
+            }
+            else if (useCurrentProvider == null)
+            {
+                Console.WriteLine("Provider selection cancelled.");
+                return null; // User cancelled
             }
         }
         
@@ -7697,9 +7755,9 @@ private static Task WaitForKeyPress()
             Console.WriteLine();
             
             using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-            var updateKey = await promptService.PromptYesNoDefaultYesAsync("Update the existing API key?");
+            var updateKey = await promptService.PromptYesNoDefaultYesCancellableAsync("Update the existing API key?");
             
-            if (!updateKey)
+            if (updateKey != true)
             {
                 Console.WriteLine("Configuration unchanged.");
                 return false;
@@ -7870,7 +7928,7 @@ private static Task WaitForKeyPress()
         if (config.RememberLastModel && !string.IsNullOrEmpty(config.LastModel))
         {
             Console.WriteLine($"💾 Last used model: {config.LastModel}");
-            bool useLastModel;
+            bool? useLastModel;
             if (isSetup)
             {
                 useLastModel = await SafePromptYesNoSetup("Use last model?", true, config, logger);
@@ -7878,13 +7936,18 @@ private static Task WaitForKeyPress()
             else
             {
                 using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                useLastModel = await promptService.PromptYesNoDefaultYesAsync("Use last model?");
+                useLastModel = await promptService.PromptYesNoDefaultYesCancellableAsync("Use last model?");
             }
             
-            if (useLastModel)
+            if (useLastModel == true)
             {
                 Console.WriteLine($"✅ Using model: {config.LastModel}");
                 return config.LastModel;
+            }
+            else if (useLastModel == null)
+            {
+                // User cancelled model selection
+                return "";
             }
             Console.WriteLine();
         }
@@ -7921,7 +7984,7 @@ private static Task WaitForKeyPress()
             }
             
             Console.WriteLine();
-            bool continueWithDefault;
+            bool? continueWithDefault;
             if (isSetup)
             {
                 continueWithDefault = await SafePromptYesNoSetup($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?", true, config, logger);
@@ -7929,10 +7992,10 @@ private static Task WaitForKeyPress()
             else
             {
                 using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
+                continueWithDefault = await promptService.PromptYesNoDefaultYesCancellableAsync($"Would you like to continue with the default model ({provider.DefaultModel}) anyway?");
             }
             
-            if (!continueWithDefault)
+            if (continueWithDefault != true)
             {
                 Console.WriteLine("⚠️  Model selection cancelled. Cannot proceed without a valid model.");
                 return "";
@@ -7968,7 +8031,7 @@ private static Task WaitForKeyPress()
             }
             
             Console.WriteLine();
-            bool continueWithDefault;
+            bool? continueWithDefault;
             if (isSetup)
             {
                 continueWithDefault = await SafePromptYesNoSetup($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?", true, config, logger);
@@ -7976,10 +8039,10 @@ private static Task WaitForKeyPress()
             else
             {
                 using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
-                continueWithDefault = await promptService.PromptYesNoDefaultYesAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
+                continueWithDefault = await promptService.PromptYesNoDefaultYesCancellableAsync($"Would you like to continue with the default model '{provider.DefaultModel}' anyway?");
             }
             
-            if (!continueWithDefault)
+            if (continueWithDefault != true)
             {
                 Console.WriteLine("⚠️  Model selection cancelled. Please install models and try again.");
                 return "";

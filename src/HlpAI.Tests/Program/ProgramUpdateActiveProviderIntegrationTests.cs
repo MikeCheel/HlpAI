@@ -81,17 +81,36 @@ public class ProgramUpdateActiveProviderIntegrationTests
         _testConfig.LastProvider = AiProviderType.DeepSeek;
         _testConfig.UseSecureApiKeyStorage = true;
         
-        // Mock the server (void method)
-        _mockServer.Setup(s => s.UpdateAiProvider(It.IsAny<IAiProvider>()));
+        // Ensure no API key exists for this test by temporarily removing it
+        var storage = new SecureApiKeyStorage();
+        var originalKey = storage.RetrieveApiKey("DeepSeek");
+        if (!string.IsNullOrEmpty(originalKey))
+        {
+            storage.DeleteApiKey("DeepSeek");
+        }
         
-        // Act
-        var result = await CallUpdateActiveProviderAsync(_mockServer.Object, _testConfig);
-        
-        // Assert
-        await Assert.That(result).IsFalse();
-        
-        // Verify method completed and returned false as expected
-        // Error handling is internal to the method
+        try
+        {
+            // Mock the server (void method)
+            _mockServer.Setup(s => s.UpdateAiProvider(It.IsAny<IAiProvider>()));
+            
+            // Act
+            var result = await CallUpdateActiveProviderAsync(_mockServer.Object, _testConfig);
+            
+            // Assert
+            await Assert.That(result).IsFalse();
+            
+            // Verify method completed and returned false as expected
+            // Error handling is internal to the method
+        }
+        finally
+        {
+            // Restore the original API key if it existed
+            if (!string.IsNullOrEmpty(originalKey))
+            {
+                storage.StoreApiKey("DeepSeek", originalKey);
+            }
+        }
     }
 
     /// <summary>

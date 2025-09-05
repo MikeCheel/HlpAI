@@ -89,6 +89,48 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
 
         using var command = new SqliteCommand(createTableSql, _connection);
         command.ExecuteNonQuery();
+        
+        // Handle migration for existing databases that don't have file_size column
+        MigrateExistingDatabase();
+    }
+    
+    private void MigrateExistingDatabase()
+    {
+        try
+        {
+            // Check if file_size column exists in document_chunks table
+            var checkColumnSql = "PRAGMA table_info(document_chunks)";
+            using var checkCommand = new SqliteCommand(checkColumnSql, _connection);
+            using var reader = checkCommand.ExecuteReader();
+            
+            bool hasFileSizeColumn = false;
+            while (reader.Read())
+            {
+                var columnName = reader["name"].ToString();
+                if (columnName == "file_size")
+                {
+                    hasFileSizeColumn = true;
+                    break;
+                }
+            }
+            reader.Close();
+            
+            if (!hasFileSizeColumn)
+            {
+                _logger?.LogInformation("Migrating database: Adding file_size column to document_chunks table");
+                
+                // Add the file_size column with default value 0
+                var addColumnSql = "ALTER TABLE document_chunks ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0";
+                using var addCommand = new SqliteCommand(addColumnSql, _connection);
+                addCommand.ExecuteNonQuery();
+                
+                _logger?.LogInformation("Database migration completed: file_size column added");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Database migration failed, but continuing with existing schema");
+        }
     }
 
     /// <summary>
