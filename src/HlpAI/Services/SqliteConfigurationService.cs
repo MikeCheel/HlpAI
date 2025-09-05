@@ -191,6 +191,21 @@ public class SqliteConfigurationService : IDisposable
         await _dbSemaphore.WaitAsync();
         try
         {
+            // Ensure connection is open before executing commands
+            if (_connection.State != System.Data.ConnectionState.Open)
+            {
+                try
+                {
+                    _connection.Open();
+                    InitializeDatabase(); // Reinitialize if connection was closed
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to reopen database connection for SetConfigurationAsync");
+                    return false;
+                }
+            }
+
             const string sql = """
                 INSERT OR REPLACE INTO configuration (key, value, category, updated_at) 
                 VALUES (@key, @value, @category, @updated_at)
@@ -247,6 +262,21 @@ public class SqliteConfigurationService : IDisposable
         await _dbSemaphore.WaitAsync();
         try
         {
+            // Ensure connection is open before executing commands
+            if (_connection.State != System.Data.ConnectionState.Open)
+            {
+                try
+                {
+                    _connection.Open();
+                    InitializeDatabase(); // Reinitialize if connection was closed
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to reopen database connection for GetConfigurationAsync");
+                    return defaultValue;
+                }
+            }
+
             const string sql = "SELECT value FROM configuration WHERE key = @key AND category = @category";
 
             using var command = new SqliteCommand(sql, _connection);

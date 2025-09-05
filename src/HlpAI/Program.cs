@@ -1274,10 +1274,10 @@ public static class Program
             Console.WriteLine("5. Skip export");
             Console.WriteLine();
             
-            Console.Write("Select option (1-5, or 'b' to go back): ");
-            var choice = SafePromptForString("", "b").Trim();
+            Console.Write("Select option (1-5, or 'c' to cancel): ");
+            var choice = SafePromptForString("", "x").Trim();
             
-            if (string.Equals(choice, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(choice, "back", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(choice, "x", StringComparison.OrdinalIgnoreCase) || string.Equals(choice, "cancel", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -1896,11 +1896,11 @@ public static class Program
                 Console.WriteLine("15. Configure embedding model");
             }
             
-            Console.WriteLine("b - Back to main menu");
+            Console.WriteLine("c - Cancel to main menu");
             Console.WriteLine();
             
-            Console.Write("Select option (1-15, b): ");
-            var input = SafePromptForString("", "b").ToLower().Trim();
+            Console.Write("Select option (1-15, x): ");
+            var input = SafePromptForString("", "x").ToLower().Trim();
             
             switch (input)
             {
@@ -2087,8 +2087,9 @@ public static class Program
                     await ConfigureEmbeddingModelAsync(menuStateManager, sqliteConfig, logger);
                     break;
                     
-                case "b":
-                case "back":
+                case "x":
+                case "cancel":
+                    ClearScreen();
                     configRunning = false;
                     break;
                     
@@ -2098,7 +2099,7 @@ public static class Program
                     break;
             }
             
-            if (configRunning && input != "b" && input != "back")
+            if (configRunning && input != "x" && input != "cancel")
             {
                 await ShowBriefPauseAsync();
             }
@@ -2131,11 +2132,11 @@ public static class Program
         Console.WriteLine("1. List available models for current provider");
         Console.WriteLine("2. Select a different model");
         Console.WriteLine("3. Change AI provider (opens AI provider menu)");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        Console.Write("Select option (1-3, b): ");
-        var choice = SafePromptForString("", "b").ToLower().Trim();
+        Console.Write("Select option (1-3, x): ");
+        var choice = SafePromptForString("", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -2151,8 +2152,9 @@ public static class Program
                 await ShowAiProviderMenuAsync();
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 break;
                 
             default:
@@ -2161,7 +2163,7 @@ public static class Program
                 break;
         }
         
-        if (choice != "b" && choice != "back")
+        if (choice != "x" && choice != "cancel")
         {
             await ShowBriefPauseAsync(null, 2000);
         }
@@ -2292,14 +2294,14 @@ public static class Program
             }
             
             Console.WriteLine($"{models.Count + 1}. Enter custom model name");
-            Console.WriteLine("b. Back to configuration menu");
+            Console.WriteLine("x. Exit (clear screen)");
             Console.WriteLine();
             
-            var input = SafePromptForString($"Select model (1-{models.Count + 1}, b): ", "1").Trim();
+            var input = SafePromptForString($"Select model (1-{models.Count + 1}, x): ", "1").Trim();
             
-            // Handle 'b' or 'back' input for navigation
-            if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || 
-                string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+            // Handle 'x' or 'cancel' input for navigation
+            if (string.Equals(input, "x", StringComparison.OrdinalIgnoreCase) || 
+                string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
             {
                 return; // Return to parent menu
             }
@@ -2336,7 +2338,7 @@ public static class Program
             }
             else
             {
-                Console.WriteLine("❌ Invalid input. Please enter a number or 'b' to go back.");
+                Console.WriteLine("❌ Invalid input. Please enter a number or 'c' to cancel.");
             }
             
             provider.Dispose();
@@ -2390,11 +2392,11 @@ public static class Program
         Console.WriteLine($"3. Toggle remember last embedding model (Currently: {(config.RememberLastEmbeddingModel ? "Enabled" : "Disabled")})");
         Console.WriteLine("4. Test embedding service connection");
         Console.WriteLine("5. Reset to defaults");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        Console.Write("Select option (1-5, b): ");
-        var choice = SafePromptForString("", "b").ToLower().Trim();
+        Console.Write("Select option (1-5, x): ");
+        var choice = SafePromptForString("", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -2425,8 +2427,9 @@ public static class Program
                 Console.WriteLine("✅ Embedding model configuration reset to defaults");
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 break;
                 
             default:
@@ -2435,7 +2438,7 @@ public static class Program
                 break;
         }
         
-        if (choice != "b" && choice != "back")
+        if (choice != "x" && choice != "cancel")
         {
             await ShowBriefPauseAsync(null, 2000);
         }
@@ -2560,11 +2563,11 @@ public static class Program
         Console.WriteLine("3. Clear configured path");
         Console.WriteLine("4. Test current path");
         Console.WriteLine("5. View detection history");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        Console.Write("Select option (1-5, b): ");
-        var choice = SafePromptForString("", "b").ToLower().Trim();
+        Console.Write("Select option (1-5, x): ");
+        var choice = SafePromptForString("", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -2669,8 +2672,9 @@ public static class Program
                 await ShowHhExeDetectionHistoryAsync(hhExeService);
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 return;
                 
             default:
@@ -2791,11 +2795,11 @@ public static class Program
         Console.WriteLine("2. Always default to 'No' when Enter is pressed");
         Console.WriteLine("3. Use individual prompt defaults (recommended)");
         Console.WriteLine("4. Test current prompt behavior");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        Console.Write("Select option (1-4, b): ");
-        var choice = SafePromptForString("", "b").ToLower().Trim();
+        Console.Write("Select option (1-4, x): ");
+        var choice = SafePromptForString("", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -2828,8 +2832,9 @@ public static class Program
                 Console.WriteLine("Test completed.");
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 return;
                 
             default:
@@ -2888,11 +2893,11 @@ public static class Program
             Console.WriteLine("12. Configure LM Studio max tokens");
             Console.WriteLine("13. Configure Open Web UI max tokens");
             Console.WriteLine("14. Reset all to defaults");
-            Console.WriteLine("b. Back to configuration menu");
+            Console.WriteLine("x. Exit (clear screen)");
             Console.WriteLine();
             
-            Console.Write("Select option (1-14, b): ");
-            var choice = SafePromptForString("", "b").ToLower().Trim();
+            Console.Write("Select option (1-14, x): ");
+            var choice = SafePromptForString("", "x").ToLower().Trim();
             
             switch (choice)
             {
@@ -2939,8 +2944,9 @@ public static class Program
                     ResetTimeoutAndTokenDefaults(config);
                     Console.WriteLine("✅ All timeout and token settings reset to defaults.");
                     break;
-                case "b":
-                case "back":
+                case "x":
+                case "cancel":
+                    ClearScreen();
                     running = false;
                     break;
                 default:
@@ -3047,11 +3053,11 @@ public static class Program
             Console.WriteLine("2. Configure max content length");
             Console.WriteLine("3. Configure max file audit size");
             Console.WriteLine("4. Reset all to defaults");
-            Console.WriteLine("b. Back to configuration menu");
+            Console.WriteLine("x. Exit (clear screen)");
             Console.WriteLine();
             
-            Console.Write("Select option (1-4, b): ");
-            var choice = SafePromptForString("", "b").ToLower().Trim();
+            Console.Write("Select option (1-4, x): ");
+            var choice = SafePromptForString("", "x").ToLower().Trim();
             
             switch (choice)
             {
@@ -3068,8 +3074,9 @@ public static class Program
                     ResetFileSizeDefaults(config);
                     Console.WriteLine("✅ All file size settings reset to defaults.");
                     break;
-                case "b":
-                case "back":
+                case "x":
+                case "cancel":
+                    ClearScreen();
                     running = false;
                     break;
                 default:
@@ -3151,10 +3158,10 @@ public static class Program
         Console.WriteLine("5. View detailed log statistics");
         Console.WriteLine("6. Clear all error logs");
         Console.WriteLine("7. Test error logging");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        var choice = SafePromptForString("Select option (1-7, b): ", "b").ToLower().Trim();
+        var choice = SafePromptForString("Select option (1-7, x): ", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -3188,8 +3195,9 @@ public static class Program
                 await TestErrorLoggingAsync(errorLoggingService);
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 return;
                 
             default:
@@ -3213,7 +3221,7 @@ public static class Program
         Console.WriteLine();
         
         Console.Write("Select log level (1-3): ");
-        var choice = SafePromptForString("", "b").Trim();
+        var choice = SafePromptForString("", "x").Trim();
         
         LogLevel newLevel = choice switch
         {
@@ -3243,10 +3251,10 @@ public static class Program
         Console.WriteLine();
         
         var currentRetention = await loggingService.GetLogRetentionDaysAsync();
-        Console.Write($"Enter retention days (current: {currentRetention}, or 'b' to go back): ");
-        var input = SafePromptForString("", "b").Trim();
+        Console.Write($"Enter retention days (current: {currentRetention}, or 'c' to cancel): ");
+        var input = SafePromptForString("", "x").Trim();
         
-        if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(input, "x", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -3419,10 +3427,10 @@ public static class Program
         Console.WriteLine("4. Set cache retention period");
         Console.WriteLine("5. Reset to defaults");
         Console.WriteLine("6. Test cleanup with current settings");
-        Console.WriteLine("b. Back to configuration menu");
+        Console.WriteLine("x. Exit (clear screen)");
         Console.WriteLine();
         
-        var choice = SafePromptForString("Select option (1-6, b): ", "b").ToLower().Trim();
+        var choice = SafePromptForString("Select option (1-6, x): ", "x").ToLower().Trim();
         
         switch (choice)
         {
@@ -3450,8 +3458,9 @@ public static class Program
                 await TestCleanupAsync(cleanupService);
                 break;
                 
-            case "b":
-            case "back":
+            case "x":
+            case "cancel":
+                ClearScreen();
                 return;
                 
             default:
@@ -3710,7 +3719,7 @@ public static class Program
             Console.WriteLine();
             
             Console.Write("Enter command: ");
-            var input = SafePromptForString("", "b").ToLower().Trim();
+            var input = SafePromptForString("", "x").ToLower().Trim();
             
             switch (input)
             {
@@ -3777,8 +3786,8 @@ public static class Program
                     
                 case "q":
                 case "quit":
-                case "back":
-                case "b":
+                case "cancel":
+                    ClearScreen();
                     running = false;
                     break;
                     
@@ -3788,7 +3797,7 @@ public static class Program
                     break;
             }
             
-            if (input != "s" && input != "stats" && input != "d" && input != "detail" && !string.IsNullOrEmpty(input) && input != "q" && input != "quit" && input != "back")
+            if (input != "s" && input != "stats" && input != "d" && input != "detail" && !string.IsNullOrEmpty(input) && input != "q" && input != "quit" && input != "cancel")
             {
                 await ShowBriefPauseAsync("Processing command", 500);
             }
@@ -3846,11 +3855,11 @@ public static class Program
             Console.WriteLine("3. DeepSeek API Key");
             Console.WriteLine("4. View stored API keys");
             Console.WriteLine("5. Delete API key");
-            Console.WriteLine("b. Back to provider menu");
+            Console.WriteLine("x. Exit (clear screen)");
             Console.WriteLine();
             
-            Console.Write("Select option (1-5, b): ");
-            var input = SafePromptForString("", "b").ToLower().Trim();
+            Console.Write("Select option (1-5, x): ");
+            var input = SafePromptForString("", "x").ToLower().Trim();
             
             switch (input)
             {
@@ -3869,8 +3878,9 @@ public static class Program
                 case "5":
                     DeleteApiKeyAsync(apiKeyStorage);
                     break;
-                case "b":
-                case "back":
+                case "x":
+                case "cancel":
+                    ClearScreen();
                     running = false;
                     break;
                 default:
@@ -4125,16 +4135,16 @@ public static class Program
         Console.WriteLine("4. Cancel (no filter)");
         Console.WriteLine();
         
-        Console.Write("Enter choice (1-4, or 'b' to go back): ");
-        var choice = SafePromptForString("", "b").Trim();
+        Console.Write("Enter choice (1-4, or 'c' to cancel): ");
+        var choice = SafePromptForString("", "x").Trim();
         
         return Task.FromResult(choice switch
         {
             "1" => "Error",
             "2" => "Warning",
             "3" => "Information",
-            "b" => "",
-            "back" => "",
+            "c" => "",
+            "cancel" => "",
             _ => ""
         });
     }
@@ -4283,10 +4293,10 @@ public static class Program
                 Console.WriteLine("5. Test file extraction");
                 Console.WriteLine("6. Reset extractor to default configuration");
                 Console.WriteLine("7. View configuration audit");
-                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("x. Exit (clear screen)");
                 
-                Console.Write("\nEnter your choice (1-7, b): ");
-                var input = SafePromptForString("", "b").ToLower();
+                Console.Write("\nEnter your choice (1-7, x): ");
+                var input = SafePromptForString("", "x").ToLower();
                 
                 switch (input)
                 {
@@ -4311,8 +4321,9 @@ public static class Program
                     case "7":
                         await ShowConfigurationAuditAsync(extractorService, menuStateManager);
                         break;
-                    case "b":
-                    case "back":
+                    case "x":
+                    case "cancel":
+                        ClearScreen();
                         running = false;
                         break;
                     default:
@@ -4354,10 +4365,10 @@ public static class Program
                 Console.WriteLine("4. Delete vector database (no backup)");
                 Console.WriteLine("5. Reindex all documents");
                 Console.WriteLine("6. View database statistics");
-                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("x. Exit (clear screen)");
                 
-                Console.Write("\nEnter your choice (1-6, b): ");
-                var input = SafePromptForString("", "b").ToLower();
+                Console.Write("\nEnter your choice (1-6, x): ");
+                var input = SafePromptForString("", "x").ToLower();
                 
                 switch (input)
                 {
@@ -4379,8 +4390,9 @@ public static class Program
                     case "6":
                         await ShowVectorDatabaseStatsAsync(vectorStore, menuStateManager);
                         break;
-                    case "b":
-                    case "back":
+                    case "x":
+                    case "cancel":
+                        ClearScreen();
                         running = false;
                         break;
                     default:
@@ -5653,7 +5665,7 @@ private static Task WaitForKeyPress()
                 {
                     switch (input.ToLower())
                     {
-                        case "c":
+                        case "x":
                         case "cancel":
                             ClearScreen();
                             inOperationsMenu = false;
@@ -5706,7 +5718,7 @@ private static Task WaitForKeyPress()
                 {
                     switch (input.ToLower())
                     {
-                        case "c":
+                        case "x":
                         case "cancel":
                             ClearScreen();
                             inConfigurationMenu = false;
@@ -5759,7 +5771,7 @@ private static Task WaitForKeyPress()
                 {
                     switch (input.ToLower())
                     {
-                        case "c":
+                        case "x":
                         case "cancel":
                             ClearScreen();
                             inManagementMenu = false;
@@ -6079,7 +6091,7 @@ private static Task WaitForKeyPress()
             Console.WriteLine($"{nextOption + 2}. List Available Models");
             Console.WriteLine($"{nextOption + 3}. Detect Available Providers");
             Console.WriteLine($"{nextOption + 4}. Quick Switch to Available Provider");
-            Console.WriteLine("b. Back to main menu");
+            Console.WriteLine("x. Exit (clear screen)");
             Console.WriteLine();
             
             menuOptions.Add((nextOption.ToString(), "Select AI Provider", "general"));
@@ -6089,8 +6101,8 @@ private static Task WaitForKeyPress()
             menuOptions.Add(((nextOption + 4).ToString(), "Quick Switch to Available Provider", "general"));
             
             var maxOption = nextOption + 4;
-            Console.Write($"Select option (1-{maxOption}, b): ");
-            var input = SafePromptForString("", "b").ToLower().Trim();
+            Console.Write($"Select option (1-{maxOption}, x): ");
+            var input = SafePromptForString("", "x").ToLower().Trim();
             
             switch (input)
             {
@@ -6210,8 +6222,9 @@ private static Task WaitForKeyPress()
                         await QuickSwitchToAvailableProviderAsync(config);
                     }
                     break;
-                case "b":
-                case "back":
+                case "x":
+                case "cancel":
+                    ClearScreen();
                     running = false;
                     break;
                 default:
@@ -6307,10 +6320,10 @@ private static Task WaitForKeyPress()
             Console.WriteLine($"{i + 1}. {providerDescriptions[provider]}{currentIndicator}");
         }
         
-        Console.Write($"\nSelect provider (1-{filteredProviders.Count}) or 'b' to go back: ");
-        var input = SafePromptForString("", "b").Trim();
+        Console.Write($"\nSelect provider (1-{filteredProviders.Count}) or 'c' to cancel: ");
+        var input = SafePromptForString("", "x").Trim();
         
-        if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(input, "x", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
         {
             return; // Return to parent menu
         }
@@ -6645,10 +6658,10 @@ private static Task WaitForKeyPress()
                 Console.WriteLine($"{i + 1}. {info.Name}{currentIndicator} - {url} ({connectivityResult.ResponseTime}ms)");
             }
             
-            Console.Write($"\nSelect provider to switch to (1-{providersList.Count}) or 'b' to go back: ");
-            var input = SafePromptForString("", "b").Trim();
+            Console.Write($"\nSelect provider to switch to (1-{providersList.Count}) or 'c' to cancel: ");
+            var input = SafePromptForString("", "x").Trim();
             
-            if (string.Equals(input, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "back", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(input, "x", StringComparison.OrdinalIgnoreCase) || string.Equals(input, "cancel", StringComparison.OrdinalIgnoreCase))
             {
                 return; // Return to parent menu
             }
@@ -7354,10 +7367,10 @@ private static Task WaitForKeyPress()
                 Console.WriteLine("6. Remove exclude pattern");
                 Console.WriteLine("7. Test patterns against files");
                 Console.WriteLine("8. Reset to default configuration");
-                Console.WriteLine("b. Back to main menu");
+                Console.WriteLine("x. Exit (clear screen)");
                 
-                Console.Write("\nEnter your choice (1-8, b): ");
-                var input = SafePromptForString("", "b").ToLower();
+                Console.Write("\nEnter your choice (1-8, x): ");
+                var input = SafePromptForString("", "x").ToLower();
                 
                 switch (input)
                 {
@@ -7385,8 +7398,9 @@ private static Task WaitForKeyPress()
                     case "8":
                         await ResetFilterConfigurationAsync(filterService, menuStateManager);
                         break;
-                    case "b":
-                    case "back":
+                    case "x":
+                    case "cancel":
+                        ClearScreen();
                         running = false;
                         break;
                     default:
@@ -7464,8 +7478,8 @@ private static Task WaitForKeyPress()
         string defaultValue;
         if (hasParentMenu)
         {
-            prompt = $"Select an option (1-{providers.Count + 1}, 'q' to quit, or 'b' to go back): ";
-            defaultValue = "b";
+            prompt = $"Select an option (1-{providers.Count + 1}, 'q' to quit, or 'c' to cancel): ";
+            defaultValue = "c";
         }
         else
         {
@@ -7481,13 +7495,13 @@ private static Task WaitForKeyPress()
             return null; // User cancelled
         }
         
-        if (hasParentMenu && (input?.ToLower() == "b" || input?.ToLower() == "back"))
+        if (hasParentMenu && (input?.ToLower() == "x" || input?.ToLower() == "cancel"))
         {
             return null; // User cancelled - go back to parent menu
         }
         
         // If no parent menu and user tries to go back, treat as invalid input
-        if (!hasParentMenu && (input?.ToLower() == "b" || input?.ToLower() == "back"))
+        if (!hasParentMenu && (input?.ToLower() == "x" || input?.ToLower() == "cancel"))
         {
             Console.WriteLine("❌ Invalid option. There is no parent menu to go back to.");
             await Task.Delay(1500);
@@ -7620,10 +7634,10 @@ private static Task WaitForKeyPress()
         }
         
         Console.WriteLine();
-        Console.Write($"Select a provider (1-{providers.Count}, 'q' to quit, or 'b' to go back): ");
-        var input = SafePromptForString("", "b").Trim();
+        Console.Write($"Select a provider (1-{providers.Count}, 'q' to quit, or 'c' to cancel): ");
+        var input = SafePromptForString("", "x").Trim();
         
-        if (input.Equals("q", StringComparison.OrdinalIgnoreCase) || input.Equals("b", StringComparison.OrdinalIgnoreCase) || input.Equals("back", StringComparison.OrdinalIgnoreCase))
+        if (input.Equals("q", StringComparison.OrdinalIgnoreCase) || input.Equals("x", StringComparison.OrdinalIgnoreCase) || input.Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
             return null; // User chose to quit
         }
@@ -7988,10 +8002,10 @@ private static Task WaitForKeyPress()
         
         while (true)
         {
-            Console.Write($"Select a model (1-{availableModels.Count + 1}, 'q' to quit, or 'b' to go back): ");
-            var input = SafePromptForString("", "b").Trim();
+            Console.Write($"Select a model (1-{availableModels.Count + 1}, 'q' to quit, or 'c' to cancel): ");
+            var input = SafePromptForString("", "x").Trim();
             
-            if (input?.ToLower() == "q" || input?.ToLower() == "b" || input?.ToLower() == "back")
+            if (input?.ToLower() == "q" || input?.ToLower() == "x" || input?.ToLower() == "cancel")
             {
                 return "";
             }

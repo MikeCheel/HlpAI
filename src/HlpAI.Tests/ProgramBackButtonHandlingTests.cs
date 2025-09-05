@@ -11,8 +11,8 @@ using System.Text.RegularExpressions;
 namespace HlpAI.Tests
 {
     /// <summary>
-    /// Tests to ensure that all SafePromptForString calls with 'b' as default
-    /// have proper handling for the 'b' input to prevent crashes.
+    /// Tests to ensure that all SafePromptForString calls with 'x' as default
+    /// have proper handling for the 'x' input to prevent crashes.
     /// </summary>
     public class ProgramBackButtonHandlingTests
     {
@@ -27,7 +27,7 @@ namespace HlpAI.Tests
         }
 
         [Test]
-        public async Task AllSafePromptForStringCallsWithBDefaultShouldHaveProperHandling()
+        public async Task AllSafePromptForStringCallsWithXDefaultShouldHaveProperHandling()
         {
             // Read the Program.cs file
             var programPath = Path.Combine(
@@ -46,8 +46,8 @@ namespace HlpAI.Tests
             
             var programContent = File.ReadAllText(programPath);
             
-            // Find all SafePromptForString calls with 'b' as default
-            var pattern = @"SafePromptForString\s*\(\s*[^,]*,\s*""b""\s*\)";
+            // Find all SafePromptForString calls with 'x' as default
+            var pattern = @"SafePromptForString\s*\(\s*[^,]*,\s*""x""\s*\)";
             var matches = Regex.Matches(programContent, pattern);
             
             await Assert.That(matches.Count > 0).IsTrue();
@@ -60,8 +60,8 @@ namespace HlpAI.Tests
                 var lineNumber = GetLineNumber(programContent, match.Index);
                 var methodContext = GetMethodContext(lines, lineNumber);
                 
-                // Check if the method properly handles 'b' input
-                if (!HasProperBackHandling(methodContext, lineNumber))
+                // Check if the method properly handles 'x' input
+                if (!HasProperExitHandling(methodContext, lineNumber))
                 {
                     problematicCalls.Add($"Line {lineNumber}: {match.Value.Trim()}");
                 }
@@ -69,7 +69,7 @@ namespace HlpAI.Tests
             
             if (problematicCalls.Count > 0)
             {
-                var errorMessage = "Found SafePromptForString calls with 'b' default that don't properly handle 'b' input:\n" +
+                var errorMessage = "Found SafePromptForString calls with 'x' default that don't properly handle 'x' input:\n" +
                     string.Join("\n", problematicCalls);
                 throw new Exception(errorMessage);
             }
@@ -78,7 +78,7 @@ namespace HlpAI.Tests
         [Test]
         public async Task SelectAiProviderAsync_ShouldHandleBackInput()
         {
-            // This test ensures SelectAiProviderAsync properly handles 'b' input
+            // This test ensures SelectAiProviderAsync properly handles 'x' input
             // We can't easily test the actual method due to Console I/O,
             // but we can verify the code structure
             
@@ -92,8 +92,8 @@ namespace HlpAI.Tests
             var methodEnd = FindMethodEnd(programContent, methodStart);
             var methodContent = programContent.Substring(methodStart, methodEnd - methodStart);
             
-            // Verify it has proper 'b' handling
-            await Assert.That(methodContent).Contains("string.Equals(input, \"b\", StringComparison.OrdinalIgnoreCase)");
+            // Verify it has proper 'x' handling
+            await Assert.That(methodContent).Contains("string.Equals(input, \"x\", StringComparison.OrdinalIgnoreCase)");
             await Assert.That(methodContent).Contains("return; // Return to parent menu");
         }
 
@@ -110,8 +110,8 @@ namespace HlpAI.Tests
             var methodEnd = FindMethodEnd(programContent, methodStart);
             var methodContent = programContent.Substring(methodStart, methodEnd - methodStart);
             
-            // Verify it has proper 'b' handling
-            await Assert.That(methodContent).Contains("string.Equals(input, \"b\", StringComparison.OrdinalIgnoreCase)");
+            // Verify it has proper 'x' handling
+            await Assert.That(methodContent).Contains("string.Equals(input, \"x\", StringComparison.OrdinalIgnoreCase)");
             await Assert.That(methodContent).Contains("return; // Return to parent menu");
         }
 
@@ -166,28 +166,28 @@ namespace HlpAI.Tests
             return string.Join("\n", contextLines);
         }
 
-        private bool HasProperBackHandling(string methodContext, int lineNumber)
+        private bool HasProperExitHandling(string methodContext, int lineNumber)
         {
-            // Check if the method context contains proper 'b' handling
+            // Check if the method context contains proper 'x' handling
             var lowerContext = methodContext.ToLowerInvariant();
             
-            // Look for various patterns of 'b' handling
+            // Look for various patterns of 'x' handling
             var patterns = new[]
             {
-                "case \"b\":",
-                "case \"back\":",
-                "input.tolowerinvariant() == \"b\"",
-                "input?.tolower() == \"b\"",
-                "input == \"b\"",
-                "input.tolower() == \"b\"",
-                "choice.tolower() == \"b\"",
-                "input.equals(\"b\", stringcomparison.ordinalignorecase)",
-                "choice.equals(\"b\", stringcomparison.ordinalignorecase)",
-                "string.equals(input, \"b\", stringcomparison.ordinalignorecase)",
-                "string.equals(choice, \"b\", stringcomparison.ordinalignorecase)",
-                "input.equals(\"q\", stringcomparison.ordinalignorecase) || input.equals(\"b\", stringcomparison.ordinalignorecase)",
-                "\"b\" => \"\"",
-                "\"back\" => \"\""
+                "case \"x\":",
+                "case \"cancel\":",
+                "input.tolowerinvariant() == \"x\"",
+                "input?.tolower() == \"x\"",
+                "input == \"x\"",
+                "input.tolower() == \"x\"",
+                "choice.tolower() == \"x\"",
+                "input.equals(\"x\", stringcomparison.ordinalignorecase)",
+                "choice.equals(\"x\", stringcomparison.ordinalignorecase)",
+                "string.equals(input, \"x\", stringcomparison.ordinalignorecase)",
+                "string.equals(choice, \"x\", stringcomparison.ordinalignorecase)",
+                "input.equals(\"q\", stringcomparison.ordinalignorecase) || input.equals(\"x\", stringcomparison.ordinalignorecase)",
+                "\"x\" => \"\"",
+                "\"cancel\" => \"\""
             };
             
             var hasHandling = patterns.Any(pattern => lowerContext.Contains(pattern));

@@ -97,7 +97,7 @@ public class PromptService : IDisposable
         var effectiveDefault = userPreference ?? defaultToYes;
         
         var promptSuffix = effectiveDefault ? " (Y/n, default: y)" : " (y/N, default: n)";
-        var cancelSuffix = " (or 'cancel'/'b' to cancel)";
+        var cancelSuffix = " (or 'cancel'/'c' to cancel)";
         var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         Console.Write(fullPrompt);
@@ -106,7 +106,7 @@ public class PromptService : IDisposable
         // Check for cancellation commands
         if (!string.IsNullOrEmpty(response))
         {
-            if (response == "cancel" || response == "b" || 
+            if (response == "cancel" || response == "c" || 
                 response == "quit" || response == "exit" || response == "q")
             {
                 _logger?.LogDebug("User cancelled yes/no prompt with command: {Command}", response);
@@ -377,7 +377,7 @@ public class PromptService : IDisposable
         }
         
         var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
-        var cancelSuffix = " (or 'cancel'/'b' to cancel)";
+        var cancelSuffix = " (or 'cancel'/'c' to cancel)";
         var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         Console.Write(fullPrompt);
@@ -387,7 +387,7 @@ public class PromptService : IDisposable
         if (!string.IsNullOrEmpty(response))
         {
             var lowerResponse = response.ToLowerInvariant();
-            if (lowerResponse == "cancel" || lowerResponse == "b" || 
+            if (lowerResponse == "cancel" || lowerResponse == "c" || 
                 lowerResponse == "quit" || lowerResponse == "exit" || lowerResponse == "q")
             {
                 _logger?.LogDebug("User cancelled input with command: {Command}", response);
@@ -487,7 +487,7 @@ public class PromptService : IDisposable
         }
         
         var promptSuffix = !string.IsNullOrEmpty(defaultValue) ? $" (default: {defaultValue})" : "";
-        var cancelSuffix = " (or 'cancel'/'b' to cancel)";
+        var cancelSuffix = " (or 'cancel'/'c' to cancel)";
         var fullPrompt = prompt.TrimEnd(':', ' ') + promptSuffix + cancelSuffix + ": ";
         
         while (true)
@@ -499,7 +499,7 @@ public class PromptService : IDisposable
             if (!string.IsNullOrEmpty(response))
             {
                 var lowerResponse = response.ToLowerInvariant();
-                if (lowerResponse == "cancel" || lowerResponse == "b" || 
+                if (lowerResponse == "cancel" || lowerResponse == "c" || 
                     lowerResponse == "quit" || lowerResponse == "exit" || lowerResponse == "q")
                 {
                     _logger?.LogDebug("User cancelled input with command: {Command}", response);
