@@ -128,8 +128,8 @@ namespace HlpAI.Tests
             var methodEnd = FindMethodEnd(programContent, methodStart);
             var methodContent = programContent.Substring(methodStart, methodEnd - methodStart);
             
-            // Verify it handles 'b' input by returning empty string
-            await Assert.That(methodContent).Contains("input?.ToLower() == \"b\"");
+            // Verify it handles 'c' input by returning empty string (updated from 'b' to 'c' as per Task A3)
+            await Assert.That(methodContent).Contains("input?.ToLower() == \"c\"");
         }
 
         private async Task<string> GetProgramPath()
