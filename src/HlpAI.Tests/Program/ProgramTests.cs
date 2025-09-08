@@ -1,4 +1,5 @@
 using HlpAI.MCP;
+using HlpAI.Models;
 using HlpAI.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -21,8 +22,13 @@ public class ProgramTests
     public async Task UpdateAiProvider_DirectTest_UpdatesProviderSuccessfully()
     {
         // Arrange
-        var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "initial-model");
-        var initialProviderType = server._aiProvider.ProviderType;
+        var config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.Ollama,
+            OllamaUrl = "http://localhost:11434"
+        };
+        var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, config, "initial-model", OperationMode.Hybrid);
+        var initialProviderType = server._aiProvider!.ProviderType;
         
         // Create a mock for the new provider
         var mockProvider = new Mock<IAiProvider>();

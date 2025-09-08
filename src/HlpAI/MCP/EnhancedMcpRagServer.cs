@@ -19,7 +19,7 @@ namespace HlpAI.MCP
     private readonly ILogger<EnhancedMcpRagServer> _logger;
     private List<IFileExtractor>? _extractors;
     private readonly string _rootPath;
-    public IAiProvider _aiProvider;
+    public IAiProvider? _aiProvider;
     private readonly EmbeddingService _embeddingService;
     public IVectorStore? _vectorStore;
     public readonly OperationMode _operationMode;
@@ -49,14 +49,18 @@ namespace HlpAI.MCP
         }
         
         // Create AI provider based on configuration
-        _aiProvider = AiProviderFactory.CreateProvider(
-            _config.LastProvider,
-            aiModel,
-            GetProviderUrl(_config, _config.LastProvider),
-            apiKey,
-            logger,
-            _config
-        );
+        if (_config.LastProvider != AiProviderType.None)
+        {
+            _aiProvider = AiProviderFactory.CreateProvider(
+                _config.LastProvider,
+                aiModel,
+                GetProviderUrl(_config, _config.LastProvider),
+                apiKey,
+                logger,
+                _config
+            );
+        }
+        // If no provider is configured, _aiProvider remains null
         
         _embeddingService = new EmbeddingService(logger: logger, config: _config);
 
@@ -84,14 +88,18 @@ namespace HlpAI.MCP
         }
         
         // Create AI provider based on configuration
-        _aiProvider = AiProviderFactory.CreateProvider(
-            _config.LastProvider,
-            aiModel,
-            GetProviderUrl(_config, _config.LastProvider),
-            apiKey,
-            logger,
-            _config
-        );
+        if (_config.LastProvider != AiProviderType.None)
+        {
+            _aiProvider = AiProviderFactory.CreateProvider(
+                _config.LastProvider,
+                aiModel,
+                GetProviderUrl(_config, _config.LastProvider),
+                apiKey,
+                logger,
+                _config
+            );
+        }
+        // If no provider is configured, _aiProvider remains null
         
         _embeddingService = new EmbeddingService(logger: logger, config: _config);
 
@@ -167,6 +175,7 @@ namespace HlpAI.MCP
         {
             return providerType switch
             {
+                AiProviderType.None => null,
                 AiProviderType.Ollama => config.OllamaUrl,
                 AiProviderType.LmStudio => config.LmStudioUrl,
                 AiProviderType.OpenWebUi => config.OpenWebUiUrl,
@@ -980,7 +989,17 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "Question is required");
             }
 
-            if (!await _aiProvider.IsAvailableAsync())
+            if (_aiProvider == null)
+            {
+                return CreateErrorResponse(request.Id, "No AI provider is configured. Please configure a provider first.");
+            }
+
+            if (_aiProvider == null)
+            {
+                return CreateErrorResponse(request.Id, "No AI provider is configured. Please configure a provider first.");
+            }
+
+            if (_aiProvider == null || !await _aiProvider.IsAvailableAsync())
             {
                 return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
@@ -1110,7 +1129,12 @@ namespace HlpAI.MCP
                 }
             }
 
-            if (!await _aiProvider.IsAvailableAsync())
+            if (_aiProvider == null)
+            {
+                return CreateErrorResponse(request.Id, "No AI provider is configured. Please configure a provider first.");
+            }
+
+            if (_aiProvider == null || !await _aiProvider.IsAvailableAsync())
             {
                 return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
@@ -1233,7 +1257,7 @@ namespace HlpAI.MCP
                 return CreateErrorResponse(request.Id, "Question is required");
             }
 
-            if (!await _aiProvider.IsAvailableAsync())
+            if (_aiProvider == null || !await _aiProvider.IsAvailableAsync())
             {
                 return CreateErrorResponse(request.Id, GetProviderUnavailableMessage());
             }
@@ -1348,6 +1372,11 @@ namespace HlpAI.MCP
         /// </summary>
         private string GetProviderUnavailableMessage()
         {
+            if (_aiProvider == null)
+            {
+                return "No AI provider is configured. Please configure a provider first.";
+            }
+
             var isCloudProvider = _aiProvider.ProviderType == AiProviderType.OpenAI ||
                                  _aiProvider.ProviderType == AiProviderType.Anthropic ||
                                  _aiProvider.ProviderType == AiProviderType.DeepSeek;

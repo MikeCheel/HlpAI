@@ -232,7 +232,7 @@ public static class Program
                 await ShowFileFilteringManagementMenuAsync(menuStateManager);
                 break;
             case "show_models":
-                if (server?._aiProvider.SupportsDynamicModelSelection == true)
+                if (server?._aiProvider?.SupportsDynamicModelSelection == true)
                 {
                     await DemoShowModels(server);
                 }
@@ -455,7 +455,7 @@ public static class Program
                 {
                     currentConfig.LastProvider = selectedProvider;
                     currentConfig.LastModel = setupResult.Model;
-                    ConfigurationService.SaveConfiguration(currentConfig, logger);
+                    await SaveConfigurationWithDirectoryAsync(currentConfig, setupResult.Directory, logger);
                 }
             }
         }
@@ -517,16 +517,23 @@ public static class Program
         try
         {
             Console.WriteLine("Checking AI provider connection...");
-            if (await server._aiProvider.IsAvailableAsync())
+            if (server._aiProvider != null)
             {
-                var models = await server._aiProvider.GetModelsAsync();
-                Console.WriteLine($"✅ {server._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
-                Console.WriteLine($"Using model: {ollamaModel}");
+                if (await server._aiProvider.IsAvailableAsync())
+                {
+                    var models = await server._aiProvider.GetModelsAsync();
+                    Console.WriteLine($"✅ {server._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
+                    Console.WriteLine($"Using model: {ollamaModel}");
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ {server._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                    Console.WriteLine($"To use AI features, ensure {server._aiProvider.ProviderName} is running at {server._aiProvider.BaseUrl}");
+                }
             }
             else
             {
-                Console.WriteLine($"⚠️ {server._aiProvider.ProviderName} not available. AI features will show connection errors.");
-                Console.WriteLine($"To use AI features, ensure {server._aiProvider.ProviderName} is running at {server._aiProvider.BaseUrl}");
+                Console.WriteLine("⚠️ AI Provider not configured. AI features will not be available.");
             }
 
             Console.WriteLine($"\nOperation Mode: {mode}");
@@ -745,8 +752,49 @@ public static class Program
         // Create or use shared configuration service to prevent duplicate loading
         var sharedConfigService = configService ?? SqliteConfigurationService.GetInstance(logger);
         
-        // Load saved configuration from SQLite database
+        // Load saved configuration from SQLite database (clear cache first to ensure fresh data)
+        ConfigurationService.ClearCache();
         var config = await sharedConfigService.LoadAppConfigurationAsync();
+        
+        // Check for most recent directory configuration
+        var recentDirConfig = await sharedConfigService.GetMostRecentDirectoryConfigurationAsync();
+        
+        // If we have a recent directory config and the directory still exists, offer to use it
+        if (recentDirConfig != null && Directory.Exists(recentDirConfig.DirectoryPath))
+        {
+            Console.WriteLine("📂 Recent Directory Configuration Found:");
+            Console.WriteLine("---------------------------------------");
+            Console.WriteLine($"Directory: {recentDirConfig.DirectoryPath}");
+            Console.WriteLine($"AI Provider: {recentDirConfig.AiProvider}");
+            Console.WriteLine($"Model: {recentDirConfig.AiModel}");
+            Console.WriteLine($"Operation Mode: {recentDirConfig.OperationMode}");
+            Console.WriteLine($"Last Used: {recentDirConfig.UpdatedAt:yyyy-MM-dd HH:mm:ss}");
+            Console.WriteLine();
+            
+            using var recentConfigPromptService = new PromptService(config, sharedConfigService, logger);
+            var useRecentConfig = await recentConfigPromptService.PromptYesNoDefaultYesSetupAsync("Use this recent configuration?");
+            
+            if (useRecentConfig)
+            {
+                Console.WriteLine("✅ Using recent directory configuration.");
+                
+                // Update the timestamp for this directory config
+                await sharedConfigService.SaveDirectoryConfigurationAsync(
+                    recentDirConfig.DirectoryPath, 
+                    recentDirConfig.AiProvider, 
+                    recentDirConfig.AiModel, 
+                    recentDirConfig.OperationMode);
+                
+                return new SetupResult(
+                    recentDirConfig.DirectoryPath,
+                    recentDirConfig.AiProvider.ToString(),
+                    recentDirConfig.AiModel,
+                    recentDirConfig.OperationMode
+                );
+            }
+            
+            Console.WriteLine();
+        }
         
         // Always show current configuration for confirmation
         Console.WriteLine("📋 Current Configuration:");
@@ -760,14 +808,25 @@ public static class Program
             Console.WriteLine("Directory: Not configured or doesn't exist");
         }
         
+        // Check what configuration we have
+        var hasValidDirectory = !string.IsNullOrEmpty(config.LastDirectory) && Directory.Exists(config.LastDirectory);
+        var hasModel = !string.IsNullOrEmpty(config.LastModel);
+        var hasProvider = config.LastProvider != AiProviderType.None;
+        
         Console.WriteLine($"AI Provider: {config.LastProvider}");
         Console.WriteLine($"Model: {(string.IsNullOrEmpty(config.LastModel) ? "Not configured" : config.LastModel)}");
-        Console.WriteLine($"Operation Mode: {config.LastOperationMode}");
+        
+        // Show operation mode - if RememberLastOperationMode is false or this is first run, show as not configured
+        var operationModeDisplay = config.RememberLastOperationMode && hasProvider && hasModel 
+            ? config.LastOperationMode.ToString() 
+            : "Not configured (will prompt for selection)";
+        Console.WriteLine($"Operation Mode: {operationModeDisplay}");
         Console.WriteLine();
         
-        // Only ask to keep configuration if there's a valid, complete configuration
-        if (!string.IsNullOrEmpty(config.LastDirectory) && Directory.Exists(config.LastDirectory) &&
-            !string.IsNullOrEmpty(config.LastModel))
+        // Ask to keep configuration if there's any meaningful saved configuration
+        // More lenient approach: if we have either a valid directory OR a model, offer to keep it
+        
+        if (hasValidDirectory || hasModel)
         {
             using var confirmPromptService = new PromptService(config, sharedConfigService, logger);
             var keepCurrentConfig = await confirmPromptService.PromptYesNoDefaultYesSetupAsync("Keep current configuration?");
@@ -775,10 +834,11 @@ public static class Program
             if (keepCurrentConfig)
             {
                 Console.WriteLine("✅ Using current configuration.");
+                // Use existing values where available, will prompt for missing ones later
                 return new SetupResult(
-                    config.LastDirectory,
+                    config.LastDirectory ?? "", // Will be prompted for if empty
                     config.LastProvider.ToString(),
-                    config.LastModel,
+                    config.LastModel ?? "", // Will be prompted for if empty
                     config.LastOperationMode
                 );
             }
@@ -865,7 +925,17 @@ public static class Program
         if (config.RememberLastDirectory)
         {
             config.LastDirectory = directory;
-            ConfigurationService.SaveConfiguration(config, logger);
+            // Clear cache to ensure fresh configuration is loaded next time
+            ConfigurationService.ClearCache();
+            var saveSuccess = ConfigurationService.SaveConfiguration(config, logger);
+            if (saveSuccess)
+            {
+                logger?.LogInformation("Directory saved to configuration: {Directory}", directory);
+            }
+            else
+            {
+                logger?.LogWarning("Failed to save directory to configuration: {Directory}", directory);
+            }
         }
         
         Console.WriteLine();
@@ -875,6 +945,7 @@ public static class Program
         Console.WriteLine("----------------------------------------");
         
         // First ask about provider selection
+        ArgumentNullException.ThrowIfNull(logger);
         var providerChanged = await SelectProviderForSetupAsync(config, configService, logger, hasParentMenu: false);
         if (providerChanged == null) // User cancelled
         {
@@ -936,15 +1007,12 @@ public static class Program
             using var modePromptService = new PromptService(config, sharedConfigService, logger);
             var useLastMode = await modePromptService.PromptYesNoDefaultYesSetupAsync("Use last operation mode?");
             
-            if (!useLastMode)
-            {
-                selectedMode = OperationMode.Hybrid; // Reset to default for new selection
-            }
-            else
+            if (useLastMode)
             {
                 Console.WriteLine($"✅ Using operation mode: {selectedMode}");
                 skipModeSelection = true;
             }
+            // If user chooses not to use last mode, we'll proceed to mode selection below
         }
         
         if (!skipModeSelection)
@@ -1018,6 +1086,16 @@ public static class Program
             config.LastOperationMode = selectedMode;
             
         ConfigurationService.SaveConfiguration(config, logger);
+        
+        // Save directory-specific configuration
+        await sharedConfigService.SaveDirectoryConfigurationAsync(
+            directory, 
+            config.LastProvider, 
+            model, 
+            selectedMode);
+        
+        logger?.LogInformation("Directory-specific configuration saved: {Directory} -> {Provider}/{Model}/{Mode}", 
+            directory, config.LastProvider, model, selectedMode);
 
         // Release singleton instance if we created it
         if (configService == null)
@@ -1688,14 +1766,21 @@ public static class Program
     
     private static async Task DemoShowModels(EnhancedMcpRagServer server)
     {
-        if (await server._aiProvider.IsAvailableAsync())
+        if (server._aiProvider != null)
         {
-            var models = await server._aiProvider.GetModelsAsync();
-            Console.WriteLine($"\nAvailable {server._aiProvider.ProviderName} models: {string.Join(", ", models)}");
+            if (await server._aiProvider.IsAvailableAsync())
+            {
+                var models = await server._aiProvider.GetModelsAsync();
+                Console.WriteLine($"\nAvailable {server._aiProvider.ProviderName} models: {string.Join(", ", models)}");
+            }
+            else
+            {
+                Console.WriteLine($"\n{server._aiProvider.ProviderName} is not available. Cannot retrieve models.");
+            }
         }
         else
         {
-            Console.WriteLine($"\n{server._aiProvider.ProviderName} is not available. Cannot retrieve models.");
+            Console.WriteLine("\nAI Provider is not configured. Cannot retrieve models.");
         }
     }
 
@@ -1762,7 +1847,14 @@ public static class Program
     {
         Console.WriteLine("\n=== System Status ===");
         Console.WriteLine($"Operation Mode: {server._operationMode}");
-        Console.WriteLine($"{server._aiProvider.ProviderName} Available: {(await server._aiProvider.IsAvailableAsync() ? "✅ Yes" : "❌ No")}");
+        if (server._aiProvider != null)
+        {
+            Console.WriteLine($"{server._aiProvider.ProviderName} Available: {(await server._aiProvider.IsAvailableAsync() ? "✅ Yes" : "❌ No")}");
+        }
+        else
+        {
+            Console.WriteLine("AI Provider: Not configured");
+        }
         
         if (server._vectorStore != null)
         {
@@ -5424,15 +5516,22 @@ private static Task WaitForKeyPress()
             var newServer = new EnhancedMcpRagServer(logger, newPath, config!, ollamaModel, mode);
             
             Console.WriteLine("Checking AI provider connection...");
-            if (await newServer._aiProvider.IsAvailableAsync())
+            if (newServer._aiProvider != null)
             {
-                var models = await newServer._aiProvider.GetModelsAsync();
-                Console.WriteLine($"✅ {newServer._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
-                Console.WriteLine($"Using model: {ollamaModel}");
+                if (await newServer._aiProvider.IsAvailableAsync())
+                {
+                    var models = await newServer._aiProvider.GetModelsAsync();
+                    Console.WriteLine($"✅ {newServer._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
+                    Console.WriteLine($"Using model: {ollamaModel}");
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ {newServer._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                }
             }
             else
             {
-                Console.WriteLine($"⚠️ {newServer._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                Console.WriteLine("⚠️ AI Provider not configured. AI features will not be available.");
             }
             
             Console.WriteLine($"\nOperation Mode: {mode}");
@@ -6428,7 +6527,8 @@ private static Task WaitForKeyPress()
                 Console.WriteLine($"✅ Default model set to: {config.LastModel}");
                 
                 // Save configuration after successful validation
-                ConfigurationService.SaveConfiguration(config);
+                var currentDirectory = currentServer?.RootPath ?? GetCurrentDirectory(config);
+                await SaveConfigurationWithDirectoryAsync(config, currentDirectory);
                 
                 // Update the active provider in any running server instances
                 if (currentServer != null)
@@ -6775,7 +6875,8 @@ private static Task WaitForKeyPress()
                     Console.WriteLine($"✅ Default model set to: {config.LastModel}");
                     
                     // Save configuration after successful validation
-                    ConfigurationService.SaveConfiguration(config);
+                    var currentDirectory = currentServer?.RootPath ?? GetCurrentDirectory(config);
+                    await SaveConfigurationWithDirectoryAsync(config, currentDirectory);
                     
                     // Update the active provider in any running server instances
                     if (currentServer != null)
@@ -6826,6 +6927,7 @@ private static Task WaitForKeyPress()
     {
         return providerType switch
         {
+            AiProviderType.None => null,
             AiProviderType.Ollama => config.OllamaUrl,
             AiProviderType.LmStudio => config.LmStudioUrl,
             AiProviderType.OpenWebUi => config.OpenWebUiUrl,
@@ -6888,6 +6990,12 @@ private static Task WaitForKeyPress()
     {
         try
         {
+            // Handle None provider type
+            if (providerType == AiProviderType.None)
+            {
+                return new ValidationResult(false, "No AI provider is configured. Please select and configure a provider first.");
+            }
+
             var url = GetProviderUrl(config, providerType);
             
             // Check if URL is configured
@@ -6912,6 +7020,7 @@ private static Task WaitForKeyPress()
             // Validate default model is configured
             var defaultModel = providerType switch
             {
+                AiProviderType.None => null,
                 AiProviderType.Ollama => config.OllamaDefaultModel,
                 AiProviderType.LmStudio => config.LmStudioDefaultModel,
                 AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
@@ -7477,8 +7586,8 @@ private static Task WaitForKeyPress()
     [SupportedOSPlatform("windows")]
     private static async Task<bool?> SelectProviderForSetupAsync(AppConfiguration config, SqliteConfigurationService? configService, ILogger logger, bool hasParentMenu = false)
     {
-        // Check if there's a current provider configured
-        if (config.LastProvider != AiProviderType.Ollama || !string.IsNullOrEmpty(config.LastModel))
+        // Check if there's a current provider configured (must have both valid provider and model)
+        if (config.LastProvider != AiProviderType.None && !string.IsNullOrEmpty(config.LastModel))
         {
             Console.WriteLine($"Current AI Provider: {config.LastProvider}");
             if (!string.IsNullOrEmpty(config.LastModel))
@@ -7487,7 +7596,7 @@ private static Task WaitForKeyPress()
             }
             Console.WriteLine();
             
-            using var promptService = configService != null ? new PromptService(config, configService, logger) : new PromptService(config, logger);
+            using var promptService = configService != null ? new PromptService(configService, logger) : new PromptService(config, logger);
             var useCurrentProvider = await promptService.PromptYesNoDefaultYesCancellableAsync("Use current AI provider?");
             
             if (useCurrentProvider == true)
@@ -7500,6 +7609,21 @@ private static Task WaitForKeyPress()
                 Console.WriteLine("Provider selection cancelled.");
                 return null; // User cancelled
             }
+        }
+        else if (config.LastProvider == AiProviderType.None)
+        {
+            // No provider configured - guide user through setup
+            Console.WriteLine("No AI provider is currently configured.");
+            Console.WriteLine("Let's set up an AI provider to get started.");
+            Console.WriteLine();
+        }
+        else
+        {
+            // Provider configured but no model - inform user
+            Console.WriteLine($"AI Provider: {config.LastProvider} (configured)");
+            Console.WriteLine("Model: Not configured");
+            Console.WriteLine("Let's complete your AI provider setup.");
+            Console.WriteLine();
         }
         
         // Show provider selection menu with enhanced status information
@@ -8101,6 +8225,36 @@ private static Task WaitForKeyPress()
             }
             
             Console.WriteLine("❌ Invalid selection. Please try again.");
+        }
+    }
+
+    /// <summary>
+    /// Saves both global and directory-specific configuration when provider/model changes
+    /// </summary>
+    private static async Task SaveConfigurationWithDirectoryAsync(AppConfiguration config, string? currentDirectory, ILogger? logger = null)
+    {
+        // Save global configuration
+        ConfigurationService.SaveConfiguration(config, logger);
+        
+        // Save directory-specific configuration if we have a current directory
+        if (!string.IsNullOrEmpty(currentDirectory))
+        {
+            try
+            {
+                using var configService = SqliteConfigurationService.GetInstance(logger);
+                await configService.SaveDirectoryConfigurationAsync(
+                    currentDirectory,
+                    config.LastProvider,
+                    config.LastModel ?? "default",
+                    config.LastOperationMode);
+                
+                logger?.LogInformation("Updated directory-specific configuration: {Directory} -> {Provider}/{Model}/{Mode}",
+                    currentDirectory, config.LastProvider, config.LastModel, config.LastOperationMode);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to save directory-specific configuration for {Directory}", currentDirectory);
+            }
         }
     }
 

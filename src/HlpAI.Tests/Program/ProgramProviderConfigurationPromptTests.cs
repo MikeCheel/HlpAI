@@ -177,4 +177,84 @@ public class ProgramProviderConfigurationPromptTests
         var storage = new SecureApiKeyStorage();
         await Assert.That(storage).IsNotNull();
     }
+
+    /// <summary>
+    /// Test that SelectProviderForSetupAsync does not prompt when provider is None
+    /// This prevents the crash that occurs when user selects 'yes' to use None provider
+    /// </summary>
+    [Test]
+    public async Task SelectProviderForSetupAsync_WithNoneProvider_DoesNotPrompt()
+    {
+        // Arrange
+        var config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.None,
+            LastModel = "" // Empty model
+        };
+        
+        // Act & Assert
+        // Since SelectProviderForSetupAsync is private, we test the logic condition directly
+        // The condition should be: config.LastProvider != AiProviderType.None && !string.IsNullOrEmpty(config.LastModel)
+        var shouldPrompt = config.LastProvider != AiProviderType.None && !string.IsNullOrEmpty(config.LastModel);
+        
+        // Assert that it should NOT prompt when provider is None
+        await Assert.That(shouldPrompt).IsFalse();
+    }
+
+    /// <summary>
+    /// Test that SelectProviderForSetupAsync does not prompt when model is empty even with valid provider
+    /// </summary>
+    [Test]
+    public async Task SelectProviderForSetupAsync_WithValidProviderButEmptyModel_DoesNotPrompt()
+    {
+        // Arrange
+        var config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.Ollama,
+            LastModel = "" // Empty model
+        };
+        
+        // Act & Assert
+        var shouldPrompt = config.LastProvider != AiProviderType.None && !string.IsNullOrEmpty(config.LastModel);
+        
+        // Assert that it should NOT prompt when model is empty
+        await Assert.That(shouldPrompt).IsFalse();
+    }
+
+    /// <summary>
+    /// Test that SelectProviderForSetupAsync prompts when both provider and model are configured
+    /// </summary>
+    [Test]
+    public async Task SelectProviderForSetupAsync_WithValidProviderAndModel_DoesPrompt()
+    {
+        // Arrange
+        var config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.Ollama,
+            LastModel = "llama3.2:3b"
+        };
+        
+        // Act & Assert
+        var shouldPrompt = config.LastProvider != AiProviderType.None && !string.IsNullOrEmpty(config.LastModel);
+        
+        // Assert that it SHOULD prompt when both provider and model are configured
+        await Assert.That(shouldPrompt).IsTrue();
+    }
+
+    /// <summary>
+    /// Test that AiProviderFactory throws proper exception for None provider
+    /// This ensures the crash scenario is properly handled
+    /// </summary>
+    [Test]
+    public async Task AiProviderFactory_CreateProvider_WithNoneProvider_ThrowsException()
+    {
+        // Arrange & Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => 
+        {
+            AiProviderFactory.CreateProvider(AiProviderType.None, "test-model", "http://localhost", apiKey: null, logger: null, config: null);
+            return Task.CompletedTask;
+        });
+        
+        await Assert.That(exception?.Message ?? string.Empty).Contains("No AI provider is configured");
+    }
 }

@@ -23,8 +23,15 @@ public class EnhancedMcpRagServerTests : IDisposable
     [Test]
     public async Task Constructor_WithValidParameters_InitializesCorrectly()
     {
+        // Arrange
+        var config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.Ollama,
+            OllamaUrl = "http://localhost:11434"
+        };
+
         // Act
-        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, "test-model", OperationMode.Hybrid);
+        using var server = new EnhancedMcpRagServer(_mockLogger.Object, _testRootPath, config, "test-model", OperationMode.Hybrid);
 
         // Assert
         await Assert.That(server.RootPath).IsEqualTo(_testRootPath);
@@ -583,9 +590,9 @@ public class EnhancedMcpRagServerTests : IDisposable
         // Assert
         await Assert.That(server._aiProvider).IsNotEqualTo(initialProvider);
         await Assert.That(server._aiProvider).IsEqualTo(mockNewProvider.Object);
-        await Assert.That(server._aiProvider.ProviderType).IsEqualTo(AiProviderType.LmStudio);
-        await Assert.That(server._aiProvider.ProviderName).IsEqualTo("Mock LM Studio");
-        await Assert.That(server._aiProvider.CurrentModel).IsEqualTo("new-test-model");
+        await Assert.That(server._aiProvider!.ProviderType).IsEqualTo(AiProviderType.LmStudio);
+        await Assert.That(server._aiProvider!.ProviderName).IsEqualTo("Mock LM Studio");
+        await Assert.That(server._aiProvider!.CurrentModel).IsEqualTo("new-test-model");
         
         // Verify logger was called with correct information
         _mockLogger.Verify(l => l.Log(
@@ -707,7 +714,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         // Assert - Verify the server was created successfully
         await Assert.That(server).IsNotNull();
         await Assert.That(server._aiProvider).IsNotNull();
-        await Assert.That(server._aiProvider.ProviderName).IsEqualTo("DeepSeek");
+        await Assert.That(server._aiProvider!.ProviderName).IsEqualTo("DeepSeek");
         
         // Verify that the constructor logic matches Program.cs UpdateActiveProviderAsync
         var requiresApiKey = AiProviderFactory.RequiresApiKey(AiProviderType.DeepSeek);
@@ -747,7 +754,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         // Assert - Verify the server was created successfully
         await Assert.That(server).IsNotNull();
         await Assert.That(server._aiProvider).IsNotNull();
-        await Assert.That(server._aiProvider.ProviderName).IsEqualTo("DeepSeek");
+        await Assert.That(server._aiProvider!.ProviderName).IsEqualTo("DeepSeek");
         
         // Verify that both constructors use the same API key retrieval logic
         var requiresApiKey = AiProviderFactory.RequiresApiKey(AiProviderType.DeepSeek);
@@ -776,7 +783,7 @@ public class EnhancedMcpRagServerTests : IDisposable
         // Assert - Verify the server was created successfully
         await Assert.That(server).IsNotNull();
         await Assert.That(server._aiProvider).IsNotNull();
-        await Assert.That(server._aiProvider.ProviderName).IsEqualTo("Ollama");
+        await Assert.That(server._aiProvider!.ProviderName).IsEqualTo("Ollama");
         
         // Verify that Ollama doesn't require API key
         var requiresApiKey = AiProviderFactory.RequiresApiKey(AiProviderType.Ollama);

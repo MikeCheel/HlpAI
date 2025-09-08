@@ -98,6 +98,7 @@ public class ProgramProviderSelectionTests
     {
         return provider switch
         {
+            AiProviderType.None => null,
             AiProviderType.Ollama => _config.OllamaUrl,
             AiProviderType.LmStudio => _config.LmStudioUrl,
             AiProviderType.OpenWebUi => _config.OpenWebUiUrl,

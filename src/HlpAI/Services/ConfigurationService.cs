@@ -10,7 +10,7 @@ public class ConfigurationService
     private readonly SqliteConfigurationService _sqliteConfigurationService;
     
     // Thread-local storage for config file path override (used in tests)
-    private static readonly ThreadLocal<string?> _configFilePathOverride = new();
+
     
     // Static cache for configuration to prevent multiple loads
     private static AppConfiguration? _cachedConfiguration;
@@ -31,22 +31,7 @@ public class ConfigurationService
         _sqliteConfigurationService = sqliteConfigurationService ?? SqliteConfigurationService.GetInstance(logger);
     }
 
-    /// <summary>
-    /// Gets the path to the configuration file
-    /// </summary>
-    public static string ConfigFilePath => 
-        _configFilePathOverride.Value ?? 
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), 
-                     "HlpAI", "config.json");
 
-    /// <summary>
-    /// Sets a custom configuration file path. This is intended for testing purposes only.
-    /// </summary>
-    /// <param name="path">The custom path to use, or null to revert to default</param>
-    public static void SetConfigFilePathForTesting(string? path)
-    {
-        _configFilePathOverride.Value = path;
-    }
 
     /// <summary>
     /// Loads the application configuration from SQLite database with caching

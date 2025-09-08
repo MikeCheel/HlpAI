@@ -237,6 +237,7 @@ public class ProgramUpdateActiveProviderIntegrationTests
         // Test all provider types to ensure none cause unexpected exceptions
         var providerTypes = new[]
         {
+            AiProviderType.None,
             AiProviderType.Ollama,
             AiProviderType.LmStudio,
             AiProviderType.OpenWebUi,
@@ -263,8 +264,13 @@ public class ProgramUpdateActiveProviderIntegrationTests
             // Should not throw exceptions for any provider type
             // Method completed without throwing - this is the main test
             
+            // For None provider type, should always return false
+            if (providerType == AiProviderType.None)
+            {
+                await Assert.That(result).IsFalse();
+            }
             // For cloud providers with secure storage disabled, should return false
-            if (AiProviderFactory.RequiresApiKey(providerType))
+            else if (AiProviderFactory.RequiresApiKey(providerType))
             {
                 await Assert.That(result).IsFalse();
             }

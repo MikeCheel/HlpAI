@@ -31,6 +31,8 @@ public class ConfigurationProtectionService
             {
                 LastDirectory = config.LastDirectory,
                 RememberLastDirectory = config.RememberLastDirectory,
+                LastProvider = config.LastProvider,
+                LastModel = config.LastModel,
                 DefaultPromptBehavior = await GetPromptBehaviorAsync(),
                 BackupTimestamp = DateTime.UtcNow
             };
@@ -66,6 +68,10 @@ public class ConfigurationProtectionService
             // Restore directory preferences
             config.LastDirectory = preferences.LastDirectory;
             config.RememberLastDirectory = preferences.RememberLastDirectory;
+            
+            // Restore AI provider preferences
+            config.LastProvider = preferences.LastProvider;
+            config.LastModel = preferences.LastModel;
             
             await _configService.SaveAppConfigurationAsync(config);
             
@@ -158,6 +164,8 @@ public class ProtectedUserPreferences
 {
     public string? LastDirectory { get; set; }
     public bool RememberLastDirectory { get; set; } = true;
+    public AiProviderType LastProvider { get; set; } = AiProviderType.None;
+    public string? LastModel { get; set; }
     public bool? DefaultPromptBehavior { get; set; }
     public DateTime BackupTimestamp { get; set; }
 }

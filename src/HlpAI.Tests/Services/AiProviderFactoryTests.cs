@@ -168,13 +168,14 @@ public class AiProviderFactoryTests
 
         // Assert
         await Assert.That(availableProviders).IsNotNull();
-        await Assert.That(availableProviders.Count).IsEqualTo(6);
+        await Assert.That(availableProviders.Count).IsEqualTo(6); // None is skipped in detection
         await Assert.That(availableProviders.ContainsKey(AiProviderType.Ollama)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.LmStudio)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.OpenWebUi)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.OpenAI)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.Anthropic)).IsTrue();
         await Assert.That(availableProviders.ContainsKey(AiProviderType.DeepSeek)).IsTrue();
+        await Assert.That(availableProviders.ContainsKey(AiProviderType.None)).IsFalse(); // None should be skipped
         
         // We can't predict availability, but we can check that all providers are present
         // and that each returns a ConnectivityResult

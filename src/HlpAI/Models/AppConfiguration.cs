@@ -22,7 +22,7 @@ public class AppConfiguration
     /// The last used AI provider
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public AiProviderType LastProvider { get; set; } = AiProviderType.Ollama;
+    public AiProviderType LastProvider { get; set; } = AiProviderType.None;
 
     /// <summary>
     /// The last used AI model

@@ -75,6 +75,8 @@ public static class AiProviderFactory
 
         return providerType switch
         {
+            AiProviderType.None => throw new InvalidOperationException("No AI provider is configured. Please configure a provider first."),
+
             AiProviderType.Ollama => new OllamaClient(
                 GetEffectiveUrl(AiProviderConstants.DefaultUrls.Ollama),
                 model,
@@ -125,6 +127,12 @@ public static class AiProviderFactory
     {
         return providerType switch
         {
+            AiProviderType.None => new ProviderInfo(
+                "None",
+                "No provider configured",
+                "",
+                ""),
+
             AiProviderType.Ollama => new ProviderInfo(
                 "Ollama",
                 "Local model runner",
@@ -188,6 +196,7 @@ public static class AiProviderFactory
     {
         return providerType switch
         {
+            AiProviderType.None => false,
             AiProviderType.OpenAI => true,
             AiProviderType.Anthropic => true,
             AiProviderType.DeepSeek => true,
@@ -207,6 +216,12 @@ public static class AiProviderFactory
 
         foreach (var providerType in providers)
         {
+            // Skip the None provider type as it's not a real provider
+            if (providerType == AiProviderType.None)
+            {
+                continue;
+            }
+
             try
             {
                 var info = GetProviderInfo(providerType);
@@ -304,6 +319,7 @@ public static class AiProviderFactory
     {
         return providerType switch
         {
+            AiProviderType.None => "",
             AiProviderType.Ollama => config.OllamaDefaultModel ?? AiProviderConstants.DefaultModels.Ollama,
             AiProviderType.LmStudio => config.LmStudioDefaultModel ?? AiProviderConstants.DefaultModels.LmStudio,
             AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel ?? AiProviderConstants.DefaultModels.OpenWebUi,
@@ -321,6 +337,7 @@ public static class AiProviderFactory
     {
         return providerType switch
         {
+            AiProviderType.None => null,
             AiProviderType.Ollama => config.OllamaUrl,
             AiProviderType.LmStudio => config.LmStudioUrl,
             AiProviderType.OpenWebUi => config.OpenWebUiUrl,

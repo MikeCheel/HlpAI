@@ -977,6 +977,19 @@ public class SqliteConfigurationService : IDisposable
                 
                 CREATE INDEX IF NOT EXISTS idx_configuration_category_key
                 ON configuration(category, key);
+                
+                CREATE TABLE IF NOT EXISTS directory_configurations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    directory_path TEXT NOT NULL UNIQUE,
+                    ai_provider TEXT NOT NULL,
+                    ai_model TEXT NOT NULL,
+                    operation_mode TEXT NOT NULL DEFAULT 'Hybrid',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_directory_configurations_path
+                ON directory_configurations(directory_path);
                 """;
 
             using var command = new SqliteCommand(createTableSql, _connection);
@@ -1065,6 +1078,195 @@ public class SqliteConfigurationService : IDisposable
         return await SetConfigurationAsync("LastOperationMode", mode.ToString(), "general");
     }
 
+    /// <summary>
+    /// Saves directory-specific configuration
+    /// </summary>
+    /// <param name="directoryPath">The directory path</param>
+    /// <param name="aiProvider">The AI provider type</param>
+    /// <param name="aiModel">The AI model name</param>
+    /// <param name="operationMode">The operation mode</param>
+    /// <returns>True if saved successfully</returns>
+    public async Task<bool> SaveDirectoryConfigurationAsync(string directoryPath, AiProviderType aiProvider, string aiModel, OperationMode operationMode)
+    {
+        ArgumentNullException.ThrowIfNull(directoryPath);
+        ArgumentNullException.ThrowIfNull(aiModel);
+
+        await _dbSemaphore.WaitAsync();
+        try
+        {
+            if (_connection?.State != System.Data.ConnectionState.Open)
+            {
+                _connection?.Close();
+                _connection?.Open();
+            }
+
+            var now = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            const string sql = """
+                INSERT OR REPLACE INTO directory_configurations 
+                (directory_path, ai_provider, ai_model, operation_mode, created_at, updated_at)
+                VALUES (@directoryPath, @aiProvider, @aiModel, @operationMode, 
+                        COALESCE((SELECT created_at FROM directory_configurations WHERE directory_path = @directoryPath), @now), @now)
+                """;
+
+            using var command = new SqliteCommand(sql, _connection);
+            command.Parameters.AddWithValue("@directoryPath", directoryPath);
+            command.Parameters.AddWithValue("@aiProvider", aiProvider.ToString());
+            command.Parameters.AddWithValue("@aiModel", aiModel);
+            command.Parameters.AddWithValue("@operationMode", operationMode.ToString());
+            command.Parameters.AddWithValue("@now", now);
+
+            var rowsAffected = await command.ExecuteNonQueryAsync();
+            var success = rowsAffected > 0;
+
+            if (success)
+            {
+                _logger?.LogDebug("Directory configuration saved: {DirectoryPath} -> {Provider}/{Model}/{Mode}", 
+                    directoryPath, aiProvider, aiModel, operationMode);
+            }
+            else
+            {
+                _logger?.LogWarning("Failed to save directory configuration for: {DirectoryPath}", directoryPath);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error saving directory configuration for: {DirectoryPath}", directoryPath);
+            return false;
+        }
+        finally
+        {
+            _dbSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Gets directory-specific configuration
+    /// </summary>
+    /// <param name="directoryPath">The directory path</param>
+    /// <returns>Directory configuration or null if not found</returns>
+    public async Task<DirectoryConfiguration?> GetDirectoryConfigurationAsync(string directoryPath)
+    {
+        ArgumentNullException.ThrowIfNull(directoryPath);
+
+        await _dbSemaphore.WaitAsync();
+        try
+        {
+            if (_connection?.State != System.Data.ConnectionState.Open)
+            {
+                _connection?.Close();
+                _connection?.Open();
+            }
+
+            const string sql = """
+                SELECT ai_provider, ai_model, operation_mode, created_at, updated_at
+                FROM directory_configurations 
+                WHERE directory_path = @directoryPath
+                """;
+
+            using var command = new SqliteCommand(sql, _connection);
+            command.Parameters.AddWithValue("@directoryPath", directoryPath);
+
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var providerStr = reader.GetString(0);
+                var model = reader.GetString(1);
+                var modeStr = reader.GetString(2);
+                var createdAt = DateTime.Parse(reader.GetString(3));
+                var updatedAt = DateTime.Parse(reader.GetString(4));
+
+                if (Enum.TryParse<AiProviderType>(providerStr, out var provider) &&
+                    Enum.TryParse<OperationMode>(modeStr, out var mode))
+                {
+                    return new DirectoryConfiguration
+                    {
+                        DirectoryPath = directoryPath,
+                        AiProvider = provider,
+                        AiModel = model,
+                        OperationMode = mode,
+                        CreatedAt = createdAt,
+                        UpdatedAt = updatedAt
+                    };
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting directory configuration for: {DirectoryPath}", directoryPath);
+            return null;
+        }
+        finally
+        {
+            _dbSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Gets the most recently used directory configuration
+    /// </summary>
+    /// <returns>Most recent directory configuration or null if none found</returns>
+    public async Task<DirectoryConfiguration?> GetMostRecentDirectoryConfigurationAsync()
+    {
+        await _dbSemaphore.WaitAsync();
+        try
+        {
+            if (_connection?.State != System.Data.ConnectionState.Open)
+            {
+                _connection?.Close();
+                _connection?.Open();
+            }
+
+            const string sql = """
+                SELECT directory_path, ai_provider, ai_model, operation_mode, created_at, updated_at
+                FROM directory_configurations 
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """;
+
+            using var command = new SqliteCommand(sql, _connection);
+            using var reader = await command.ExecuteReaderAsync();
+            
+            if (await reader.ReadAsync())
+            {
+                var directoryPath = reader.GetString(0);
+                var providerStr = reader.GetString(1);
+                var model = reader.GetString(2);
+                var modeStr = reader.GetString(3);
+                var createdAt = DateTime.Parse(reader.GetString(4));
+                var updatedAt = DateTime.Parse(reader.GetString(5));
+
+                if (Enum.TryParse<AiProviderType>(providerStr, out var provider) &&
+                    Enum.TryParse<OperationMode>(modeStr, out var mode))
+                {
+                    return new DirectoryConfiguration
+                    {
+                        DirectoryPath = directoryPath,
+                        AiProvider = provider,
+                        AiModel = model,
+                        OperationMode = mode,
+                        CreatedAt = createdAt,
+                        UpdatedAt = updatedAt
+                    };
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting most recent directory configuration");
+            return null;
+        }
+        finally
+        {
+            _dbSemaphore.Release();
+        }
+    }
+
     public void Dispose()
     {
         if (!_disposed)
@@ -1103,4 +1305,17 @@ public class ConfigurationStats
     public required int TotalCategories { get; set; }
     public DateTime? LastUpdate { get; set; }
     public required string DatabasePath { get; set; }
+}
+
+/// <summary>
+/// Directory-specific configuration
+/// </summary>
+public class DirectoryConfiguration
+{
+    public required string DirectoryPath { get; set; }
+    public required AiProviderType AiProvider { get; set; }
+    public required string AiModel { get; set; }
+    public required OperationMode OperationMode { get; set; }
+    public required DateTime CreatedAt { get; set; }
+    public required DateTime UpdatedAt { get; set; }
 }

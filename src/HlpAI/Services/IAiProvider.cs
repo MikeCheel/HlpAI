@@ -65,6 +65,11 @@ public interface IAiProvider : IDisposable
 public enum AiProviderType
 {
     /// <summary>
+    /// No provider configured
+    /// </summary>
+    None,
+
+    /// <summary>
     /// Ollama - Local model runner
     /// </summary>
     Ollama,
