@@ -6,61 +6,79 @@ namespace HlpAI.Tests.Services;
 
 public class DirectoryTestRunner
 {
+    private string? _testDirectory;
+    private string? _testDbPath;
+    private ILogger? _logger;
+
+    [Before(Test)]
+    public void Setup()
+    {
+        _testDirectory = Path.Combine(Path.GetTempPath(), "HlpAI_DirectoryTest_" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(_testDirectory);
+        _testDbPath = Path.Combine(_testDirectory, "test_config.db");
+        _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("DirectoryTest");
+    }
+
+    [After(Test)]
+    public void Cleanup()
+    {
+        try
+        {
+            // Release any singleton instances
+            SqliteConfigurationService.ReleaseInstance();
+            
+            // Clear SQLite connection pools
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            
+            // Clean up test directory
+            if (Directory.Exists(_testDirectory))
+            {
+                Directory.Delete(_testDirectory, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Cleanup error: {ex.Message}");
+        }
+    }
+
     [Test]
     public async Task TestDirectoryRememberingSimple()
     {
-        // Test setting and retrieving a directory
-        var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("Test");
-        
         Console.WriteLine("=== Testing Directory Remembering Functionality ===");
         
         // Test setting a directory
         var testDirectory = @"C:\Users\mikec\Desktop\ChmData";
         Console.WriteLine($"Setting test directory: {testDirectory}");
         
-        // Use SqliteConfigurationService directly to avoid connection issues in ConfigurationService
-        var configService = SqliteConfigurationService.GetInstance(logger);
+        // Set up isolated test instance
+        var configService = SqliteConfigurationService.SetTestInstance(_testDbPath!, _logger);
         var result = await configService.UpdateLastDirectoryAsync(testDirectory);
-        SqliteConfigurationService.ReleaseInstance();
         Console.WriteLine($"UpdateLastDirectory result: {result}");
         
-        // Clear cache and reload
+        // Clear cache and reload using the same test instance
         ConfigurationService.ClearCache();
-        var config1 = ConfigurationService.LoadConfiguration(logger);
-        Console.WriteLine($"ConfigurationService.LoadConfiguration - LastDirectory: {config1.LastDirectory ?? "Not set"}");
+        var config1 = await configService.LoadAppConfigurationAsync();
+        Console.WriteLine($"LoadAppConfigurationAsync - LastDirectory: {config1.LastDirectory ?? "Not set"}");
         
-        // Test SqliteConfigurationService directly 
-        var sqliteConfig = SqliteConfigurationService.GetInstance(logger);
-        var config2 = await sqliteConfig.LoadAppConfigurationAsync();
-        SqliteConfigurationService.ReleaseInstance();
-        Console.WriteLine($"SqliteConfigurationService.LoadAppConfigurationAsync - LastDirectory: {config2.LastDirectory ?? "Not set"}");
+        // Test the same instance again
+        var config2 = await configService.LoadAppConfigurationAsync();
+        Console.WriteLine($"Second LoadAppConfigurationAsync - LastDirectory: {config2.LastDirectory ?? "Not set"}");
         
         Console.WriteLine($"RememberLastDirectory: {config1.RememberLastDirectory}");
         Console.WriteLine("Should the directory be available for startup? " + 
             (config1.RememberLastDirectory && !string.IsNullOrEmpty(config1.LastDirectory) && Directory.Exists(config1.LastDirectory)));
         
-        // Basic assertion - verify the configuration services work without crashing
-        // The actual directory saving might fail due to database connection issues during concurrent testing,
-        // but the core functionality (loading configurations) should work.
-        
-        // At minimum, verify that both configuration loading methods return valid objects
+        // Verify that both configuration loading calls return valid objects
         await Assert.That(config1).IsNotNull();
         await Assert.That(config2).IsNotNull();
         
-        // If the update worked, verify the directory was saved correctly
-        if (result)
-        {
-            await Assert.That(config1.LastDirectory).IsEqualTo(testDirectory);
-            await Assert.That(config2.LastDirectory).IsEqualTo(testDirectory);
-        }
-        else
-        {
-            // If update failed, just verify that the configuration objects are valid
-            // This can happen during concurrent testing due to database connection issues
-            Console.WriteLine("Directory update failed, but configuration loading still works");
-        }
+        // With isolated test instance, the update should work reliably
+        await Assert.That(result).IsTrue();
+        await Assert.That(config1.LastDirectory).IsEqualTo(testDirectory);
+        await Assert.That(config2.LastDirectory).IsEqualTo(testDirectory);
         
-        Console.WriteLine($"Test completed. Update result: {result}");
+        Console.WriteLine($"Test completed successfully. Update result: {result}");
         
         await Task.CompletedTask;
     }

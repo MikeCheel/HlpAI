@@ -1,11 +1,13 @@
 using System;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.IO;
 
-class CheckConfig
+namespace HlpAI
 {
-    static void Main()
+    public static class CheckConfig
     {
+        public static void DisplayConfiguration()
+        {
         string dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
         
         if (!File.Exists(dbPath))
@@ -14,11 +16,11 @@ class CheckConfig
             return;
         }
         
-        using var connection = new SQLiteConnection($"Data Source={dbPath};Version=3;");
+        using var connection = new SqliteConnection($"Data Source={dbPath}");
         connection.Open();
         
         Console.WriteLine("=== CONFIGURATION TABLE ===");
-        using (var cmd = new SQLiteCommand("SELECT * FROM configuration", connection))
+        using (var cmd = new SqliteCommand("SELECT * FROM configuration", connection))
         {
             using var reader = cmd.ExecuteReader();
             if (reader.HasRows)
@@ -41,7 +43,7 @@ class CheckConfig
         }
         
         Console.WriteLine("\n=== DIRECTORY CONFIGURATIONS TABLE ===");
-        using (var cmd = new SQLiteCommand("SELECT * FROM directory_configurations", connection))
+        using (var cmd = new SqliteCommand("SELECT * FROM directory_configurations", connection))
         {
             using var reader = cmd.ExecuteReader();
             if (reader.HasRows)
@@ -62,6 +64,7 @@ class CheckConfig
             {
                 Console.WriteLine("No directory configurations found.");
             }
+        }
         }
     }
 }
