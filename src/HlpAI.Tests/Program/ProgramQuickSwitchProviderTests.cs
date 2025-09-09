@@ -154,7 +154,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.Ollama,
             OllamaUrl = "http://localhost:11434",
-            LastModel = "llama3.2:3b"
+            OllamaDefaultModel = "llama3.2:3b"
         };
         
         // Act
@@ -308,7 +308,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.Ollama,
             OllamaUrl = "http://localhost:11434",
-            LastModel = "llama3.2:3b"
+            OllamaDefaultModel = "llama3.2:3b"
         };
         var ollamaResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.Ollama, ollamaConfig);
         await Assert.That(ollamaResult.IsValid).IsTrue();
@@ -318,7 +318,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.LmStudio,
             LmStudioUrl = "http://localhost:1234",
-            LastModel = "test-model"
+            LmStudioDefaultModel = "test-model"
         };
         var lmStudioResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.LmStudio, lmStudioConfig);
         await Assert.That(lmStudioResult.IsValid).IsTrue();
@@ -328,7 +328,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.OpenWebUi,
             OpenWebUiUrl = "http://localhost:3000",
-            LastModel = "test-model"
+            OpenWebUiDefaultModel = "test-model"
         };
         var openWebUiResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.OpenWebUi, openWebUiConfig);
         await Assert.That(openWebUiResult.IsValid).IsTrue();
@@ -345,7 +345,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.Ollama,
             OllamaUrl = "http://localhost:11434",
-            LastModel = "test-model"
+            OllamaDefaultModel = "test-model"
         };
         var httpResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.Ollama, httpConfig);
         await Assert.That(httpResult.IsValid).IsTrue();
@@ -355,7 +355,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.Ollama,
             OllamaUrl = "https://api.example.com",
-            LastModel = "test-model"
+            OllamaDefaultModel = "test-model"
         };
         var httpsResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.Ollama, httpsConfig);
         await Assert.That(httpsResult.IsValid).IsTrue();
@@ -365,7 +365,7 @@ public class ProgramQuickSwitchProviderTests : IDisposable
         {
             LastProvider = AiProviderType.Ollama,
             OllamaUrl = "ftp://localhost:11434",
-            LastModel = "test-model"
+            OllamaDefaultModel = "test-model"
         };
         var invalidResult = HlpAI.Program.ValidateProviderConfiguration(AiProviderType.Ollama, invalidSchemeConfig);
         await Assert.That(invalidResult.IsValid).IsFalse();

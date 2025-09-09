@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
 using System.Globalization;
+using System.Linq;
 
 namespace HlpAI.Services;
 
@@ -1044,6 +1045,162 @@ public class SqliteConfigurationService : IDisposable
         }
         
         _logger?.LogDebug("Database table 'configuration' initialized");
+        
+        // Seed default configuration if database is empty
+        SeedDefaultConfigurationIfEmpty();
+    }
+    
+    /// <summary>
+    /// Seeds the database with default configuration values if it's empty
+    /// </summary>
+    private void SeedDefaultConfigurationIfEmpty()
+    {
+        try
+        {
+            // Skip seeding in test environments
+            if (IsTestEnvironment())
+            {
+                _logger?.LogDebug("Skipping database seeding in test environment");
+                return;
+            }
+            
+            // Check if configuration table has any data
+            const string countSql = "SELECT COUNT(*) FROM configuration";
+            using var countCommand = new SqliteCommand(countSql, _connection);
+            var count = Convert.ToInt32(countCommand.ExecuteScalar());
+            
+            if (count == 0)
+            {
+                _logger?.LogInformation("Seeding database with default configuration values");
+                SeedDefaultConfiguration();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error checking if database seeding is needed");
+        }
+    }
+    
+    private bool IsTestEnvironment()
+    {
+        // Check if we're in a test environment by looking for test-specific indicators
+        return _dbPath.Contains("test_") || 
+               _dbPath.Contains("sqlite_config_tests") ||
+               Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
+               AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("testhost") == true);
+    }
+    
+    /// <summary>
+    /// Seeds the database with all default configuration values from AppConfiguration
+    /// </summary>
+    private void SeedDefaultConfiguration()
+    {
+        try
+        {
+            var defaultConfig = new AppConfiguration();
+            
+            // Use a transaction for better performance and consistency
+            using var transaction = _connection.BeginTransaction();
+            
+            try
+            {
+                // Provider URLs
+                SetConfigurationSync("OllamaUrl", defaultConfig.OllamaUrl, "provider_urls", transaction);
+                SetConfigurationSync("LmStudioUrl", defaultConfig.LmStudioUrl, "provider_urls", transaction);
+                SetConfigurationSync("OpenWebUiUrl", defaultConfig.OpenWebUiUrl, "provider_urls", transaction);
+                SetConfigurationSync("OpenAiUrl", defaultConfig.OpenAiUrl, "provider_urls", transaction);
+                SetConfigurationSync("AnthropicUrl", defaultConfig.AnthropicUrl, "provider_urls", transaction);
+                SetConfigurationSync("DeepSeekUrl", defaultConfig.DeepSeekUrl, "provider_urls", transaction);
+                
+                // Default models
+                SetConfigurationSync("OllamaDefaultModel", defaultConfig.OllamaDefaultModel, "default_models", transaction);
+                SetConfigurationSync("LmStudioDefaultModel", defaultConfig.LmStudioDefaultModel, "default_models", transaction);
+                SetConfigurationSync("OpenWebUiDefaultModel", defaultConfig.OpenWebUiDefaultModel, "default_models", transaction);
+                SetConfigurationSync("OpenAiDefaultModel", defaultConfig.OpenAiDefaultModel, "default_models", transaction);
+                SetConfigurationSync("AnthropicDefaultModel", defaultConfig.AnthropicDefaultModel, "default_models", transaction);
+                SetConfigurationSync("DeepSeekDefaultModel", defaultConfig.DeepSeekDefaultModel, "default_models", transaction);
+                
+                // Timeouts
+                SetConfigurationSync("AiProviderTimeoutMinutes", defaultConfig.AiProviderTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("OllamaTimeoutMinutes", defaultConfig.OllamaTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("LmStudioTimeoutMinutes", defaultConfig.LmStudioTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("OpenWebUiTimeoutMinutes", defaultConfig.OpenWebUiTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("EmbeddingTimeoutMinutes", defaultConfig.EmbeddingTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("OpenAiTimeoutMinutes", defaultConfig.OpenAiTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("AnthropicTimeoutMinutes", defaultConfig.AnthropicTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("DeepSeekTimeoutMinutes", defaultConfig.DeepSeekTimeoutMinutes.ToString(), "timeouts", transaction);
+                
+                // Max tokens
+                SetConfigurationSync("OpenAiMaxTokens", defaultConfig.OpenAiMaxTokens.ToString(), "max_tokens", transaction);
+                SetConfigurationSync("AnthropicMaxTokens", defaultConfig.AnthropicMaxTokens.ToString(), "max_tokens", transaction);
+                SetConfigurationSync("DeepSeekMaxTokens", defaultConfig.DeepSeekMaxTokens.ToString(), "max_tokens", transaction);
+                SetConfigurationSync("LmStudioMaxTokens", defaultConfig.LmStudioMaxTokens.ToString(), "max_tokens", transaction);
+                SetConfigurationSync("OpenWebUiMaxTokens", defaultConfig.OpenWebUiMaxTokens.ToString(), "max_tokens", transaction);
+                
+                // Security settings
+                SetConfigurationSync("UseSecureApiKeyStorage", defaultConfig.UseSecureApiKeyStorage.ToString().ToLowerInvariant(), "security", transaction);
+                SetConfigurationSync("ValidateApiKeysOnStartup", defaultConfig.ValidateApiKeysOnStartup.ToString().ToLowerInvariant(), "security", transaction);
+                SetConfigurationSync("MaxRequestSizeBytes", defaultConfig.MaxRequestSizeBytes.ToString(), "security", transaction);
+                SetConfigurationSync("MaxContentLengthBytes", defaultConfig.MaxContentLengthBytes.ToString(), "security", transaction);
+                SetConfigurationSync("ApiKeyMinLength", defaultConfig.ApiKeyMinLength.ToString(), "security", transaction);
+                SetConfigurationSync("FilePathMaxLength", defaultConfig.FilePathMaxLength.ToString(), "security", transaction);
+                
+                // UI preferences
+                SetConfigurationSync("RememberLastDirectory", defaultConfig.RememberLastDirectory.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberLastModel", defaultConfig.RememberLastModel.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberLastProvider", defaultConfig.RememberLastProvider.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberLastEmbeddingModel", defaultConfig.RememberLastEmbeddingModel.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberLastOperationMode", defaultConfig.RememberLastOperationMode.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberMenuContext", defaultConfig.RememberMenuContext.ToString().ToLowerInvariant(), "ui", transaction);
+                
+                // File processing
+                SetConfigurationSync("ChunkSize", defaultConfig.ChunkSize.ToString(), "file_processing", transaction);
+                SetConfigurationSync("ChunkOverlap", defaultConfig.ChunkOverlap.ToString(), "file_processing", transaction);
+                
+                // Encryption
+                SetConfigurationSync("EncryptionKeySize", defaultConfig.EncryptionKeySize.ToString(), "encryption", transaction);
+                SetConfigurationSync("EncryptionPbkdf2Iterations", defaultConfig.EncryptionPbkdf2Iterations.ToString(), "encryption", transaction);
+                
+                // Operation modes
+                SetConfigurationSync("LastOperationMode", defaultConfig.LastOperationMode.ToString(), "operation", transaction);
+                SetConfigurationSync("LastProvider", defaultConfig.LastProvider.ToString(), "operation", transaction);
+                
+                // Version and metadata
+                SetConfigurationSync("ConfigVersion", defaultConfig.ConfigVersion.ToString(), "metadata", transaction);
+                SetConfigurationSync("LastUpdated", defaultConfig.LastUpdated.ToString("O"), "metadata", transaction);
+                
+                transaction.Commit();
+                _logger?.LogInformation("Successfully seeded database with default configuration values");
+            }
+            catch (Exception)
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error seeding default configuration");
+        }
+    }
+    
+    /// <summary>
+    /// Synchronous version of SetConfigurationAsync for use during database initialization
+    /// </summary>
+    private void SetConfigurationSync(string key, string? value, string category, SqliteTransaction transaction)
+    {
+        const string sql = """
+            INSERT OR REPLACE INTO configuration (key, value, category, updated_at) 
+            VALUES (@key, @value, @category, @updated_at)
+            """;
+
+        using var command = new SqliteCommand(sql, _connection, transaction);
+        command.Parameters.AddWithValue("@key", key);
+        command.Parameters.AddWithValue("@value", value ?? string.Empty);
+        command.Parameters.AddWithValue("@category", category);
+        command.Parameters.AddWithValue("@updated_at", DateTime.UtcNow.ToString("O"));
+        
+        command.ExecuteNonQuery();
     }
 
     /// <summary>

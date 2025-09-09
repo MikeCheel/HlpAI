@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Data.Sqlite;
 using System.IO;
+using HlpAI.Utilities;
 
 namespace HlpAI
 {
@@ -8,7 +9,8 @@ namespace HlpAI
     {
         public static void DisplayConfiguration()
         {
-        string dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
+        DatabasePathHelper.EnsureApplicationDirectoryExists();
+        string dbPath = DatabasePathHelper.ConfigDatabasePath;
         
         if (!File.Exists(dbPath))
         {

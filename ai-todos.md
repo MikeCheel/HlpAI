@@ -92,6 +92,83 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
 
 ### Implementation Priority: A → B → D → C (Menu → Tests → Mode Verification → Documentation)
 
+## 🔧 NEW CONFIGURATION ARCHITECTURE TASKS (January 2025)
+
+### 🚫 Task ENV1: Remove Environment Variable Dependencies - 📋 PENDING APPROVAL
+- **Task**: Eliminate all environment variable usage throughout the application
+- **Scope**: Remove Environment.GetEnvironmentVariable calls, replace with config.db or secure storage
+- **Priority**: High - Configuration architecture cleanup
+- **Status**: 📋 PENDING APPROVAL
+- **Requirements**:
+  - Remove all Environment.GetEnvironmentVariable usage from production code
+  - Keep environment variables only for testing/container detection if absolutely necessary
+  - Ensure no fallback to environment variables in any configuration loading
+  - Update all provider initialization to use only config.db and secure storage
+
+### 🗃️ Task CFG1: Seed Config.db with Default URLs - 📋 PENDING APPROVAL
+- **Task**: Move all hardcoded defaults into config.db seeding process
+- **Scope**: Replace hardcoded defaults in AppConfiguration.cs with database seeding
+- **Priority**: High - Centralized configuration management
+- **Status**: 📋 PENDING APPROVAL
+- **Requirements**:
+  - Create database seeding mechanism for default provider URLs and settings
+  - Remove hardcoded defaults from AppConfiguration.cs constructor
+  - Ensure config.db is seeded on first run with all necessary defaults
+  - Maintain backward compatibility with existing configurations
+
+### 🎯 Task CMD1: Restrict Command Line Arguments to MCP Server Mode Only - 📋 PENDING APPROVAL
+- **Task**: Limit command line argument processing to MCP server mode exclusively
+- **Scope**: Modify CommandLineArgumentsService to only apply in MCP server mode
+- **Priority**: Medium - Mode-specific configuration isolation
+- **Status**: 📋 PENDING APPROVAL
+- **Requirements**:
+  - Command line arguments should only be processed when running in MCP server mode
+  - Interactive mode and library mode should ignore command line arguments
+  - Update CommandLineArgumentsService to check current operation mode
+  - Ensure proper mode detection before applying command line overrides
+
+### 🔒 Task ISO1: Isolate MCP Server and Library Modes from Config.db - 📋 PENDING APPROVAL
+- **Task**: Prevent MCP server mode and third-party library mode from accessing config.db
+- **Scope**: Modify configuration loading to bypass config.db for these modes
+- **Priority**: High - Mode isolation and security
+- **Status**: 📋 PENDING APPROVAL
+- **Requirements**:
+  - MCP server mode should rely entirely on parameters passed by the caller
+  - Third-party library mode should rely entirely on parameters passed by the consuming application
+  - No config.db access for these modes - complete parameter-based configuration
+  - Update SqliteConfigurationService to detect mode and skip database operations
+  - Ensure proper error handling when required parameters are missing
+
+### 🧪 Task TST1: Update Tests for New Configuration Architecture - 📋 PENDING APPROVAL
+- **Task**: Update all tests to reflect new configuration architecture requirements
+- **Scope**: Modify existing tests and add new tests for configuration isolation
+- **Priority**: Medium - Test coverage for new architecture
+- **Status**: 📋 PENDING APPROVAL
+- **Requirements**:
+  - Update tests that currently rely on environment variables
+  - Add tests for config.db seeding functionality
+  - Add tests for mode-specific configuration isolation
+  - Ensure all tests pass with new configuration architecture
+  - Add integration tests for MCP server and library modes with parameter-only configuration
+
+### 🗄️ Task VEC1: Consolidate Vector Storage to User Home Directory - 📋 PENDING APPROVAL
+- **Task**: Move all vectors.db files to a single centralized location in user's home directory
+- **Scope**: Consolidate scattered vector databases into %USERPROFILE%\.hlpai\vectors.db
+- **Priority**: High - Database architecture cleanup and consistency
+- **Status**: 📋 PENDING APPROVAL
+- **Current Issues**:
+  - Multiple vectors.db files exist in different locations (current directory, root paths, temp paths)
+  - Inconsistent vector storage locations across different services
+  - Vector data scattered across multiple database files
+- **Requirements**:
+  - Create single vectors.db file in %USERPROFILE%\.hlpai\ directory alongside config.db
+  - Update all vector store services to use centralized location
+  - Migrate existing vector data from scattered locations to centralized database
+  - Update SqliteVectorStore, EnhancedMcpRagServer, CleanupService, and Program.cs references
+  - Update documentation to reflect new centralized vector storage location
+  - Ensure proper database initialization and migration handling
+  - Update tests to use centralized vector database location
+
 #### Phase A: Menu System Improvements (HIGH PRIORITY)
 
 ### 🎯 Task A1: Reorganize Menu into Sub-Menus - ✅ COMPLETED
@@ -603,18 +680,34 @@ flowchart TD
 - **Approval Required**: All tasks require explicit approval before starting
 - **Session Continuity**: All project rules and guidelines are understood and will be followed upon return
 
-### CRITICAL REMINDER - READ EVERY TIME
+### 🚨 CRITICAL REMINDER - READ EVERY TIME 🚨
 
-**MANDATORY**: Before starting ANY work, ALWAYS read and follow the project rules:
+**⚠️ MANDATORY - ALL RULES ARE CRITICAL ⚠️**: Before starting ANY work, ALWAYS read and follow ALL project rules:
+
+**🔒 APPROVAL REQUIREMENTS (CRITICAL):**
 - No coding or task shall be started unless explicitly approved by the user
 - No task that causes changes should be performed without approval, including git changes
-- All design, coding, and security best practices must be used
+- ALL design, coding, and security best practices must be used
 - Keep track of progress in ai-todos.md file
+
+**🧪 TESTING REQUIREMENTS (CRITICAL):**
 - Use TUnit framework exclusively for testing (NOT NUnit)
 - Achieve at least 70% code coverage
-- Resolve all errors, warnings, and messages before marking tasks complete
-- All tests must pass 100%
+- ALL tests must pass 100%
 - Write unit tests for any bugs that are fixed
+
+**🎯 QUALITY REQUIREMENTS (CRITICAL):**
+- Resolve ALL errors, warnings, and messages before marking tasks complete
+- Zero tolerance for suppressed warnings or errors
+- All libraries must be commercially free unless instructed otherwise
+- PowerShell commands only (no && syntax)
+
+**📋 DOCUMENTATION REQUIREMENTS (CRITICAL):**
+- Never remove ai-todos items - archive them instead
+- All questions must be answered before starting new tasks
+- Maintain complete session continuity through ai-todos.md
+
+**⚠️ FAILURE TO FOLLOW ANY RULE IS UNACCEPTABLE ⚠️**
 
 ### PERSONAL NOTES
 

@@ -40,82 +40,82 @@ public class AppConfiguration
     public bool RememberLastProvider { get; set; } = true;
 
     /// <summary>
-    /// Base URL for Ollama provider
+    /// Base URL for Ollama provider - defaults will be seeded from database
     /// </summary>
-    public string? OllamaUrl { get; set; } = "http://localhost:11434";
+    public string? OllamaUrl { get; set; }
 
     /// <summary>
-    /// Base URL for LM Studio provider
+    /// Base URL for LM Studio provider - defaults will be seeded from database
     /// </summary>
-    public string? LmStudioUrl { get; set; } = "http://localhost:1234";
+    public string? LmStudioUrl { get; set; }
 
     /// <summary>
-    /// Base URL for Open Web UI provider
+    /// Base URL for Open Web UI provider - defaults will be seeded from database
     /// </summary>
-    public string? OpenWebUiUrl { get; set; } = "http://localhost:3000";
+    public string? OpenWebUiUrl { get; set; }
 
     /// <summary>
-    /// Default model for Ollama provider
+    /// Default model for Ollama provider - defaults will be seeded from database
     /// </summary>
-    public string OllamaDefaultModel { get; set; } = "llama3.2";
+    public string? OllamaDefaultModel { get; set; }
 
     /// <summary>
-    /// Default model for LM Studio provider
+    /// Default model for LM Studio provider - defaults will be seeded from database
     /// </summary>
-    public string LmStudioDefaultModel { get; set; } = "default";
+    public string? LmStudioDefaultModel { get; set; }
 
     /// <summary>
-    /// Default model for Open Web UI provider
+    /// Default model for Open Web UI provider - defaults will be seeded from database
     /// </summary>
-    public string OpenWebUiDefaultModel { get; set; } = "default";
+    public string? OpenWebUiDefaultModel { get; set; }
 
     /// <summary>
-    /// Base URL for OpenAI provider
+    /// Base URL for OpenAI provider - defaults will be seeded from database
     /// </summary>
-    public string? OpenAiUrl { get; set; } = "https://api.openai.com";
+    public string? OpenAiUrl { get; set; }
 
     /// <summary>
-    /// Base URL for Anthropic provider
+    /// Base URL for Anthropic provider - defaults will be seeded from database
     /// </summary>
-    public string? AnthropicUrl { get; set; } = "https://api.anthropic.com";
+    public string? AnthropicUrl { get; set; }
 
     /// <summary>
-    /// Base URL for DeepSeek provider
+    /// Base URL for DeepSeek provider - defaults will be seeded from database
     /// </summary>
-    public string? DeepSeekUrl { get; set; } = "https://api.deepseek.com";
+    public string? DeepSeekUrl { get; set; }
 
     /// <summary>
-    /// Default model for OpenAI provider
+    /// Default model for OpenAI provider - defaults will be seeded from database
     /// </summary>
-    public string OpenAiDefaultModel { get; set; } = "gpt-3.5-turbo";
+    public string? OpenAiDefaultModel { get; set; }
 
     /// <summary>
-    /// Default model for Anthropic provider
+    /// Default model for Anthropic provider - defaults will be seeded from database
     /// </summary>
-    public string AnthropicDefaultModel { get; set; } = "claude-3-haiku-20240307";
+    public string? AnthropicDefaultModel { get; set; }
 
     /// <summary>
-    /// Default model for DeepSeek provider
+    /// Default model for DeepSeek provider - defaults will be seeded from database
     /// </summary>
-    public string DeepSeekDefaultModel { get; set; } = "deepseek-chat";
+    public string? DeepSeekDefaultModel { get; set; }
 
     /// <summary>
-    /// Timeout in minutes for AI provider requests
+    /// Timeout in minutes for AI provider requests - defaults will be seeded from database
     /// </summary>
     public int AiProviderTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
-    /// Timeout in minutes for Ollama provider requests
+    /// Timeout in minutes for Ollama provider requests - defaults will be seeded from database
     /// </summary>
     public int OllamaTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
-    /// Timeout in minutes for LM Studio provider requests
+    /// Timeout in minutes for LM Studio provider requests - defaults will be seeded from database
     /// </summary>
     public int LmStudioTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
-    /// Timeout in minutes for Open Web UI provider requests
+    /// Timeout in minutes for Open Web UI provider requests - defaults will be seeded from database
     /// </summary>
     public int OpenWebUiTimeoutMinutes { get; set; } = 10;
 
@@ -130,78 +130,78 @@ public class AppConfiguration
     public bool RememberLastEmbeddingModel { get; set; } = true;
 
     /// <summary>
-    /// Base URL for embedding service
+    /// Base URL for embedding service - defaults will be seeded from database
     /// </summary>
-    public string? EmbeddingServiceUrl { get; set; } = "http://localhost:11434";
+    public string? EmbeddingServiceUrl { get; set; }
 
     /// <summary>
-    /// Default embedding model for Ollama provider
+    /// Default embedding model for Ollama provider - defaults will be seeded from database
     /// </summary>
-    public string DefaultEmbeddingModel { get; set; } = "nomic-embed-text";
+    public string? DefaultEmbeddingModel { get; set; }
 
     /// <summary>
-    /// Timeout in minutes for embedding service requests
+    /// Timeout in minutes for embedding service requests - defaults will be seeded from database
     /// </summary>
     public int EmbeddingTimeoutMinutes { get; set; } = 10;
 
     /// <summary>
-    /// Timeout in minutes for OpenAI provider requests
+    /// Timeout in minutes for OpenAI provider requests - defaults will be seeded from database
     /// </summary>
     public int OpenAiTimeoutMinutes { get; set; } = 5;
 
     /// <summary>
-    /// Timeout in minutes for Anthropic provider requests
+    /// Timeout in minutes for Anthropic provider requests - defaults will be seeded from database
     /// </summary>
     public int AnthropicTimeoutMinutes { get; set; } = 5;
 
     /// <summary>
-    /// Timeout in minutes for DeepSeek provider requests
+    /// Timeout in minutes for DeepSeek provider requests - defaults will be seeded from database
     /// </summary>
     public int DeepSeekTimeoutMinutes { get; set; } = 5;
 
     /// <summary>
-    /// Maximum tokens for OpenAI provider requests
+    /// Maximum tokens for OpenAI provider requests - defaults will be seeded from database
     /// </summary>
     public int OpenAiMaxTokens { get; set; } = 4000;
 
     /// <summary>
-    /// Maximum tokens for Anthropic provider requests
+    /// Maximum tokens for Anthropic provider requests - defaults will be seeded from database
     /// </summary>
     public int AnthropicMaxTokens { get; set; } = 4000;
 
     /// <summary>
-    /// Maximum tokens for DeepSeek provider requests
+    /// Maximum tokens for DeepSeek provider requests - defaults will be seeded from database
     /// </summary>
     public int DeepSeekMaxTokens { get; set; } = 4000;
 
     /// <summary>
-    /// Maximum tokens for LM Studio provider requests
+    /// Maximum tokens for LM Studio provider requests - defaults will be seeded from database
     /// </summary>
     public int LmStudioMaxTokens { get; set; } = 4096;
 
     /// <summary>
-    /// Maximum tokens for Open Web UI provider requests
+    /// Maximum tokens for Open Web UI provider requests - defaults will be seeded from database
     /// </summary>
     public int OpenWebUiMaxTokens { get; set; } = 4096;
 
     /// <summary>
-    /// Whether to store API keys securely using Windows DPAPI
+    /// Whether to store API keys securely using Windows DPAPI - defaults will be seeded from database
     /// </summary>
     public bool UseSecureApiKeyStorage { get; set; } = true;
 
     /// <summary>
-    /// Whether to validate API keys on startup
+    /// Whether to validate API keys on startup - defaults will be seeded from database
     /// </summary>
     public bool ValidateApiKeysOnStartup { get; set; } = true;
 
     /// <summary>
-    /// The last used operation mode
+    /// The last used operation mode - defaults will be seeded from database
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public OperationMode LastOperationMode { get; set; } = OperationMode.Hybrid;
 
     /// <summary>
-    /// Whether to remember and suggest the last operation mode on startup
+    /// Whether to remember and suggest the last operation mode on startup - defaults will be seeded from database
     /// </summary>
     public bool RememberLastOperationMode { get; set; } = true;
 
@@ -216,27 +216,27 @@ public class AppConfiguration
     public bool AutoDetectHhExe { get; set; } = true;
 
     /// <summary>
-    /// Maximum request size in bytes for security middleware (default: 10MB)
+    /// Maximum request size in bytes for security middleware - defaults will be seeded from database
     /// </summary>
     public long MaxRequestSizeBytes { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
-    /// Maximum content length in bytes for security middleware (default: 1MB)
+    /// Maximum content length in bytes for security middleware - defaults will be seeded from database
     /// </summary>
     public int MaxContentLengthBytes { get; set; } = 1024 * 1024;
 
     /// <summary>
-    /// Maximum file size in bytes for file audit operations (default: 100MB)
+    /// Maximum file size in bytes for file audit operations - defaults will be seeded from database
     /// </summary>
     public long MaxFileAuditSizeBytes { get; set; } = 100 * 1024 * 1024;
 
     /// <summary>
-    /// Size of text chunks for vector store operations (default: 1000 characters)
+    /// Size of text chunks for vector store operations - defaults will be seeded from database
     /// </summary>
     public int ChunkSize { get; set; } = 1000;
 
     /// <summary>
-    /// Overlap between text chunks for vector store operations (default: 200 characters)
+    /// Overlap between text chunks for vector store operations - defaults will be seeded from database
     /// </summary>
     public int ChunkOverlap { get; set; } = 200;
 
@@ -335,24 +335,24 @@ public class AppConfiguration
     /// </summary>
     public int MaxOperationFailedFilesDisplayed { get; set; } = 10;
 
-    // Encryption Configuration
+    // Encryption Configuration - defaults will be seeded from database
     /// <summary>
-    /// AES key size in bits for encryption (default: 256 for AES-256)
+    /// AES key size in bits for encryption - defaults will be seeded from database
     /// </summary>
     public int EncryptionKeySize { get; set; } = 256;
 
     /// <summary>
-    /// AES initialization vector size in bits (default: 128)
+    /// AES initialization vector size in bits - defaults will be seeded from database
     /// </summary>
     public int EncryptionIvSize { get; set; } = 128;
 
     /// <summary>
-    /// Salt size in bytes for key derivation (default: 32 for 256-bit salt)
+    /// Salt size in bytes for key derivation - defaults will be seeded from database
     /// </summary>
     public int EncryptionSaltSize { get; set; } = 32;
 
     /// <summary>
-    /// Number of PBKDF2 iterations for key derivation (default: 100000)
+    /// Number of PBKDF2 iterations for key derivation - defaults will be seeded from database
     /// </summary>
     public int EncryptionPbkdf2Iterations { get; set; } = 100000;
 

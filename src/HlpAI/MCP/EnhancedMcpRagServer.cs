@@ -4,6 +4,7 @@ using System.Text.Json;
 using SystemPath = System.IO.Path;
 using HlpAI.Models;
 using HlpAI.Services;
+using HlpAI.Utilities;
 using HlpAI.VectorStores;
 using HlpAI.FileExtractors;
 
@@ -106,6 +107,50 @@ namespace HlpAI.MCP
         InitializeVectorStore();
         InitializeExtractors();
     }
+    
+    // Isolated constructor for MCP server mode without config.db access
+    public EnhancedMcpRagServer(ILogger<EnhancedMcpRagServer> logger, string rootPath, bool isolated, string aiModel = "llama3.2", OperationMode mode = OperationMode.MCP)
+    {
+        if (!isolated)
+        {
+            throw new ArgumentException("This constructor is only for isolated mode", nameof(isolated));
+        }
+        
+        _logger = logger;
+        _rootPath = rootPath;
+        _operationMode = mode;
+        
+        // Create minimal configuration for isolated mode
+        _config = new AppConfiguration
+        {
+            LastProvider = AiProviderType.Ollama, // Default to Ollama for isolated mode
+            OllamaUrl = "http://localhost:11434",
+            UseSecureApiKeyStorage = false
+        };
+        
+        // Try to create AI provider with default settings (no API key retrieval)
+        try
+        {
+            _aiProvider = AiProviderFactory.CreateProvider(
+                _config.LastProvider,
+                aiModel,
+                _config.OllamaUrl,
+                null, // No API key in isolated mode
+                logger,
+                _config
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create AI provider in isolated mode. AI features will be unavailable.");
+            _aiProvider = null;
+        }
+        
+        _embeddingService = new EmbeddingService(logger: logger, config: _config);
+
+        InitializeVectorStore();
+        InitializeExtractors();
+    }
 
     private void InitializeVectorStore()
     {
@@ -119,8 +164,8 @@ namespace HlpAI.MCP
             }
             
             // Use optimized SQLite-backed vector store with MD5 checksum optimization
-            var dbPath = Path.Combine(_rootPath, "vectors.db");
-            var connectionString = $"Data Source={dbPath}";
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+            var connectionString = DatabasePathHelper.VectorDatabaseConnectionString;
             var changeDetectionService = new FileChangeDetectionService(null);
             _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
         }

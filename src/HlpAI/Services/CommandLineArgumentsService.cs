@@ -366,6 +366,14 @@ public class CommandLineArgumentsService
     }
 
     /// <summary>
+    /// Check if this is MCP server mode (should run as pure MCP server without interactive menu)
+    /// </summary>
+    public bool IsMcpServerMode()
+    {
+        return HasArgument("mcp-server") || HasArgument("server-mode");
+    }
+
+    /// <summary>
     /// Get file export format from arguments
     /// </summary>
     public FileExportFormat GetFileExportFormat(FileExportFormat defaultFormat = FileExportFormat.Csv)
@@ -1256,12 +1264,12 @@ public class CommandLineArgumentsService
     {
         return provider switch
         {
-            AiProviderType.Ollama => config.OllamaDefaultModel,
-            AiProviderType.LmStudio => config.LmStudioDefaultModel,
-            AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel,
-            AiProviderType.OpenAI => config.OpenAiDefaultModel,
-            AiProviderType.Anthropic => config.AnthropicDefaultModel,
-            AiProviderType.DeepSeek => config.DeepSeekDefaultModel,
+            AiProviderType.Ollama => config.OllamaDefaultModel ?? "default",
+            AiProviderType.LmStudio => config.LmStudioDefaultModel ?? "default",
+            AiProviderType.OpenWebUi => config.OpenWebUiDefaultModel ?? "default",
+            AiProviderType.OpenAI => config.OpenAiDefaultModel ?? "default",
+            AiProviderType.Anthropic => config.AnthropicDefaultModel ?? "default",
+            AiProviderType.DeepSeek => config.DeepSeekDefaultModel ?? "default",
             _ => "default"
         };
     }

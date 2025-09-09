@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using HlpAI.Models;
+using HlpAI.Utilities;
 
 namespace HlpAI.Services;
 
@@ -142,8 +143,9 @@ public class CleanupService : IDisposable
     {
         try
         {
-            var dbPath = databasePath ?? "vectors.db";
-            var configDbPath = databasePath ?? Path.Combine(Environment.CurrentDirectory, "vectors.db");
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+        var dbPath = databasePath ?? DatabasePathHelper.VectorDatabasePath;
+        var configDbPath = databasePath ?? DatabasePathHelper.VectorDatabasePath;
 
             long spaceBefore = 0;
             if (File.Exists(configDbPath))
@@ -327,10 +329,11 @@ public class CleanupService : IDisposable
     {
         try
         {
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
             var tempPaths = new[]
             {
                 Path.GetTempPath(),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "temp"),
+                Path.Combine(DatabasePathHelper.ApplicationDirectory, "temp"),
                 Environment.CurrentDirectory
             };
 
@@ -462,10 +465,11 @@ public class CleanupService : IDisposable
             await _configService.OptimizeDatabaseAsync();
 
             // Also optimize vector database if it exists
-            var vectorDbPath = Path.Combine(Environment.CurrentDirectory, "vectors.db");
-            if (File.Exists(vectorDbPath))
-            {
-                using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={vectorDbPath}");
+        DatabasePathHelper.EnsureApplicationDirectoryExists();
+        var vectorDbPath = DatabasePathHelper.VectorDatabasePath;
+        if (File.Exists(vectorDbPath))
+        {
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(DatabasePathHelper.VectorDatabaseConnectionString);
                 connection.Open();
                 
                 using var command = connection.CreateCommand();
@@ -502,8 +506,9 @@ public class CleanupService : IDisposable
         try
         {
             // Vector database size
-            var vectorDbPath = Path.Combine(Environment.CurrentDirectory, "vectors.db");
-            if (File.Exists(vectorDbPath))
+        DatabasePathHelper.EnsureApplicationDirectoryExists();
+        var vectorDbPath = DatabasePathHelper.VectorDatabasePath;
+        if (File.Exists(vectorDbPath))
             {
                 stats.VectorDatabaseSize = new FileInfo(vectorDbPath).Length;
             }

@@ -404,6 +404,13 @@ public static class Program
             return;
         }
 
+        // Handle MCP server mode (isolated from config.db)
+        if (cmdArgs.IsMcpServerMode())
+        {
+            await RunIsolatedMcpServerModeAsync(args, logger);
+            return;
+        }
+
         // Add this check at the beginning for audit mode
         if (args.Length > 0 && args[0] == "--audit")
         {
@@ -1595,10 +1602,7 @@ public static class Program
                     Console.WriteLine($"AI: {aiResponse}");
                     conversationHistory.Add($"AI: {aiResponse}");
                 }
-                else
-                {
-                    Console.WriteLine("AI: I'm sorry, I couldn't generate a response. Please try again.");
-                }
+                // Note: ExtractPlainTextResponse now handles errors properly, so empty responses are rare
             }
             catch (Exception ex)
             {
@@ -1612,6 +1616,17 @@ public static class Program
     
     private static string ExtractPlainTextResponse(McpResponse response)
     {
+        // Handle error responses first
+        if (response.Error != null)
+        {
+            if (response.Error is ErrorResponse errorResponse)
+            {
+                return $"Error: {errorResponse.Message}";
+            }
+            return $"Error: {response.Error}";
+        }
+        
+        // Handle successful responses
         if (response.Result != null)
         {
             var resultJson = JsonSerializer.Serialize(response.Result);
@@ -4457,7 +4472,8 @@ public static class Program
         var config = ConfigurationService.LoadConfiguration();
         using var embeddingService = new EmbeddingService(config: config);
         using var changeDetectionService = new FileChangeDetectionService();
-        var connectionString = "Data Source=vectors.db";
+        DatabasePathHelper.EnsureApplicationDirectoryExists();
+        var connectionString = DatabasePathHelper.VectorDatabaseConnectionString;
         using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
         
         ClearScreenWithHeader("🗄️ Vector Database Management", menuStateManager?.GetBreadcrumbPath() ?? "Main Menu > Vector Database Management");
@@ -4527,7 +4543,8 @@ public static class Program
         
         try
         {
-            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "vectors.db");
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+            var dbPath = DatabasePathHelper.VectorDatabasePath;
             var exists = File.Exists(dbPath);
             
             Console.WriteLine($"Database file: {(exists ? "✅ Exists" : "❌ Not found")}");
@@ -4693,7 +4710,8 @@ private static async Task ExecuteReindex()
     
     using var embeddingService = new EmbeddingService(config: config);
     using var changeDetectionService = new FileChangeDetectionService();
-    var connectionString = "Data Source=vectors.db";
+    DatabasePathHelper.EnsureApplicationDirectoryExists();
+    var connectionString = DatabasePathHelper.VectorDatabaseConnectionString;
     using var vectorStore = new OptimizedSqliteVectorStore(connectionString, embeddingService, changeDetectionService);
     
     var result = await IndexDocumentsAsync(currentDirectory, vectorStore);
@@ -4931,7 +4949,8 @@ private static Task WaitForKeyPress()
         
         try
         {
-            var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "vectors.db");
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+            var dbPath = DatabasePathHelper.VectorDatabasePath;
             var exists = File.Exists(dbPath);
             
             if (!exists)
@@ -4942,7 +4961,7 @@ private static Task WaitForKeyPress()
             else
             {
                 var fileInfo = new FileInfo(dbPath);
-                Console.WriteLine($"📁 Database file: vectors.db");
+                Console.WriteLine($"📁 Database file: {Path.GetFileName(dbPath)}");
                 Console.WriteLine($"📏 File size: {fileInfo.Length / 1024.0:F2} KB");
                 Console.WriteLine($"📅 Created: {fileInfo.CreationTime:yyyy-MM-dd HH:mm:ss}");
                 Console.WriteLine($"📝 Last modified: {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
@@ -8266,5 +8285,113 @@ private static Task WaitForKeyPress()
     /// <summary>
     /// Result of connectivity testing
     /// </summary>
+    
+    /// <summary>
+    /// Run MCP server mode in isolation without config.db access
+    /// </summary>
+    private static async Task RunIsolatedMcpServerModeAsync(string[] args, ILogger<EnhancedMcpRagServer> logger)
+    {
+        Console.WriteLine("🖥️  Starting MCP Server Mode (Isolated)");
+        Console.WriteLine("=======================================");
+        
+        // Parse command line arguments for MCP server mode
+        string rootPath;
+        string model = "llama3.2"; // Default model
+        OperationMode mode = OperationMode.MCP; // Force MCP mode
+        
+        // Find the first non-flag argument as root path
+        var nonFlagArgs = args.Where(arg => !arg.StartsWith("-")).ToArray();
+        if (nonFlagArgs.Length == 0)
+        {
+            Console.WriteLine("❌ Error: MCP server mode requires a directory path.");
+            Console.WriteLine("Usage: --mcp-server <directory> [model] [mode]");
+            Console.WriteLine("Example: --mcp-server \"C:\\MyDocuments\" llama3.2 mcp");
+            return;
+        }
+        
+        rootPath = nonFlagArgs[0];
+        if (!Directory.Exists(rootPath))
+        {
+            Console.WriteLine($"❌ Error: Directory '{rootPath}' does not exist.");
+            return;
+        }
+        
+        // Parse optional model and mode from remaining arguments
+        if (nonFlagArgs.Length > 1)
+        {
+            model = nonFlagArgs[1];
+        }
+        
+        if (nonFlagArgs.Length > 2)
+        {
+            mode = ParseOperationMode(nonFlagArgs[2]);
+        }
+        
+        Console.WriteLine($"Directory: {rootPath}");
+        Console.WriteLine($"Model: {model}");
+        Console.WriteLine($"Mode: {mode}");
+        Console.WriteLine("Note: Running in isolated mode - no config.db access");
+        Console.WriteLine();
+        
+        try
+        {
+            // Create server without configuration service (isolated mode)
+            var server = new EnhancedMcpRagServer(logger, rootPath, true, model, mode);
+            
+            Console.WriteLine("Checking AI provider connection...");
+            if (server._aiProvider != null)
+            {
+                if (await server._aiProvider.IsAvailableAsync())
+                {
+                    var models = await server._aiProvider.GetModelsAsync();
+                    Console.WriteLine($"✅ {server._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ {server._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                }
+            }
+            
+            if (mode == OperationMode.RAG || mode == OperationMode.Hybrid)
+            {
+                Console.WriteLine("Initializing RAG system...");
+                await server.InitializeAsync();
+                Console.WriteLine("✅ RAG system initialized successfully.");
+            }
+            
+            Console.WriteLine();
+            Console.WriteLine("🎯 MCP Server is ready and running in isolated mode!");
+            Console.WriteLine("📋 Available MCP Methods:");
+            Console.WriteLine("  • resources/list     - List all available document resources");
+            Console.WriteLine("  • resources/read     - Read content of a specific document");
+            Console.WriteLine("  • tools/list         - List all available AI tools");
+            Console.WriteLine("  • tools/call         - Execute an AI tool");
+            Console.WriteLine();
+            Console.WriteLine("Press Ctrl+C to stop the server...");
+            
+            // Keep the server running until interrupted
+            var cancellationTokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => {
+                e.Cancel = true;
+                cancellationTokenSource.Cancel();
+            };
+            
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("\n🛑 MCP Server stopped.");
+            }
+            
+            server.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to start MCP server: {ex.Message}");
+            logger.LogError(ex, "Failed to start isolated MCP server mode");
+        }
+    }
     
 }

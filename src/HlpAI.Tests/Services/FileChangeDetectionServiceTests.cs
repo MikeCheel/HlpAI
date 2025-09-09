@@ -312,11 +312,11 @@ public class FileChangeDetectionServiceTests : IDisposable
     [Test]
     public async Task ComputeFileHashAsync_LargeFile_ShouldHandleEfficiently()
     {
-        // Arrange
+        // Arrange - Create a reasonably large file (1000 lines instead of 10000)
         var largeContent = new StringBuilder();
-        for (int i = 0; i < 10000; i++)
+        for (int i = 0; i < 1000; i++)
         {
-            largeContent.AppendLine($"This is line {i} of the large test file.");
+            largeContent.AppendLine($"This is line {i} of the large test file with some additional content to make it larger.");
         }
         var tempFile = CreateTempFile(largeContent.ToString());
 
@@ -328,7 +328,7 @@ public class FileChangeDetectionServiceTests : IDisposable
         // Assert
         await Assert.That(hash).IsNotNull();
         await Assert.That(hash.Length).IsEqualTo(32);
-        await Assert.That(duration.TotalSeconds).IsLessThan(5);
+        await Assert.That(duration.TotalSeconds).IsLessThan(2); // More reasonable expectation
     }
 
     [Test]

@@ -48,35 +48,35 @@ public class ChmFileExtractor(ILogger? logger = null, AppConfiguration? config =
                 using var process = Process.Start(processInfo);
                 if (process != null)
                 {
-                    // Start reading output and error streams immediately to prevent deadlocks
-                    var outputTask = process.StandardOutput.ReadToEndAsync();
-                    var errorTask = process.StandardError.ReadToEndAsync();
-
                     // Wait for the process to complete with a reasonable timeout (30 seconds)
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                     try
                     {
+                        // Start reading output and error streams with timeout
+                        var outputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+                        var errorTask = process.StandardError.ReadToEndAsync(cts.Token);
+                        
                         await process.WaitForExitAsync(cts.Token);
+                        
+                        var output = await outputTask;
+                        var error = await errorTask;
+                        
+                        if (process.ExitCode != 0)
+                        {
+                            _logger?.LogWarning("HH.exe returned exit code {ExitCode}: {Error}", process.ExitCode, error);
+                        }
+                        
+                        // Log output for debugging purposes
+                        if (!string.IsNullOrWhiteSpace(output))
+                        {
+                            _logger?.LogDebug("HH.exe output: {Output}", output);
+                        }
                     }
                     catch (OperationCanceledException)
                     {
                         _logger?.LogWarning("HH.exe process timed out after 30 seconds for file {FilePath}", filePath);
-                        process.Kill(true);
+                        try { process.Kill(true); } catch { }
                         return "Error: CHM extraction timed out";
-                    }
-
-                    var output = await outputTask;
-                    var error = await errorTask;
-
-                    if (process.ExitCode != 0)
-                    {
-                        _logger?.LogWarning("HH.exe returned exit code {ExitCode}: {Error}", process.ExitCode, error);
-                    }
-                    
-                    // Log output for debugging purposes
-                    if (!string.IsNullOrWhiteSpace(output))
-                    {
-                        _logger?.LogDebug("HH.exe output: {Output}", output);
                     }
                 }
 

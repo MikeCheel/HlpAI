@@ -34,7 +34,10 @@ public class ProgramUpdateActiveProviderTests
             LastModel = "test-model",
             OllamaUrl = "http://localhost:11434",
             LmStudioUrl = "http://localhost:1234",
-            OpenWebUiUrl = "http://localhost:3000"
+            OpenWebUiUrl = "http://localhost:3000",
+            OpenAiUrl = "https://api.openai.com",
+            AnthropicUrl = "https://api.anthropic.com",
+            DeepSeekUrl = "https://api.deepseek.com"
         };
         
         await Task.CompletedTask;

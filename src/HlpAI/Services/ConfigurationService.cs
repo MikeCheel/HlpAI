@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HlpAI.Models;
 using Microsoft.Extensions.Logging;
+using HlpAI.Utilities;
 
 namespace HlpAI.Services;
 
@@ -375,7 +376,8 @@ public class ConfigurationService
     {
         try
         {
-            var dbPath = sqliteConfigService?.DatabasePath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+            var dbPath = sqliteConfigService?.DatabasePath ?? DatabasePathHelper.ConfigDatabasePath;
             
             // Check if database file exists
             if (!File.Exists(dbPath))
@@ -447,7 +449,8 @@ public class ConfigurationService
         }
         catch (Exception ex)
         {
-            var dbPath = sqliteConfigService?.DatabasePath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".hlpai", "config.db");
+            DatabasePathHelper.EnsureApplicationDirectoryExists();
+            var dbPath = sqliteConfigService?.DatabasePath ?? DatabasePathHelper.ConfigDatabasePath;
             return $"Configuration database: Error reading configuration - {ex.Message}";
         }
     }

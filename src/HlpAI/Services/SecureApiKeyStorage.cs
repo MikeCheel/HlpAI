@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using System.Runtime.Versioning;
+using HlpAI.Utilities;
 
 namespace HlpAI.Services;
 
@@ -17,9 +18,9 @@ public class SecureApiKeyStorage
     public SecureApiKeyStorage(ILogger? logger = null)
     {
         _logger = logger;
+        DatabasePathHelper.EnsureApplicationDirectoryExists();
         _storageDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "HlpAI",
+            DatabasePathHelper.ApplicationDirectory,
             "SecureKeys"
         );
         
