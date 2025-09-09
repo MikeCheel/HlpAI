@@ -15,12 +15,14 @@ namespace HlpAI.VectorStores
         private readonly SqliteConnection _connection;
         private readonly IEmbeddingService _embeddingService;
         private readonly ILogger? _logger;
+        private readonly AppConfiguration? _config;
         private bool _disposed = false;
 
-        public SqliteVectorStore(IEmbeddingService embeddingService, string dbPath = "vectors.db", ILogger? logger = null)
+        public SqliteVectorStore(IEmbeddingService embeddingService, string dbPath = "vectors.db", ILogger? logger = null, AppConfiguration? config = null)
         {
             _embeddingService = embeddingService;
             _logger = logger;
+            _config = config;
 
             var connectionString = $"Data Source={dbPath}";
             _connection = new SqliteConnection(connectionString);
@@ -71,13 +73,40 @@ namespace HlpAI.VectorStores
             command.ExecuteNonQuery();
         }
 
+        private AppConfiguration GetConfiguration()
+        {
+            // Use injected configuration if available
+            if (_config != null)
+                return _config;
+
+            // Try to load from configuration service, but use safe defaults if it fails
+            try
+            {
+                return ConfigurationService.LoadConfiguration(_logger);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to load configuration from database, using safe defaults");
+                // Return safe defaults for vector store operations
+                return new AppConfiguration
+                {
+                    ChunkSize = 4000,    // Safe default chunk size
+                    ChunkOverlap = 200   // Safe default chunk overlap
+                };
+            }
+        }
+
         public async Task IndexDocumentAsync(string filePath, string content, Dictionary<string, object>? metadata = null)
         {
             try
             {
+                _logger?.LogDebug("Starting IndexDocumentAsync for {FilePath}", filePath);
                 var fileInfo = new FileInfo(filePath);
                 var fileHash = ComputeFileHash(content);
-                var lastModified = fileInfo.LastWriteTime;
+                // For non-existent files (like in tests), use a fixed timestamp based on content hash
+                var lastModified = fileInfo.Exists ? fileInfo.LastWriteTime : new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(fileHash.GetHashCode() % 86400);
+                _logger?.LogDebug("File info: exists={Exists}, hash={Hash}, modified={Modified}", 
+                    fileInfo.Exists, fileHash, lastModified.ToString("O"));
 
                 // Check if file is already indexed and up to date
                 if (await IsFileUpToDateAsync(filePath, fileHash, lastModified))
@@ -89,7 +118,7 @@ namespace HlpAI.VectorStores
                 // Remove existing chunks for this file
                 await RemoveFileChunksAsync(filePath);
 
-                var config = ConfigurationService.LoadConfiguration(_logger);
+                var config = GetConfiguration();
                 var chunks = SplitIntoChunks(content, config.ChunkSize, config.ChunkOverlap);
 
                 var insertSql = @"
@@ -138,6 +167,7 @@ namespace HlpAI.VectorStores
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error indexing document {FilePath}", filePath);
+                throw;
             }
         }
 
@@ -296,6 +326,8 @@ namespace HlpAI.VectorStores
                 command.Parameters.AddWithValue("@modified", lastModified.ToString("O"));
 
                 var count = (long)(await command.ExecuteScalarAsync() ?? 0);
+                _logger?.LogDebug("IsFileUpToDate check for {FilePath}: hash={Hash}, modified={Modified}, count={Count}", 
+                    filePath, fileHash, lastModified.ToString("O"), count);
                 return count > 0;
             }
             catch (Exception ex)

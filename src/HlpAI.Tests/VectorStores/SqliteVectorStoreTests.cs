@@ -26,11 +26,25 @@ public class SqliteVectorStoreTests
         _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
             .ReturnsAsync((string text) =>
             {
-                var hash = text.GetHashCode();
-                return Enumerable.Range(0, 384).Select(i => (float)hash / (i + 1)).ToArray();
+                // Simplified embedding generation for faster tests
+                var hash = Math.Abs(text.GetHashCode() % 1000);
+                var embedding = new float[384];
+                for (int i = 0; i < 384; i++)
+                {
+                    embedding[i] = (float)(hash + i) / 1000f;
+                }
+                return embedding;
             });
         _embeddingService = _mockEmbeddingService.Object;
-        _vectorStore = new SqliteVectorStore(_embeddingService, _testDbPath, _mockLogger.Object);
+        
+        // Create test configuration to avoid database loading
+        var testConfig = new AppConfiguration
+        {
+            ChunkSize = 4000,
+            ChunkOverlap = 200
+        };
+        
+        _vectorStore = new SqliteVectorStore(_embeddingService, _testDbPath, _mockLogger.Object, testConfig);
     }
 
     [After(Test)]

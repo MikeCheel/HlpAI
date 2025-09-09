@@ -8,6 +8,7 @@ using HlpAI.Utilities;
 using HlpAI.VectorStores;
 using HlpAI.FileExtractors;
 
+
 namespace HlpAI.MCP
 {
     // Enhanced Server with RAG capabilities
@@ -116,6 +117,11 @@ namespace HlpAI.MCP
             throw new ArgumentException("This constructor is only for isolated mode", nameof(isolated));
         }
         
+        if (mode != OperationMode.MCP)
+        {
+            throw new ArgumentException("This constructor is only for MCP server mode", nameof(mode));
+        }
+        
         _logger = logger;
         _rootPath = rootPath;
         _operationMode = mode;
@@ -151,6 +157,57 @@ namespace HlpAI.MCP
         InitializeVectorStore();
         InitializeExtractors();
     }
+    
+    // Isolated constructor for library mode without config.db access
+    public EnhancedMcpRagServer(ILogger<EnhancedMcpRagServer> logger, string rootPath, bool isolated, AiProviderType aiProvider, string aiModel, string? providerUrl = null, string? apiKey = null, OperationMode mode = OperationMode.RAG)
+    {
+        if (!isolated)
+        {
+            throw new ArgumentException("This constructor is only for isolated mode", nameof(isolated));
+        }
+        
+        if (mode != OperationMode.RAG && mode != OperationMode.Hybrid)
+        {
+            throw new ArgumentException("This constructor is only for library mode (RAG or Hybrid)", nameof(mode));
+        }
+        
+        _logger = logger;
+        _rootPath = rootPath;
+        _operationMode = mode;
+        
+        // Create minimal configuration for isolated library mode
+        _config = new AppConfiguration
+        {
+            LastProvider = aiProvider,
+            OllamaUrl = providerUrl ?? GetDefaultProviderUrl(aiProvider),
+            LmStudioUrl = GetDefaultProviderUrl(AiProviderType.LmStudio),
+            OpenWebUiUrl = GetDefaultProviderUrl(AiProviderType.OpenWebUi),
+            UseSecureApiKeyStorage = false
+        };
+        
+        // Try to create AI provider with provided settings (no config.db access)
+        try
+        {
+            _aiProvider = AiProviderFactory.CreateProvider(
+                aiProvider,
+                aiModel,
+                providerUrl ?? GetDefaultProviderUrl(aiProvider),
+                apiKey,
+                logger,
+                _config
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create AI provider in isolated library mode. AI features will be unavailable.");
+            _aiProvider = null;
+        }
+        
+        _embeddingService = new EmbeddingService(logger: logger, config: _config);
+
+        InitializeVectorStore();
+        InitializeExtractors();
+    }
 
     private void InitializeVectorStore()
     {
@@ -171,15 +228,9 @@ namespace HlpAI.MCP
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to initialize vector store with path: {RootPath}", _rootPath);
-            // Create a fallback in-memory vector store or use a temp directory
-            var tempPath = Path.Combine(Path.GetTempPath(), "hlpai_fallback");
-            Directory.CreateDirectory(tempPath);
-            var dbPath = Path.Combine(tempPath, "vectors.db");
-            var connectionString = $"Data Source={dbPath}";
-            var changeDetectionService = new FileChangeDetectionService(null);
-            _vectorStore = new OptimizedSqliteVectorStore(connectionString, _embeddingService, changeDetectionService, _config);
-            _logger?.LogWarning("Using fallback vector store path: {FallbackPath}", tempPath);
+            _logger?.LogError(ex, "Failed to initialize vector store. Vector storage will be unavailable. Check directory permissions for: {Directory}", DatabasePathHelper.ApplicationDirectory);
+            _vectorStore = null;
+            // Continue without vector capabilities rather than using unreliable fallback
         }
     }
 
@@ -225,6 +276,20 @@ namespace HlpAI.MCP
                 AiProviderType.LmStudio => config.LmStudioUrl,
                 AiProviderType.OpenWebUi => config.OpenWebUiUrl,
                 _ => null
+            };
+        }
+        
+        private static string GetDefaultProviderUrl(AiProviderType providerType)
+        {
+            return providerType switch
+            {
+                AiProviderType.Ollama => AiProviderConstants.DefaultUrls.Ollama,
+                AiProviderType.LmStudio => AiProviderConstants.DefaultUrls.LmStudio,
+                AiProviderType.OpenWebUi => AiProviderConstants.DefaultUrls.OpenWebUi,
+                AiProviderType.OpenAI => AiProviderConstants.DefaultUrls.OpenAiV1,
+                AiProviderType.Anthropic => AiProviderConstants.DefaultUrls.AnthropicV1,
+                AiProviderType.DeepSeek => AiProviderConstants.DefaultUrls.DeepSeek,
+                _ => AiProviderConstants.DefaultUrls.Generic
             };
         }
 

@@ -29,17 +29,35 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
         _testContent = "This is test content for the vector store.";
         _testEmbedding = [0.1f, 0.2f, 0.3f, 0.4f, 0.5f];
 
-        // Setup default mock behaviors
+        // Setup default mock behaviors with fast embedding generation
         _mockEmbeddingService.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>()))
-            .ReturnsAsync(_testEmbedding);
+            .ReturnsAsync((string text) =>
+            {
+                // Fast embedding generation for tests
+                var hash = Math.Abs(text.GetHashCode() % 100);
+                var embedding = new float[384];
+                for (int i = 0; i < 384; i++)
+                {
+                    embedding[i] = (float)(hash + i) / 100f;
+                }
+                return embedding;
+            });
     }
 
     private OptimizedSqliteVectorStore CreateVectorStore()
     {
+        // Create a test configuration with valid chunk settings
+        var testConfig = new AppConfiguration
+        {
+            ChunkSize = 4000,
+            ChunkOverlap = 200
+        };
+        
         return new OptimizedSqliteVectorStore(
             _connectionString,
             _mockEmbeddingService.Object,
             _mockChangeDetectionService.Object,
+            testConfig,
             _mockLogger.Object);
     }
 

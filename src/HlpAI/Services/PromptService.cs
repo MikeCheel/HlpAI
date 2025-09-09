@@ -634,7 +634,6 @@ public class PromptService : IDisposable
     private static bool IsTestEnvironment()
     {
         return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
-               Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true);
     }
 

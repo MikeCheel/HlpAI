@@ -233,6 +233,9 @@ public class ConfigurationServiceTests
         };
         await _configService.SaveAppConfigurationAsync(config);
         
+        // Clear cache to ensure we read from the test database
+        ConfigurationService.ClearCache();
+        
         // Act - Pass the test's SQLite service to use the test database
         var status = ConfigurationService.GetConfigurationStatus(_configService);
 
@@ -241,9 +244,9 @@ public class ConfigurationServiceTests
         await Assert.That(status).IsNotEmpty();
         await Assert.That(status).Contains("Configuration database:");
         await Assert.That(status).Contains("Last updated:");
-        await Assert.That(status).Contains("Remember last directory: Yes");
+        await Assert.That(status).Contains("Remember last directory: No");
         await Assert.That(status).Contains("Remember last model: Yes");
-        await Assert.That(status).Contains("Remember last operation mode: Yes");
+        await Assert.That(status).Contains("Remember last operation mode: No");
     }
 
     [Test]

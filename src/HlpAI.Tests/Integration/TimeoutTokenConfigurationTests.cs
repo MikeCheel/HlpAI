@@ -56,7 +56,7 @@ public class TimeoutTokenConfigurationTests
         await Assert.That(config.OllamaTimeoutMinutes).IsEqualTo(10);
         await Assert.That(config.LmStudioTimeoutMinutes).IsEqualTo(10);
         await Assert.That(config.OpenWebUiTimeoutMinutes).IsEqualTo(10);
-        await Assert.That(config.EmbeddingTimeoutMinutes).IsEqualTo(10);
+        await Assert.That(config.EmbeddingTimeoutMinutes).IsEqualTo(1);
         await Assert.That(config.OpenAiTimeoutMinutes).IsEqualTo(5);
         await Assert.That(config.AnthropicTimeoutMinutes).IsEqualTo(5);
         await Assert.That(config.DeepSeekTimeoutMinutes).IsEqualTo(5);
@@ -231,7 +231,7 @@ public class TimeoutTokenConfigurationTests
         config.OllamaTimeoutMinutes = 10;
         config.LmStudioTimeoutMinutes = 10;
         config.OpenWebUiTimeoutMinutes = 10;
-        config.EmbeddingTimeoutMinutes = 10;
+        config.EmbeddingTimeoutMinutes = 1;
         config.OpenAiTimeoutMinutes = 5;
         config.AnthropicTimeoutMinutes = 5;
         config.DeepSeekTimeoutMinutes = 5;
@@ -246,7 +246,7 @@ public class TimeoutTokenConfigurationTests
         await Assert.That(config.OllamaTimeoutMinutes).IsEqualTo(10);
         await Assert.That(config.LmStudioTimeoutMinutes).IsEqualTo(10);
         await Assert.That(config.OpenWebUiTimeoutMinutes).IsEqualTo(10);
-        await Assert.That(config.EmbeddingTimeoutMinutes).IsEqualTo(10);
+        await Assert.That(config.EmbeddingTimeoutMinutes).IsEqualTo(1);
         await Assert.That(config.OpenAiTimeoutMinutes).IsEqualTo(5);
         await Assert.That(config.AnthropicTimeoutMinutes).IsEqualTo(5);
         await Assert.That(config.DeepSeekTimeoutMinutes).IsEqualTo(5);

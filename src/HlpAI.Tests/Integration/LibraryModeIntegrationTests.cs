@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using HlpAI.FileExtractors;
 using HlpAI.VectorStores;
 
+
 namespace HlpAI.Tests.Integration;
 
 /// <summary>
@@ -135,8 +136,8 @@ public class LibraryModeIntegrationTests
         // Test programmatic initialization of library components
         var docsDir = Path.Combine(_testDirectory, "LibraryTestDocuments");
         
-        // Initialize server programmatically (library usage pattern)
-        using var server = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "library-test-model", OperationMode.RAG);
+        // Initialize server programmatically using isolated constructor (library usage pattern)
+        using var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "library-test-model", mode: OperationMode.RAG);
         
         // Test programmatic initialization
         await server.InitializeAsync();
@@ -161,8 +162,8 @@ public class LibraryModeIntegrationTests
         await Assert.That(config).IsNotNull();
         await Assert.That(logger).IsNotNull();
         
-        // Test service integration
-        using var server = new EnhancedMcpRagServer(logger, docsDir, config, "library-test-model", OperationMode.RAG);
+        // Test service integration using isolated constructor
+        using var server = new EnhancedMcpRagServer(logger, docsDir, isolated: true, AiProviderType.Ollama, "library-test-model", mode: OperationMode.RAG);
         await server.InitializeAsync();
         
         // Verify services work together
@@ -248,8 +249,8 @@ public class LibraryModeIntegrationTests
             LastOperationMode = OperationMode.Hybrid
         };
         
-        // Third-party creates their own server instance
-        using var thirdPartyServer = new EnhancedMcpRagServer(thirdPartyLogger, docsDir, thirdPartyConfig, "third-party-model", OperationMode.Hybrid);
+        // Third-party creates their own server instance using isolated constructor
+        using var thirdPartyServer = new EnhancedMcpRagServer(thirdPartyLogger, docsDir, isolated: true, AiProviderType.Ollama, "third-party-model", mode: OperationMode.Hybrid);
         
         await thirdPartyServer.InitializeAsync();
         
@@ -304,9 +305,9 @@ public class LibraryModeIntegrationTests
         await Assert.That(loadedConfig!.MaxFilesPerCategoryDisplayed).IsEqualTo(25);
         await Assert.That(loadedConfig!.RememberLastDirectory).IsFalse();
         
-        // Test using loaded configuration
+        // Test using loaded configuration with isolated constructor
         var docsDir = Path.Combine(_testDirectory, "LibraryTestDocuments");
-        using var server = new EnhancedMcpRagServer(_logger, docsDir, loadedConfig!, loadedConfig!.LastModel ?? "llama3.2", loadedConfig!.LastOperationMode);
+        using var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, loadedConfig!.LastModel ?? "llama3.2", mode: loadedConfig!.LastOperationMode);
         
         await server.InitializeAsync();
     }
@@ -317,10 +318,10 @@ public class LibraryModeIntegrationTests
         // Test managing multiple library instances
         var docsDir = Path.Combine(_testDirectory, "LibraryTestDocuments");
         
-        // Create multiple server instances (library usage pattern)
-        var server1 = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "model1", OperationMode.RAG);
-        var server2 = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "model2", OperationMode.MCP);
-        var server3 = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "model3", OperationMode.Hybrid);
+        // Create multiple server instances using isolated constructors (library usage pattern)
+        var server1 = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "model1", mode: OperationMode.RAG);
+        var server2 = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "model2", mode: OperationMode.Hybrid); // Note: MCP mode not supported in isolated constructor
+        var server3 = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "model3", mode: OperationMode.Hybrid);
         
         try
         {
@@ -402,9 +403,9 @@ public class LibraryModeIntegrationTests
         // Test error handling and recovery in library mode
         var docsDir = Path.Combine(_testDirectory, "LibraryTestDocuments");
         
-        // Test initialization with invalid directory
+        // Test initialization with invalid directory using isolated constructor
         var invalidDir = Path.Combine(_testDirectory, "NonExistentDirectory");
-        var serverWithInvalidDir = new EnhancedMcpRagServer(_logger, invalidDir, _testConfig, "test-model", OperationMode.RAG);
+        var serverWithInvalidDir = new EnhancedMcpRagServer(_logger, invalidDir, isolated: true, AiProviderType.Ollama, "test-model", mode: OperationMode.RAG);
         
         // Should handle gracefully
         await serverWithInvalidDir.InitializeAsync();
@@ -412,8 +413,8 @@ public class LibraryModeIntegrationTests
         
         serverWithInvalidDir.Dispose();
         
-        // Test recovery with valid directory
-        using var server = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "test-model", OperationMode.RAG);
+        // Test recovery with valid directory using isolated constructor
+        using var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "test-model", mode: OperationMode.RAG);
         await server.InitializeAsync();
         
         // Test error handling during operations
@@ -440,7 +441,7 @@ public class LibraryModeIntegrationTests
             await File.WriteAllTextAsync(perfFile, $"Performance test document {i} with library integration content.");
         }
         
-        using var server = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "perf-test-model", OperationMode.RAG);
+        using var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "perf-test-model", mode: OperationMode.RAG);
         await server.InitializeAsync();
         
         // Measure performance of file listing
@@ -489,8 +490,8 @@ public class LibraryModeIntegrationTests
         
         var eventsFired = new List<string>();
         
-        // Simulate event-driven library usage
-        using var server = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "event-test-model", OperationMode.RAG);
+        // Simulate event-driven library usage with isolated constructor
+        using var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "event-test-model", mode: OperationMode.RAG);
         
         // Initialize and perform operations
         await server.InitializeAsync();
@@ -544,8 +545,8 @@ public class LibraryModeIntegrationTests
         // Test proper resource cleanup and disposal patterns
         var docsDir = Path.Combine(_testDirectory, "LibraryTestDocuments");
         
-        // Test using statement pattern
-        using (var server = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "cleanup-test-model", OperationMode.RAG))
+        // Test using statement pattern with isolated constructor
+        using (var server = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "cleanup-test-model", mode: OperationMode.RAG))
         {
             await server.InitializeAsync();
             var listRequest = new McpRequest
@@ -560,8 +561,8 @@ public class LibraryModeIntegrationTests
             await Assert.That(files!.Resources.Count).IsGreaterThan(0);
         } // Server should be disposed here
         
-        // Test explicit disposal
-        var server2 = new EnhancedMcpRagServer(_logger, docsDir, _testConfig, "cleanup-test-model-2", OperationMode.RAG);
+        // Test explicit disposal with isolated constructor
+        var server2 = new EnhancedMcpRagServer(_logger, docsDir, isolated: true, AiProviderType.Ollama, "cleanup-test-model-2", mode: OperationMode.RAG);
         await server2.InitializeAsync();
         var listRequest2 = new McpRequest
         {

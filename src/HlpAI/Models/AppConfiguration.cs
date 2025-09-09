@@ -37,7 +37,7 @@ public class AppConfiguration
     /// <summary>
     /// Whether to remember and suggest the last provider on startup
     /// </summary>
-    public bool RememberLastProvider { get; set; } = true;
+    public bool RememberLastProvider { get; set; }
 
     /// <summary>
     /// Base URL for Ollama provider - defaults will be seeded from database
@@ -127,7 +127,7 @@ public class AppConfiguration
     /// <summary>
     /// Whether to remember and suggest the last embedding model on startup
     /// </summary>
-    public bool RememberLastEmbeddingModel { get; set; } = true;
+    public bool RememberLastEmbeddingModel { get; set; }
 
     /// <summary>
     /// Base URL for embedding service - defaults will be seeded from database
@@ -142,7 +142,7 @@ public class AppConfiguration
     /// <summary>
     /// Timeout in minutes for embedding service requests - defaults will be seeded from database
     /// </summary>
-    public int EmbeddingTimeoutMinutes { get; set; } = 10;
+    public int EmbeddingTimeoutMinutes { get; set; } = 1;
 
     /// <summary>
     /// Timeout in minutes for OpenAI provider requests - defaults will be seeded from database
@@ -218,7 +218,7 @@ public class AppConfiguration
     /// <summary>
     /// Maximum request size in bytes for security middleware - defaults will be seeded from database
     /// </summary>
-    public long MaxRequestSizeBytes { get; set; } = 10 * 1024 * 1024;
+    public long MaxRequestSizeBytes { get; set; }
 
     /// <summary>
     /// Maximum content length in bytes for security middleware - defaults will be seeded from database
@@ -296,86 +296,86 @@ public class AppConfiguration
     public int MaxNotIndexedFilesDisplayed { get; set; } = 20;
 
     /// <summary>
-    /// Maximum number of files to display in CHM extractor logs (default: 10)
+    /// Maximum number of files to display in CHM extractor logs - defaults will be seeded from database
     /// </summary>
-    public int MaxChmExtractorFilesDisplayed { get; set; } = 10;
+    public int MaxChmExtractorFilesDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of large files to display in audit reports (default: 5)
+    /// Maximum number of large files to display in audit reports - defaults will be seeded from database
     /// </summary>
-    public int MaxLargeFilesDisplayed { get; set; } = 5;
+    public int MaxLargeFilesDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of unsupported extension groups to display in audit reports (default: 3)
+    /// Maximum number of unsupported extension groups to display in audit reports - defaults will be seeded from database
     /// </summary>
-    public int MaxUnsupportedExtensionGroupsDisplayed { get; set; } = 3;
+    public int MaxUnsupportedExtensionGroupsDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of files to display per category in MCP server reports (default: 5)
+    /// Maximum number of files to display per category in MCP server reports - defaults will be seeded from database
     /// </summary>
-    public int MaxFilesPerCategoryDisplayed { get; set; } = 5;
+    public int MaxFilesPerCategoryDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of recent history items to display (default: 10)
+    /// Maximum number of recent history items to display - defaults will be seeded from database
     /// </summary>
-    public int MaxRecentHistoryDisplayed { get; set; } = 10;
+    public int MaxRecentHistoryDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of models to display in lists (default: 5)
+    /// Maximum number of models to display in lists - defaults will be seeded from database
     /// </summary>
-    public int MaxModelsDisplayed { get; set; } = 5;
+    public int MaxModelsDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of skipped files to display in reports (default: 10)
+    /// Maximum number of skipped files to display in reports - defaults will be seeded from database
     /// </summary>
-    public int MaxSkippedFilesDisplayed { get; set; } = 10;
+    public int MaxSkippedFilesDisplayed { get; set; }
 
     /// <summary>
-    /// Maximum number of failed files to display in operation reports (default: 10)
+    /// Maximum number of failed files to display in operation reports - defaults will be seeded from database
     /// </summary>
-    public int MaxOperationFailedFilesDisplayed { get; set; } = 10;
+    public int MaxOperationFailedFilesDisplayed { get; set; }
 
     // Encryption Configuration - defaults will be seeded from database
     /// <summary>
     /// AES key size in bits for encryption - defaults will be seeded from database
     /// </summary>
-    public int EncryptionKeySize { get; set; } = 256;
+    public int EncryptionKeySize { get; set; }
 
     /// <summary>
     /// AES initialization vector size in bits - defaults will be seeded from database
     /// </summary>
-    public int EncryptionIvSize { get; set; } = 128;
+    public int EncryptionIvSize { get; set; }
 
     /// <summary>
     /// Salt size in bytes for key derivation - defaults will be seeded from database
     /// </summary>
-    public int EncryptionSaltSize { get; set; } = 32;
+    public int EncryptionSaltSize { get; set; }
 
     /// <summary>
     /// Number of PBKDF2 iterations for key derivation - defaults will be seeded from database
     /// </summary>
-    public int EncryptionPbkdf2Iterations { get; set; } = 100000;
+    public int EncryptionPbkdf2Iterations { get; set; }
 
     /// <summary>
-    /// When this configuration was last updated
+    /// When this configuration was last updated - defaults will be seeded from database
     /// </summary>
-    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    public DateTime LastUpdated { get; set; }
 
     /// <summary>
-    /// Version of the configuration format (for future migrations)
+    /// Version of the configuration format (for future migrations) - defaults will be seeded from database
     /// </summary>
     public int ConfigVersion { get; set; } = 1;
 
     /// <summary>
-    /// The current menu context for state management
+    /// The current menu context for state management - defaults will be seeded from database
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public MenuContext CurrentMenuContext { get; set; } = MenuContext.MainMenu;
+    public MenuContext CurrentMenuContext { get; set; }
 
     /// <summary>
-    /// Whether to remember and restore the last menu context on startup
+    /// Whether to remember and restore the last menu context on startup - defaults will be seeded from database
     /// </summary>
-    public bool RememberMenuContext { get; set; } = false;
+    public bool RememberMenuContext { get; set; }
 
     /// <summary>
     /// Stack of menu contexts for proper navigation history

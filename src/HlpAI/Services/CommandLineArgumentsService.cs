@@ -374,6 +374,14 @@ public class CommandLineArgumentsService
     }
 
     /// <summary>
+    /// Check if this is library mode (should run as embedded library without config.db access)
+    /// </summary>
+    public bool IsLibraryMode()
+    {
+        return HasArgument("library-mode") || HasArgument("lib-mode");
+    }
+
+    /// <summary>
     /// Get file export format from arguments
     /// </summary>
     public FileExportFormat GetFileExportFormat(FileExportFormat defaultFormat = FileExportFormat.Csv)

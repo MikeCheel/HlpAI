@@ -655,7 +655,7 @@ public class SqliteConfigurationService : IDisposable
             
             // Save all configuration properties to appropriate categories
             await SetConfigurationAsync("LastDirectory", config.LastDirectory, "general");
-            await SetConfigurationBoolAsync("RememberLastDirectory", config.RememberLastDirectory, "general");
+            await SetConfigurationBoolAsync("RememberLastDirectory", config.RememberLastDirectory, "ui");
             await SetConfigurationAsync("LastProvider", config.LastProvider.ToString(), "ai_provider");
             await SetConfigurationAsync("LastModel", config.LastModel, "ai_provider");
             await SetConfigurationBoolAsync("RememberLastModel", config.RememberLastModel, "ai_provider");
@@ -702,7 +702,7 @@ public class SqliteConfigurationService : IDisposable
             await SetConfigurationAsync("MaxFileAuditSizeBytes", config.MaxFileAuditSizeBytes.ToString(), "security");
             
             // Operation mode
-            await SetConfigurationAsync("LastOperationMode", config.LastOperationMode.ToString(), "general");
+            await SetConfigurationAsync("LastOperationMode", config.LastOperationMode.ToString(), "operation");
             await SetConfigurationBoolAsync("RememberLastOperationMode", config.RememberLastOperationMode, "general");
             
             // CHM settings
@@ -774,7 +774,7 @@ public class SqliteConfigurationService : IDisposable
             
             // Load general settings
             config.LastDirectory = await GetConfigurationAsync("LastDirectory", "general") ?? config.LastDirectory;
-            config.RememberLastDirectory = await GetConfigurationBoolAsync("RememberLastDirectory", "general", config.RememberLastDirectory);
+            config.RememberLastDirectory = await GetConfigurationBoolAsync("RememberLastDirectory", "ui", true); // Default: true
             
             // Load AI provider settings
             var lastProviderStr = await GetConfigurationAsync("LastProvider", "ai_provider");
@@ -783,8 +783,8 @@ public class SqliteConfigurationService : IDisposable
                 config.LastProvider = lastProvider;
             }
             config.LastModel = await GetConfigurationAsync("LastModel", "ai_provider") ?? config.LastModel;
-            config.RememberLastModel = await GetConfigurationBoolAsync("RememberLastModel", "ai_provider", config.RememberLastModel);
-            config.RememberLastProvider = await GetConfigurationBoolAsync("RememberLastProvider", "ai_provider", config.RememberLastProvider);
+            config.RememberLastModel = await GetConfigurationBoolAsync("RememberLastModel", "ai_provider", true); // Default: true
+            config.RememberLastProvider = await GetConfigurationBoolAsync("RememberLastProvider", "ai_provider", true); // Default: true
             
             // Load provider URLs
             config.OllamaUrl = await GetConfigurationAsync("OllamaUrl", "provider_urls") ?? config.OllamaUrl;
@@ -833,8 +833,8 @@ public class SqliteConfigurationService : IDisposable
                 config.OpenWebUiMaxTokens = openWebUiMaxTokens;
             
             // Load security settings
-            config.UseSecureApiKeyStorage = await GetConfigurationBoolAsync("UseSecureApiKeyStorage", "security", config.UseSecureApiKeyStorage);
-            config.ValidateApiKeysOnStartup = await GetConfigurationBoolAsync("ValidateApiKeysOnStartup", "security", config.ValidateApiKeysOnStartup);
+            config.UseSecureApiKeyStorage = await GetConfigurationBoolAsync("UseSecureApiKeyStorage", "security", true); // Default: true
+            config.ValidateApiKeysOnStartup = await GetConfigurationBoolAsync("ValidateApiKeysOnStartup", "security", true); // Default: true
             if (long.TryParse(await GetConfigurationAsync("MaxRequestSizeBytes", "security"), out var maxRequestSize))
                 config.MaxRequestSizeBytes = maxRequestSize;
             if (long.TryParse(await GetConfigurationAsync("MaxContentLengthBytes", "security"), out var maxContentLength))
@@ -843,16 +843,16 @@ public class SqliteConfigurationService : IDisposable
                 config.MaxFileAuditSizeBytes = (int)maxFileAuditSize;
             
             // Load operation mode
-            var lastOperationModeStr = await GetConfigurationAsync("LastOperationMode", "general");
+            var lastOperationModeStr = await GetConfigurationAsync("LastOperationMode", "operation");
             if (!string.IsNullOrEmpty(lastOperationModeStr) && Enum.TryParse<OperationMode>(lastOperationModeStr, out var lastOperationMode))
             {
                 config.LastOperationMode = lastOperationMode;
             }
-            config.RememberLastOperationMode = await GetConfigurationBoolAsync("RememberLastOperationMode", "general", config.RememberLastOperationMode);
+            config.RememberLastOperationMode = await GetConfigurationBoolAsync("RememberLastOperationMode", "general", true); // Default: true
             
             // Load CHM settings
             config.HhExePath = await GetConfigurationAsync("HhExePath", "chm") ?? config.HhExePath;
-            config.AutoDetectHhExe = await GetConfigurationBoolAsync("AutoDetectHhExe", "chm", config.AutoDetectHhExe);
+            config.AutoDetectHhExe = await GetConfigurationBoolAsync("AutoDetectHhExe", "chm", true); // Default: true
             
             // Load processing settings
             if (int.TryParse(await GetConfigurationAsync("ChunkSize", "processing"), out var chunkSize))
@@ -930,7 +930,7 @@ public class SqliteConfigurationService : IDisposable
             }
             
             // GetConfigurationBoolAsync returns bool, not bool?, so we can assign directly
-            config.RememberMenuContext = await GetConfigurationBoolAsync("RememberMenuContext", "menu", config.RememberMenuContext);
+            config.RememberMenuContext = await GetConfigurationBoolAsync("RememberMenuContext", "menu", true); // Default: true
             
             var menuHistoryStr = await GetConfigurationAsync("MenuHistory", "menu");
             if (!string.IsNullOrEmpty(menuHistoryStr))
@@ -1057,13 +1057,6 @@ public class SqliteConfigurationService : IDisposable
     {
         try
         {
-            // Skip seeding in test environments
-            if (IsTestEnvironment())
-            {
-                _logger?.LogDebug("Skipping database seeding in test environment");
-                return;
-            }
-            
             // Check if configuration table has any data
             const string countSql = "SELECT COUNT(*) FROM configuration";
             using var countCommand = new SqliteCommand(countSql, _connection);
@@ -1071,7 +1064,14 @@ public class SqliteConfigurationService : IDisposable
             
             if (count == 0)
             {
-                _logger?.LogInformation("Seeding database with default configuration values");
+                if (IsTestEnvironment())
+                {
+                    _logger?.LogDebug("Seeding database with default configuration values for test environment");
+                }
+                else
+                {
+                    _logger?.LogInformation("Seeding database with default configuration values");
+                }
                 SeedDefaultConfiguration();
             }
         }
@@ -1086,88 +1086,102 @@ public class SqliteConfigurationService : IDisposable
         // Check if we're in a test environment by looking for test-specific indicators
         return _dbPath.Contains("test_") || 
                _dbPath.Contains("sqlite_config_tests") ||
-               Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("testhost") == true);
     }
     
     /// <summary>
-    /// Seeds the database with all default configuration values from AppConfiguration
+    /// Seeds the database with all default configuration values
     /// </summary>
     private void SeedDefaultConfiguration()
     {
         try
         {
-            var defaultConfig = new AppConfiguration();
-            
             // Use a transaction for better performance and consistency
             using var transaction = _connection.BeginTransaction();
             
             try
             {
-                // Provider URLs
-                SetConfigurationSync("OllamaUrl", defaultConfig.OllamaUrl, "provider_urls", transaction);
-                SetConfigurationSync("LmStudioUrl", defaultConfig.LmStudioUrl, "provider_urls", transaction);
-                SetConfigurationSync("OpenWebUiUrl", defaultConfig.OpenWebUiUrl, "provider_urls", transaction);
-                SetConfigurationSync("OpenAiUrl", defaultConfig.OpenAiUrl, "provider_urls", transaction);
-                SetConfigurationSync("AnthropicUrl", defaultConfig.AnthropicUrl, "provider_urls", transaction);
-                SetConfigurationSync("DeepSeekUrl", defaultConfig.DeepSeekUrl, "provider_urls", transaction);
+                // Provider URLs (all null by default - configured by user)
+                SetConfigurationSync("OllamaUrl", "http://localhost:11434", "provider_urls", transaction);
+                SetConfigurationSync("LmStudioUrl", "http://localhost:1234", "provider_urls", transaction);
+                SetConfigurationSync("OpenWebUiUrl", "http://localhost:3000", "provider_urls", transaction);
+                SetConfigurationSync("OpenAiUrl", "https://api.openai.com", "provider_urls", transaction);
+                SetConfigurationSync("AnthropicUrl", "https://api.anthropic.com", "provider_urls", transaction);
+                SetConfigurationSync("DeepSeekUrl", "https://api.deepseek.com", "provider_urls", transaction);
+                SetConfigurationSync("EmbeddingServiceUrl", "http://localhost:11434", "provider_urls", transaction);
                 
-                // Default models
-                SetConfigurationSync("OllamaDefaultModel", defaultConfig.OllamaDefaultModel, "default_models", transaction);
-                SetConfigurationSync("LmStudioDefaultModel", defaultConfig.LmStudioDefaultModel, "default_models", transaction);
-                SetConfigurationSync("OpenWebUiDefaultModel", defaultConfig.OpenWebUiDefaultModel, "default_models", transaction);
-                SetConfigurationSync("OpenAiDefaultModel", defaultConfig.OpenAiDefaultModel, "default_models", transaction);
-                SetConfigurationSync("AnthropicDefaultModel", defaultConfig.AnthropicDefaultModel, "default_models", transaction);
-                SetConfigurationSync("DeepSeekDefaultModel", defaultConfig.DeepSeekDefaultModel, "default_models", transaction);
+                // Default models (null by default - configured by user)
+                SetConfigurationSync("OllamaDefaultModel", "llama3.2", "default_models", transaction);
+                SetConfigurationSync("LmStudioDefaultModel", "llama-3.2-3b-instruct", "default_models", transaction);
+                SetConfigurationSync("OpenWebUiDefaultModel", "llama3.2", "default_models", transaction);
+                SetConfigurationSync("OpenAiDefaultModel", "gpt-4o-mini", "default_models", transaction);
+                SetConfigurationSync("AnthropicDefaultModel", "claude-3-5-sonnet-20241022", "default_models", transaction);
+                SetConfigurationSync("DeepSeekDefaultModel", "deepseek-chat", "default_models", transaction);
+                SetConfigurationSync("DefaultEmbeddingModel", "nomic-embed-text", "default_models", transaction);
                 
                 // Timeouts
-                SetConfigurationSync("AiProviderTimeoutMinutes", defaultConfig.AiProviderTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("OllamaTimeoutMinutes", defaultConfig.OllamaTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("LmStudioTimeoutMinutes", defaultConfig.LmStudioTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("OpenWebUiTimeoutMinutes", defaultConfig.OpenWebUiTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("EmbeddingTimeoutMinutes", defaultConfig.EmbeddingTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("OpenAiTimeoutMinutes", defaultConfig.OpenAiTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("AnthropicTimeoutMinutes", defaultConfig.AnthropicTimeoutMinutes.ToString(), "timeouts", transaction);
-                SetConfigurationSync("DeepSeekTimeoutMinutes", defaultConfig.DeepSeekTimeoutMinutes.ToString(), "timeouts", transaction);
+                SetConfigurationSync("AiProviderTimeoutMinutes", "10", "timeouts", transaction);
+                SetConfigurationSync("OllamaTimeoutMinutes", "10", "timeouts", transaction);
+                SetConfigurationSync("LmStudioTimeoutMinutes", "10", "timeouts", transaction);
+                SetConfigurationSync("OpenWebUiTimeoutMinutes", "10", "timeouts", transaction);
+                SetConfigurationSync("EmbeddingTimeoutMinutes", "10", "timeouts", transaction);
+                SetConfigurationSync("OpenAiTimeoutMinutes", "5", "timeouts", transaction);
+                SetConfigurationSync("AnthropicTimeoutMinutes", "5", "timeouts", transaction);
+                SetConfigurationSync("DeepSeekTimeoutMinutes", "5", "timeouts", transaction);
                 
                 // Max tokens
-                SetConfigurationSync("OpenAiMaxTokens", defaultConfig.OpenAiMaxTokens.ToString(), "max_tokens", transaction);
-                SetConfigurationSync("AnthropicMaxTokens", defaultConfig.AnthropicMaxTokens.ToString(), "max_tokens", transaction);
-                SetConfigurationSync("DeepSeekMaxTokens", defaultConfig.DeepSeekMaxTokens.ToString(), "max_tokens", transaction);
-                SetConfigurationSync("LmStudioMaxTokens", defaultConfig.LmStudioMaxTokens.ToString(), "max_tokens", transaction);
-                SetConfigurationSync("OpenWebUiMaxTokens", defaultConfig.OpenWebUiMaxTokens.ToString(), "max_tokens", transaction);
+                SetConfigurationSync("OpenAiMaxTokens", "4000", "max_tokens", transaction);
+                SetConfigurationSync("AnthropicMaxTokens", "4000", "max_tokens", transaction);
+                SetConfigurationSync("DeepSeekMaxTokens", "4000", "max_tokens", transaction);
+                SetConfigurationSync("LmStudioMaxTokens", "4096", "max_tokens", transaction);
+                SetConfigurationSync("OpenWebUiMaxTokens", "4096", "max_tokens", transaction);
                 
                 // Security settings
-                SetConfigurationSync("UseSecureApiKeyStorage", defaultConfig.UseSecureApiKeyStorage.ToString().ToLowerInvariant(), "security", transaction);
-                SetConfigurationSync("ValidateApiKeysOnStartup", defaultConfig.ValidateApiKeysOnStartup.ToString().ToLowerInvariant(), "security", transaction);
-                SetConfigurationSync("MaxRequestSizeBytes", defaultConfig.MaxRequestSizeBytes.ToString(), "security", transaction);
-                SetConfigurationSync("MaxContentLengthBytes", defaultConfig.MaxContentLengthBytes.ToString(), "security", transaction);
-                SetConfigurationSync("ApiKeyMinLength", defaultConfig.ApiKeyMinLength.ToString(), "security", transaction);
-                SetConfigurationSync("FilePathMaxLength", defaultConfig.FilePathMaxLength.ToString(), "security", transaction);
+                SetConfigurationSync("UseSecureApiKeyStorage", "true", "security", transaction);
+                SetConfigurationSync("ValidateApiKeysOnStartup", "true", "security", transaction);
+                SetConfigurationSync("MaxRequestSizeBytes", "10485760", "security", transaction); // 10MB
+                SetConfigurationSync("MaxContentLengthBytes", "1048576", "security", transaction); // 1MB
+                SetConfigurationSync("MaxFileAuditSizeBytes", "104857600", "security", transaction); // 100MB
+                SetConfigurationSync("ApiKeyMinLength", "20", "security", transaction);
+                SetConfigurationSync("ApiKeyMaxLength", "200", "security", transaction);
+                SetConfigurationSync("ModelNameMaxLength", "100", "security", transaction);
+                SetConfigurationSync("ProviderNameMaxLength", "50", "security", transaction);
+                SetConfigurationSync("FilePathMaxLength", "260", "security", transaction);
                 
                 // UI preferences
-                SetConfigurationSync("RememberLastDirectory", defaultConfig.RememberLastDirectory.ToString().ToLowerInvariant(), "ui", transaction);
-                SetConfigurationSync("RememberLastModel", defaultConfig.RememberLastModel.ToString().ToLowerInvariant(), "ui", transaction);
-                SetConfigurationSync("RememberLastProvider", defaultConfig.RememberLastProvider.ToString().ToLowerInvariant(), "ui", transaction);
-                SetConfigurationSync("RememberLastEmbeddingModel", defaultConfig.RememberLastEmbeddingModel.ToString().ToLowerInvariant(), "ui", transaction);
-                SetConfigurationSync("RememberLastOperationMode", defaultConfig.RememberLastOperationMode.ToString().ToLowerInvariant(), "ui", transaction);
-                SetConfigurationSync("RememberMenuContext", defaultConfig.RememberMenuContext.ToString().ToLowerInvariant(), "ui", transaction);
+                SetConfigurationSync("RememberLastDirectory", "true", "ui", transaction);
+                SetConfigurationSync("RememberLastModel", "true", "ui", transaction);
+                SetConfigurationSync("RememberLastProvider", "true", "ui", transaction);
+                SetConfigurationSync("RememberLastEmbeddingModel", "true", "ui", transaction);
+                SetConfigurationSync("RememberLastOperationMode", "true", "general", transaction);
+                SetConfigurationSync("RememberMenuContext", "false", "ui", transaction);
+                SetConfigurationSync("MaxChmExtractorFilesDisplayed", "10", "ui", transaction);
+                SetConfigurationSync("MaxLargeFilesDisplayed", "5", "ui", transaction);
+                SetConfigurationSync("MaxUnsupportedExtensionGroupsDisplayed", "3", "ui", transaction);
+                SetConfigurationSync("MaxFilesPerCategoryDisplayed", "5", "ui", transaction);
+                SetConfigurationSync("MaxRecentHistoryDisplayed", "10", "ui", transaction);
+                SetConfigurationSync("MaxModelsDisplayed", "5", "ui", transaction);
+                SetConfigurationSync("MaxSkippedFilesDisplayed", "10", "ui", transaction);
+                SetConfigurationSync("MaxOperationFailedFilesDisplayed", "10", "ui", transaction);
                 
                 // File processing
-                SetConfigurationSync("ChunkSize", defaultConfig.ChunkSize.ToString(), "file_processing", transaction);
-                SetConfigurationSync("ChunkOverlap", defaultConfig.ChunkOverlap.ToString(), "file_processing", transaction);
+                SetConfigurationSync("ChunkSize", "1000", "file_processing", transaction);
+                SetConfigurationSync("ChunkOverlap", "200", "file_processing", transaction);
                 
                 // Encryption
-                SetConfigurationSync("EncryptionKeySize", defaultConfig.EncryptionKeySize.ToString(), "encryption", transaction);
-                SetConfigurationSync("EncryptionPbkdf2Iterations", defaultConfig.EncryptionPbkdf2Iterations.ToString(), "encryption", transaction);
+                SetConfigurationSync("EncryptionKeySize", "256", "encryption", transaction);
+                SetConfigurationSync("EncryptionIvSize", "128", "encryption", transaction);
+                SetConfigurationSync("EncryptionSaltSize", "32", "encryption", transaction);
+                SetConfigurationSync("EncryptionPbkdf2Iterations", "100000", "encryption", transaction);
                 
                 // Operation modes
-                SetConfigurationSync("LastOperationMode", defaultConfig.LastOperationMode.ToString(), "operation", transaction);
-                SetConfigurationSync("LastProvider", defaultConfig.LastProvider.ToString(), "operation", transaction);
+                SetConfigurationSync("LastOperationMode", "Hybrid", "operation", transaction);
+                SetConfigurationSync("LastProvider", "Ollama", "operation", transaction);
+                SetConfigurationSync("CurrentMenuContext", "MainMenu", "operation", transaction);
                 
                 // Version and metadata
-                SetConfigurationSync("ConfigVersion", defaultConfig.ConfigVersion.ToString(), "metadata", transaction);
-                SetConfigurationSync("LastUpdated", defaultConfig.LastUpdated.ToString("O"), "metadata", transaction);
+                SetConfigurationSync("ConfigVersion", "1", "metadata", transaction);
+                SetConfigurationSync("LastUpdated", DateTime.UtcNow.ToString("O"), "metadata", transaction);
                 
                 transaction.Commit();
                 _logger?.LogInformation("Successfully seeded database with default configuration values");
@@ -1232,7 +1246,7 @@ public class SqliteConfigurationService : IDisposable
     /// <returns>True if updated successfully</returns>
     public async Task<bool> UpdateLastOperationModeAsync(OperationMode mode)
     {
-        return await SetConfigurationAsync("LastOperationMode", mode.ToString(), "general");
+        return await SetConfigurationAsync("LastOperationMode", mode.ToString(), "operation");
     }
 
     /// <summary>

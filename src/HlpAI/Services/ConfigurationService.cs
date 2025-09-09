@@ -261,27 +261,22 @@ public class ConfigurationService
             }
         }
 
-        // Try to find via PATH environment variable
-        try
+        // Additional common installation paths to check
+        var additionalPaths = new[]
         {
-            var pathVar = Environment.GetEnvironmentVariable("PATH");
-            if (!string.IsNullOrEmpty(pathVar))
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "HTML Help Workshop", "hh.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "HTML Help Workshop", "hh.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "hh.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "hh.exe")
+        };
+
+        foreach (var path in additionalPaths)
+        {
+            if (File.Exists(path))
             {
-                var paths = pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var pathDir in paths)
-                {
-                    var hhPath = Path.Combine(pathDir, "hh.exe");
-                    if (File.Exists(hhPath))
-                    {
-                        logger?.LogInformation("Found hh.exe in PATH at: {HhExePath}", hhPath);
-                        return hhPath;
-                    }
-                }
+                logger?.LogInformation("Found hh.exe at additional location: {HhExePath}", path);
+                return path;
             }
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Error searching for hh.exe in PATH");
         }
 
         logger?.LogWarning("hh.exe not found in any common locations");
@@ -323,8 +318,8 @@ public class ConfigurationService
             }
         }
 
-        // Fallback to just "hh.exe" and hope it's in PATH
-        logger?.LogInformation("Using fallback hh.exe path (hoping it's in system PATH)");
+        // Fallback to just "hh.exe" - user must ensure it's accessible or configure manually
+        logger?.LogInformation("Using fallback hh.exe path - configure manually if needed");
         return "hh.exe";
     }
 

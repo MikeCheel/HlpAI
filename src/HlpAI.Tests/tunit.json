@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/thomhurst/TUnit/main/TUnit.Core/tunit.schema.json",
+  "parallelLimit": 10,
+  "enableParallelExecution": true,
+  "testTimeout": "00:00:30",
+  "assemblyTimeout": "00:02:00",
+  "displayFramework": true,
+  "displayTestsInProgress": true,
+  "logLevel": "Information"
+}

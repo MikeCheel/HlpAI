@@ -357,80 +357,94 @@ public static class Program
         // Enforce configuration rules to prevent unwanted resets
         await ConfigurationValidationService.EnforceConfigurationRulesAsync(configService, logger);
 
-        // Parse command line arguments
-        var cmdArgs = new CommandLineArgumentsService(args, logger);
-
-        // Check for help first
-        if (cmdArgs.ShouldShowHelp())
+        // Check if this is MCP server mode first (before processing other command line arguments)
+        // Command line arguments are only processed for MCP server mode
+        if (args.Any(arg => arg.Equals("--mcp-server", StringComparison.OrdinalIgnoreCase) || 
+                           arg.Equals("--server-mode", StringComparison.OrdinalIgnoreCase)))
         {
-            ShowUsage();
-            return;
-        }
+            // Parse command line arguments only for MCP server mode
+            var cmdArgs = new CommandLineArgumentsService(args, logger);
 
-        // Handle logging-only commands first
-        if (cmdArgs.IsLoggingOnlyCommand())
-        {
-            using var loggingService = new ErrorLoggingService(logger);
-            await cmdArgs.ApplyLoggingConfigurationAsync(loggingService);
-            return;
-        }
-
-        // Handle extractor management commands
-        if (cmdArgs.IsExtractorManagementCommand())
-        {
-            await cmdArgs.ApplyExtractorManagementConfigurationAsync();
-            return;
-        }
-
-        // Handle AI provider management commands
-        if (cmdArgs.IsAiProviderManagementCommand())
-        {
-            await cmdArgs.ApplyAiProviderConfigurationAsync(configService);
-            return;
-        }
-
-        // Handle configuration management commands
-        if (cmdArgs.IsConfigurationManagementCommand())
-        {
-            await cmdArgs.ApplyConfigurationManagementAsync(configService);
-            return;
-        }
-
-        // Handle cleanup commands
-        if (cmdArgs.IsCleanupCommand())
-        {
-            using var cleanupService = new CleanupService(logger, configService);
-            await cmdArgs.ApplyCleanupConfigurationAsync(cleanupService);
-            return;
-        }
-
-        // Handle MCP server mode (isolated from config.db)
-        if (cmdArgs.IsMcpServerMode())
-        {
-            await RunIsolatedMcpServerModeAsync(args, logger);
-            return;
-        }
-
-        // Add this check at the beginning for audit mode
-        if (args.Length > 0 && args[0] == "--audit")
-        {
-            if (args.Length < 2)
+            // Check for help first
+            if (cmdArgs.ShouldShowHelp())
             {
-                Console.WriteLine("❌ Error: --audit requires a directory path.");
-                Console.WriteLine("Usage: --audit <directory>");
-                Console.WriteLine("Example: --audit \"C:\\MyDocuments\"");
+                ShowUsage();
                 return;
             }
-            
-            string auditPath = args[1];
-            if (!Directory.Exists(auditPath))
+
+            // Handle logging-only commands first
+            if (cmdArgs.IsLoggingOnlyCommand())
             {
-                Console.WriteLine($"❌ Error: Directory '{auditPath}' does not exist.");
+                using var loggingService = new ErrorLoggingService(logger);
+                await cmdArgs.ApplyLoggingConfigurationAsync(loggingService);
                 return;
             }
-            
-            var auditConfig = ConfigurationService.LoadConfiguration(logger);
-            FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: auditConfig.MaxFileAuditSizeBytes);
+
+            // Handle extractor management commands
+            if (cmdArgs.IsExtractorManagementCommand())
+            {
+                await cmdArgs.ApplyExtractorManagementConfigurationAsync();
+                return;
+            }
+
+            // Handle AI provider management commands
+            if (cmdArgs.IsAiProviderManagementCommand())
+            {
+                await cmdArgs.ApplyAiProviderConfigurationAsync(configService);
+                return;
+            }
+
+            // Handle configuration management commands
+            if (cmdArgs.IsConfigurationManagementCommand())
+            {
+                await cmdArgs.ApplyConfigurationManagementAsync(configService);
+                return;
+            }
+
+            // Handle cleanup commands
+            if (cmdArgs.IsCleanupCommand())
+            {
+                using var cleanupService = new CleanupService(logger, configService);
+                await cmdArgs.ApplyCleanupConfigurationAsync(cleanupService);
+                return;
+            }
+
+            // Handle audit mode (only available in MCP server mode)
+            if (args.Length > 0 && args[0] == "--audit")
+            {
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("❌ Error: --audit requires a directory path.");
+                    Console.WriteLine("Usage: --audit <directory>");
+                    Console.WriteLine("Example: --audit \"C:\\MyDocuments\"");
+                    return;
+                }
+                
+                string auditPath = args[1];
+                if (!Directory.Exists(auditPath))
+                {
+                    Console.WriteLine($"❌ Error: Directory '{auditPath}' does not exist.");
+                    return;
+                }
+                
+                var auditConfig = ConfigurationService.LoadConfiguration(logger);
+                FileAuditUtility.AuditDirectory(auditPath, logger, maxFileSizeBytes: auditConfig.MaxFileAuditSizeBytes);
+                return;
+            }
+
+            // Handle MCP server mode (isolated from config.db)
+            if (cmdArgs.IsMcpServerMode())
+            {
+                await RunIsolatedMcpServerModeAsync(args, logger);
+                return;
+            }
+        }
+
+        // Check if this is library mode (without command line argument processing)
+        if (args.Any(arg => arg.Equals("--library-mode", StringComparison.OrdinalIgnoreCase) || 
+                           arg.Equals("--lib-mode", StringComparison.OrdinalIgnoreCase)))
+        {
+            await RunIsolatedLibraryModeAsync(args, logger);
             return;
         }
 
@@ -438,76 +452,42 @@ public static class Program
         string ollamaModel;
         OperationMode mode;
 
-        if (args.Length == 0)
+        // Interactive mode - command line arguments are not processed (Task CMD1: restricted to MCP server mode only)
+        // Always use interactive setup for non-MCP/non-library modes
+        var setupResult = await InteractiveSetupAsync(logger, configService);
+        if (setupResult == null)
         {
-            // Interactive setup mode
-            var setupResult = await InteractiveSetupAsync(logger, configService);
-            if (setupResult == null)
+            Console.WriteLine("❌ Setup cancelled. Exiting.");
+            WaitForUserInput("Press any key to continue...");
+            return;
+        }
+        
+        rootPath = setupResult.Directory;
+        ollamaModel = setupResult.Model;
+        mode = setupResult.Mode;
+        
+        // Update configuration with selected provider if it changed
+        if (!string.IsNullOrEmpty(setupResult.Provider))
+        {
+            var currentConfig = ConfigurationService.LoadConfiguration(logger);
+            if (Enum.TryParse<AiProviderType>(setupResult.Provider, out var selectedProvider) &&
+                currentConfig.LastProvider != selectedProvider)
             {
-                Console.WriteLine("❌ Setup cancelled. Exiting.");
-                WaitForUserInput("Press any key to continue...");
-                return;
-            }
-            
-            rootPath = setupResult.Directory;
-            ollamaModel = setupResult.Model;
-            mode = setupResult.Mode;
-            
-            // Update configuration with selected provider if it changed
-            if (!string.IsNullOrEmpty(setupResult.Provider))
-            {
-                var currentConfig = ConfigurationService.LoadConfiguration(logger);
-                if (Enum.TryParse<AiProviderType>(setupResult.Provider, out var selectedProvider) &&
-                    currentConfig.LastProvider != selectedProvider)
-                {
-                    currentConfig.LastProvider = selectedProvider;
-                    currentConfig.LastModel = setupResult.Model;
-                    await SaveConfigurationWithDirectoryAsync(currentConfig, setupResult.Directory, logger);
-                }
+                currentConfig.LastProvider = selectedProvider;
+                currentConfig.LastModel = setupResult.Model;
+                await SaveConfigurationWithDirectoryAsync(currentConfig, setupResult.Directory, logger);
             }
         }
-        else
+
+        // Save the directory to configuration if RememberLastDirectory is enabled
+        var tempConfig = ConfigurationService.LoadConfiguration(logger);
+        if (tempConfig.RememberLastDirectory)
         {
-            // Command line mode
-            rootPath = args[0];
-            mode = ParseOperationMode(args.Length > 2 ? args[2] : "hybrid");
-
-            if (!Directory.Exists(rootPath))
-            {
-                Console.WriteLine($"❌ Error: Directory '{rootPath}' does not exist.");
-                Console.WriteLine();
-                ShowUsage();
-                
-                // Log the command line error
-                using var cmdErrorLoggingService = new ErrorLoggingService(logger);
-                await cmdErrorLoggingService.LogErrorAsync($"Directory does not exist: {rootPath}", null, "Command line mode - directory validation");
-                WaitForUserInput("Press any key to continue...");
-                return;
-            }
-
-            // Save the directory to configuration if RememberLastDirectory is enabled
-            var tempConfig = ConfigurationService.LoadConfiguration(logger);
-            if (tempConfig.RememberLastDirectory)
-            {
-                ConfigurationService.UpdateLastDirectory(rootPath, logger);
-            }
-
-            // Handle model selection
-            if (args.Length > 1)
-            {
-                ollamaModel = args[1];
-            }
-            else
-            {
-                ollamaModel = await SelectModelAsync(logger, null, configService, isSetup: false);
-                if (string.IsNullOrEmpty(ollamaModel))
-                {
-                    Console.WriteLine("❌ No model selected. Exiting.");
-                    WaitForUserInput("Press any key to continue...");
-                    return;
-                }
-            }
+            ConfigurationService.UpdateLastDirectory(rootPath, logger);
         }
+
+        // Model is already selected through interactive setup - no need for command line parsing
+        // ollamaModel is set from setupResult.Model above
 
         // Load configuration from SQLite database
         var config = await configService.LoadAppConfigurationAsync();
@@ -517,9 +497,6 @@ public static class Program
         
         // Initialize error logging service for main interactive mode with pre-loaded config
         using var mainErrorLoggingService = new ErrorLoggingService(logger, config);
-        
-        // Apply any logging configuration from command line
-        await cmdArgs.ApplyLoggingConfigurationAsync(mainErrorLoggingService);
 
         try
         {
@@ -6013,7 +5990,6 @@ private static Task WaitForKeyPress()
     static bool IsTestEnvironment()
     {
         return System.Diagnostics.Process.GetCurrentProcess().ProcessName.Contains("testhost") ||
-               Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("TUnit") == true) ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit") == true) ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("nunit") == true) ||
@@ -8391,6 +8367,121 @@ private static Task WaitForKeyPress()
         {
             Console.WriteLine($"❌ Failed to start MCP server: {ex.Message}");
             logger.LogError(ex, "Failed to start isolated MCP server mode");
+        }
+    }
+    
+    private static async Task RunIsolatedLibraryModeAsync(string[] args, ILogger<EnhancedMcpRagServer> logger)
+    {
+        Console.WriteLine("📚 Starting Library Mode (Isolated)");
+        Console.WriteLine("===================================");
+        
+        // Parse command line arguments for library mode
+        string rootPath;
+        string model = "llama3.2:3b"; // Default model
+        AiProviderType providerType = AiProviderType.Ollama; // Default provider
+        OperationMode mode = OperationMode.RAG; // Default to RAG mode
+        
+        // Find the first non-flag argument as root path
+        var nonFlagArgs = args.Where(arg => !arg.StartsWith("-")).ToArray();
+        if (nonFlagArgs.Length == 0)
+        {
+            Console.WriteLine("❌ Error: Library mode requires a directory path.");
+            Console.WriteLine("Usage: --library-mode <directory> [provider] [model] [mode]");
+            Console.WriteLine("Example: --library-mode \"C:\\MyDocuments\" ollama llama3.2:3b rag");
+            return;
+        }
+        
+        rootPath = nonFlagArgs[0];
+        if (!Directory.Exists(rootPath))
+        {
+            Console.WriteLine($"❌ Error: Directory '{rootPath}' does not exist.");
+            return;
+        }
+        
+        // Parse optional provider, model and mode from remaining arguments
+        if (nonFlagArgs.Length > 1)
+        {
+            if (Enum.TryParse<AiProviderType>(nonFlagArgs[1], true, out var parsedProvider))
+            {
+                providerType = parsedProvider;
+            }
+        }
+        
+        if (nonFlagArgs.Length > 2)
+        {
+            model = nonFlagArgs[2];
+        }
+        
+        if (nonFlagArgs.Length > 3)
+        {
+            mode = ParseOperationMode(nonFlagArgs[3]);
+        }
+        
+        Console.WriteLine($"Directory: {rootPath}");
+        Console.WriteLine($"Provider: {providerType}");
+        Console.WriteLine($"Model: {model}");
+        Console.WriteLine($"Mode: {mode}");
+        Console.WriteLine("Note: Running in isolated mode - no config.db access");
+        Console.WriteLine();
+        
+        try
+        {
+            // Create server without configuration service (isolated mode)
+            var server = new EnhancedMcpRagServer(logger, rootPath, true, providerType, model, mode: mode);
+            
+            Console.WriteLine("Checking AI provider connection...");
+            if (server._aiProvider != null)
+            {
+                if (await server._aiProvider.IsAvailableAsync())
+                {
+                    var models = await server._aiProvider.GetModelsAsync();
+                    Console.WriteLine($"✅ {server._aiProvider.ProviderName} connected! Available models: {string.Join(", ", models)}");
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ {server._aiProvider.ProviderName} not available. AI features will show connection errors.");
+                }
+            }
+            
+            if (mode == OperationMode.RAG || mode == OperationMode.Hybrid)
+            {
+                Console.WriteLine("Initializing RAG system...");
+                await server.InitializeAsync();
+                Console.WriteLine("✅ RAG system initialized successfully.");
+            }
+            
+            Console.WriteLine();
+            Console.WriteLine("🎯 Library Mode is ready and running in isolated mode!");
+            Console.WriteLine("📋 Available for programmatic use:");
+            Console.WriteLine("  • Document processing and indexing");
+            Console.WriteLine("  • Vector search and retrieval");
+            Console.WriteLine("  • AI-powered question answering");
+            Console.WriteLine("  • File extraction and analysis");
+            Console.WriteLine();
+            Console.WriteLine("Press Ctrl+C to stop...");
+            
+            // Keep the server running until interrupted
+            var cancellationTokenSource = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => {
+                e.Cancel = true;
+                cancellationTokenSource.Cancel();
+            };
+            
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("\n🛑 Library Mode stopped.");
+            }
+            
+            server.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to start library mode: {ex.Message}");
+            logger.LogError(ex, "Failed to start isolated library mode");
         }
     }
     

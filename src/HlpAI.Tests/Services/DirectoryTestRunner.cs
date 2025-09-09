@@ -47,8 +47,9 @@ public class DirectoryTestRunner
     {
         Console.WriteLine("=== Testing Directory Remembering Functionality ===");
         
-        // Test setting a directory
-        var testDirectory = @"C:\Users\mikec\Desktop\ChmData";
+        // Test setting a directory - use a test directory instead of hardcoded path
+        var testDirectory = Path.Combine(_testDirectory!, "TestDocuments");
+        Directory.CreateDirectory(testDirectory); // Ensure the test directory exists
         Console.WriteLine($"Setting test directory: {testDirectory}");
         
         // Set up isolated test instance

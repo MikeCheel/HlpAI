@@ -239,6 +239,11 @@ public class SqliteConfigurationServiceTests
         // Arrange
         using var service = CreateSharedTestService();
 
+        // Get baseline stats after database seeding
+        var baselineStats = await service.GetStatsAsync();
+        var baselineItems = baselineStats.TotalItems;
+        var baselineCategories = baselineStats.TotalCategories;
+
         // Act
         await service.SetConfigurationAsync("key1", "value1", "category1");
         await service.SetConfigurationAsync("key2", "value2", "category1");
@@ -246,9 +251,9 @@ public class SqliteConfigurationServiceTests
 
         var stats = await service.GetStatsAsync();
 
-        // Assert
-        await Assert.That(stats.TotalItems).IsEqualTo(3);
-        await Assert.That(stats.TotalCategories).IsEqualTo(2);
+        // Assert - Account for baseline + our 3 new items
+        await Assert.That(stats.TotalItems).IsEqualTo(baselineItems + 3);
+        await Assert.That(stats.TotalCategories).IsEqualTo(baselineCategories + 2);
         await Assert.That(stats.LastUpdate).IsNotNull();
         await Assert.That(stats.DatabasePath).IsNotNull();
         await Assert.That(stats.DatabasePath).EndsWith("shared_config.db");
