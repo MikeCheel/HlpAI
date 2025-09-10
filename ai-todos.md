@@ -2,6 +2,24 @@
 
 This file tracks tasks and progress for the AI assistant working on the HlpAI project.
 
+## Project Purpose & Core Functionality
+
+**INTERACTIVE MODE PURPOSE:**
+The whole purpose of interactive mode is to allow the user to select a directory of files and then ask the configured provider questions about them in a conversation. The workflow is:
+1. User selects a directory of files
+2. System gets configured with an AI provider
+3. User can then have conversations asking questions about those files
+
+**CRITICAL: Only Interactive mode stores configuration.** Interactive mode is the only mode that has persistent configuration storage for directories, AI providers, models, and operation modes. This is because it's the only mode where users make configuration choices that need to be remembered.
+
+**MCP SERVER MODE PURPOSE:**
+The whole purpose of MCP server mode is to allow the application to be used as an MCP server with another application (e.g. VS Code). This enables other applications to connect to HlpAI as a Model Context Protocol server to access document intelligence capabilities. MCP Server mode does NOT store configuration - it uses parameters configured in the mcp.json file (AI provider, model, directory path, etc.).
+
+**THIRD PARTY LIBRARY MODE PURPOSE:**
+The purpose of third party library mode is to allow developers to use the application as a library in their own projects. This would provide programmatic access to the document intelligence capabilities without requiring the interactive interface or MCP server setup. Third Party Library mode does NOT store configuration - it uses whatever configuration is provided programmatically.
+
+This means all services (embedding, vector storage, AI provider) must work together cohesively to index the files and enable conversational AI interactions about the file contents. Configuration storage and management is ONLY a concern for Interactive mode.
+
 ## Project Database Information
 
 **CONFIG.DB LOCATION:**
@@ -159,6 +177,8 @@ This file tracks tasks and progress for the AI assistant working on the HlpAI pr
 - Completed or obsolete items must be moved to archived sections within the same document
 - ALL historical context must be preserved for future reference and session continuity
 - Archive items with completion dates and status details for full traceability
+- **CRITICAL**: When user says "add a todo" or "ai todo", they mean the same thing - ALWAYS update the ai-todos.md file
+- Internal TodoWrite tool may be used for session tracking, but ai-todos.md file is the permanent record
 
 ## 📋 CURRENT SESSION TASKS - BASED ON YOUR ANSWERS
 
@@ -555,13 +575,136 @@ flowchart TD
   - **Real-time Configuration Persistence**: Any configuration changes made while working in a directory (AI provider, model, operation mode, etc.) should automatically be saved and associated with that directory
   - Global LastDirectory still tracks most recently used directory for startup
 - **Priority**: High - Core user workflow improvement
-- **Status**: 📋 PENDING APPROVAL
+- **Status**: ✅ COMPLETED (2025-09-09)
 - **Dependencies**: Must complete current configuration prompting fixes first
 - **Testing Requirements**:
   - Test switching between multiple directories with different configurations
   - Test new directory (no previous config) vs existing directory (has config)
   - Test configuration persistence across app restarts
   - Test edge cases: deleted directories, renamed directories, network paths
+- **Implementation**: Directory-specific configuration system implemented with database storage and automatic prompting
+
+#### Workflow Consistency & User Experience
+
+### 🔧 Systematically Review Integration Tests - NEW TASK
+- **Task**: Review all remaining test files in integration project and move pure unit tests (no external dependencies) back to main test project
+- **Scope**: Ensure proper separation between fast unit tests and slower integration tests
+- **Priority**: Medium - Code organization and test performance
+- **Status**: 📋 PENDING APPROVAL
+
+### ⚠️ Fix DeepSeek Workflow Inconsistency - CRITICAL BUG 
+- **Task**: Fix workflow inconsistencies where DeepSeek shows available then immediately says unavailable and offers default model instead of configured settings
+- **Scope**: Provider availability detection, configuration persistence, workflow logic
+- **Priority**: High - Critical user experience bug
+- **Status**: 📋 PENDING APPROVAL
+
+### 📋 Review Interactive Workflow Consistency - COMPREHENSIVE AUDIT
+- **Task**: Review entire interactive workflow for consistency and logical flow - ensure directory-specific configurations are properly used instead of arbitrary defaults
+- **Scope**: Complete audit of setup flow, configuration prompting, default value handling
+- **Priority**: High - User experience consistency
+- **Status**: 📋 PENDING APPROVAL
+
+### 🎛️ Add Granular Configuration Options - USER EXPERIENCE ENHANCEMENT
+- **Task**: Add granular configuration options - when declining full previous config, allow keeping parts (same provider, same model) instead of starting completely fresh
+- **User Experience**: Instead of all-or-nothing, allow partial reuse of previous settings
+- **Critical Requirement**: If no previous values exist, do not offer any defaults - force explicit user selection
+- **Scope**: 
+  - When user declines full previous configuration, offer granular choices:
+    - "Keep same AI provider (DeepSeek)?" 
+    - "Keep same model (deepseek-chat)?"
+    - "Keep same operation mode (Hybrid)?"
+  - Only prompt for new values for declined parts
+  - Never show defaults when no previous configuration exists
+- **Priority**: High - User workflow improvement
+- **Status**: 📋 PENDING APPROVAL
+
+### 🎛️ Add Interactive Mode Command Line Parameters - ENHANCEMENT
+- **Task**: Add command line parameter support for Interactive mode to override stored configuration or provide initial setup values
+- **Supported Parameters**:
+  - `--help` - display help with all available parameters and supported providers
+  - `--list-providers` - list all supported AI providers
+  - `--directory "C:\path"` - pre-select directory, skip directory selection
+  - `--provider deepseek` - skip provider selection if specified
+  - `--model "deepseek-chat"` - skip model selection if specified  
+  - `--api-key "your-api-key"` - provide API key (only required with API providers like DeepSeek, OpenAI, Anthropic)
+  - `--operation-mode hybrid` - set operation mode (hybrid, rag, interactive)
+  - `--reset-config` - ignore stored configuration and force fresh setup
+  - `--version` - display application version information
+- **Scope**: Modify Program.cs command line argument parsing to support these parameters and integrate with existing configuration system
+- **Priority**: Medium - User convenience enhancement
+- **Status**: 📋 PENDING APPROVAL
+
+### 🔗 Fix Embedding Service Provider Mismatch - CRITICAL CONFIGURATION BUG
+- **Task**: Fix configuration issue where EmbeddingService tries to connect to localhost:11434 (Ollama) even when DeepSeek is configured as the AI provider
+- **Error Details**: "No connection could be made because the target machine actively refused it. (localhost:11434)"
+- **Root Issue**: Embedding service configuration doesn't match the configured AI provider - should use DeepSeek's embedding endpoint, not Ollama
+- **Configuration Problems**:
+  - EmbeddingService may be hardcoded to always use localhost:11434 regardless of selected provider
+  - Embedding service not properly inheriting provider configuration from main setup
+  - Missing logic to use appropriate embedding endpoint based on configured AI provider
+  - Default fallback to Ollama when it should respect the configured provider
+- **Scope**: 
+  - Fix EmbeddingService to use correct endpoint based on configured AI provider
+  - Ensure DeepSeek configuration uses DeepSeek's embedding API, not Ollama
+  - Add proper provider-aware embedding service initialization
+  - Remove hardcoded localhost:11434 references when using non-Ollama providers
+  - Add validation that embedding configuration matches main AI provider configuration
+- **Priority**: High - Critical configuration consistency bug
+- **Status**: 📋 PENDING APPROVAL  
+- **Location**: `src/HlpAI/Services/EmbeddingService.cs:line 54`
+
+#### Questions for User Review
+
+### ❓ Configuration Questions - NEED ANSWERS
+1. **Embedding Service Provider Alignment**: Should the embedding service always use the same provider as the main AI provider? (e.g., if main provider is DeepSeek, should embeddings also use DeepSeek's embedding endpoint?)
+   - **Suggestion A**: Yes, always match - ensures consistency and eliminates configuration mismatches
+   - **Suggestion B**: Allow independent configuration - provides flexibility for specialized embedding services
+   - **Answer**: 
+
+2. **No Previous Configuration Behavior**: When no previous configuration exists for a directory, should the system force user to manually select every option with no suggestions?
+   - **Suggestion A**: Yes, force explicit selection of provider, model, and operation mode with no suggestions
+   - **Suggestion B**: Show available options but require explicit selection without highlighting any as "recommended"
+   - **Answer**: 
+
+3. **Configuration Consistency**: Should there be validation that prevents mismatched configurations (e.g., DeepSeek as main provider but Ollama for embeddings)?
+   - **Suggestion A**: Yes, add validation and prevent mismatched configurations
+   - **Suggestion B**: Allow mismatches but warn the user about potential issues
+   - **Answer**: 
+
+4. **Workflow Validation Priority**: Which workflow issue should be fixed first - the DeepSeek availability contradiction or the embedding service provider mismatch?
+   - **Suggestion A**: Fix embedding service provider mismatch first - it's more fundamental
+   - **Suggestion B**: Fix DeepSeek availability contradiction first - it's more visible to users
+   - **Answer**: 
+
+5. **Third Party Library Mode Implementation**: How is third party library mode intended to work technically if the application isn't compiled as a DLL?
+   - **Suggestion A**: NuGet package with class library containing core services
+   - **Suggestion B**: Process execution with structured input/output (JSON API)
+   - **Suggestion C**: Refactor to create separate class library project
+   - **Answer**: 
+
+6. **Configuration Scope Across Modes**: Should all three modes share the same configuration system?
+   - **Suggestion**: No - only Interactive mode stores configuration. MCP uses mcp.json, Library uses programmatic config
+   - **Answer**: 
+
+7. **Embedding Service Consistency**: Should the embedding service provider always match the AI provider across all modes?
+   - **Suggestion A**: Yes, always match for consistency
+   - **Suggestion B**: Allow mode-specific embedding configuration
+   - **Answer**: 
+
+8. **Mode-Specific Error Handling**: Should configuration errors be handled differently in each mode?
+   - **Suggestion A**: Use consistent error handling across all modes
+   - **Suggestion B**: Mode-specific handling (Interactive shows prompts, MCP/Library return error codes)
+   - **Answer**:
+
+9. **Custom Provider Support**: Does the application still support adding custom AI providers (e.g., OpenRouter)?
+   - **Suggestion A**: Yes, support custom providers with `--provider custom --custom-endpoint https://api.openrouter.ai`
+   - **Suggestion B**: Only support predefined providers for simplicity
+   - **Answer**:
+
+10. **Anthropic Provider Support**: Does the application currently support Anthropic (Claude) as an AI provider? If so, should it be included in examples and help documentation?
+    - **Suggestion A**: Yes, if supported, include it in provider examples and help text
+    - **Suggestion B**: Add Anthropic support if not currently available
+    - **Answer**:
 
 #### Interactive Mode Enhancements
 
