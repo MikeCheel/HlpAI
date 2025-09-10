@@ -42,7 +42,7 @@ public class ConfigurationServiceTests
         GC.Collect();
         
         // Allow time for SQLite connections to be fully released
-        await Task.Delay(200);
+        await Task.Delay(50);
         
         // Restore original user profile
         Environment.SetEnvironmentVariable("USERPROFILE", _originalUserProfile);
@@ -61,7 +61,7 @@ public class ConfigurationServiceTests
                 }
                 catch (IOException) when (i < 4)
                 {
-                    await Task.Delay(100 * (i + 1)); // Exponential backoff
+                    await Task.Delay(50 * (i + 1)); // Exponential backoff
                     GC.Collect();
                     GC.WaitForPendingFinalizers();
                 }

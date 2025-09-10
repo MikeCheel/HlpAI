@@ -9,7 +9,9 @@ public class AppConfigurationTests
     public async Task AppConfiguration_DefaultConstructor_SetsCorrectDefaults()
     {
         // Act
+        var startTime = DateTime.UtcNow;
         var config = new AppConfiguration();
+        var endTime = DateTime.UtcNow;
 
         // Assert
         await Assert.That(config.LastDirectory).IsNull();
@@ -19,8 +21,10 @@ public class AppConfigurationTests
         await Assert.That(config.LastOperationMode).IsEqualTo(OperationMode.Hybrid);
         await Assert.That(config.RememberLastOperationMode).IsTrue();
         await Assert.That(config.ConfigVersion).IsEqualTo(1);
-        var timeDiff = Math.Abs((config.LastUpdated - DateTime.UtcNow).TotalSeconds);
-        await Assert.That(timeDiff).IsLessThan(5.0);
+        
+        // Check that LastUpdated is within a reasonable range around now
+        await Assert.That(config.LastUpdated).IsGreaterThanOrEqualTo(startTime);
+        await Assert.That(config.LastUpdated).IsLessThanOrEqualTo(endTime.AddSeconds(1));
     }
 
     [Test]

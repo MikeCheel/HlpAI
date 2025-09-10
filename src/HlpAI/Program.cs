@@ -901,6 +901,61 @@ public static class Program
             }
             
             directory = input;
+            
+            // Check if this directory has previous configuration
+            var directoryConfig = await sharedConfigService.GetDirectoryConfigurationAsync(directory);
+            if (directoryConfig != null)
+            {
+                Console.WriteLine();
+                Console.WriteLine("📂 Previous Configuration Found for This Directory:");
+                Console.WriteLine("--------------------------------------------------");
+                Console.WriteLine($"Directory: {directoryConfig.DirectoryPath}");
+                Console.WriteLine($"AI Provider: {directoryConfig.AiProvider}");
+                Console.WriteLine($"Model: {directoryConfig.AiModel}");
+                Console.WriteLine($"Operation Mode: {directoryConfig.OperationMode}");
+                Console.WriteLine($"Last Used: {directoryConfig.UpdatedAt:yyyy-MM-dd HH:mm:ss}");
+                Console.WriteLine();
+                
+                using var configPromptService = new PromptService(config, sharedConfigService, logger);
+                var usePreviousConfig = await configPromptService.PromptYesNoDefaultYesSetupAsync("Use the previous configuration for this directory?");
+                
+                if (usePreviousConfig)
+                {
+                    Console.WriteLine("✅ Using previous directory configuration.");
+                    
+                    // Update the timestamp for this directory config to mark it as recently used
+                    await sharedConfigService.SaveDirectoryConfigurationAsync(
+                        directoryConfig.DirectoryPath, 
+                        directoryConfig.AiProvider, 
+                        directoryConfig.AiModel, 
+                        directoryConfig.OperationMode);
+                    
+                    // Update global configuration to reflect this choice
+                    config.LastDirectory = directoryConfig.DirectoryPath;
+                    config.LastProvider = directoryConfig.AiProvider;
+                    config.LastModel = directoryConfig.AiModel;
+                    config.LastOperationMode = directoryConfig.OperationMode;
+                    
+                    // Save the updated global configuration
+                    ConfigurationService.SaveConfiguration(config, logger);
+                    
+                    logger?.LogInformation("Used previous directory configuration: {Directory} -> {Provider}/{Model}/{Mode}", 
+                        directory, directoryConfig.AiProvider, directoryConfig.AiModel, directoryConfig.OperationMode);
+                    
+                    // Return the setup result directly using the previous configuration
+                    return new SetupResult(
+                        directoryConfig.DirectoryPath,
+                        directoryConfig.AiProvider.ToString(),
+                        directoryConfig.AiModel,
+                        directoryConfig.OperationMode
+                    );
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ Previous configuration declined. Proceeding with new setup for this directory.");
+                    Console.WriteLine();
+                }
+            }
         }
 
         Console.WriteLine($"✅ Using directory: {directory}");
@@ -1090,7 +1145,7 @@ public static class Program
         return new SetupResult(directory, config.LastProvider.ToString(), model, selectedMode);
     }
 
-    private static Task<string?> PromptForDirectoryAsync(AppConfiguration config, ILogger logger, SqliteConfigurationService sharedConfigService)
+    private static async Task<string?> PromptForDirectoryAsync(AppConfiguration config, ILogger logger, SqliteConfigurationService sharedConfigService)
     {
         string? directory = null;
         
@@ -1108,7 +1163,7 @@ public static class Program
             
             if (input.Equals("quit", StringComparison.CurrentCultureIgnoreCase) || input.Equals("exit", StringComparison.CurrentCultureIgnoreCase))
             {
-                return Task.FromResult<string?>(null);
+                return null;
             }
             
             if (!Directory.Exists(input))
@@ -1122,7 +1177,57 @@ public static class Program
         }
         
         Console.WriteLine($"✅ Using directory: {directory}");
-        return Task.FromResult<string?>(directory);
+        
+        // Check if this directory has previous configuration
+        var directoryConfig = await sharedConfigService.GetDirectoryConfigurationAsync(directory);
+        if (directoryConfig != null)
+        {
+            Console.WriteLine();
+            Console.WriteLine("📂 Previous Configuration Found for This Directory:");
+            Console.WriteLine("--------------------------------------------------");
+            Console.WriteLine($"Directory: {directoryConfig.DirectoryPath}");
+            Console.WriteLine($"AI Provider: {directoryConfig.AiProvider}");
+            Console.WriteLine($"Model: {directoryConfig.AiModel}");
+            Console.WriteLine($"Operation Mode: {directoryConfig.OperationMode}");
+            Console.WriteLine($"Last Used: {directoryConfig.UpdatedAt:yyyy-MM-dd HH:mm:ss}");
+            Console.WriteLine();
+            
+            using var configPromptService = new PromptService(config, sharedConfigService, logger);
+            var usePreviousConfig = await configPromptService.PromptYesNoDefaultYesSetupAsync("Use the previous configuration for this directory?");
+            
+            if (usePreviousConfig)
+            {
+                Console.WriteLine("✅ Using previous directory configuration.");
+                
+                // Update the timestamp for this directory config to mark it as recently used
+                await sharedConfigService.SaveDirectoryConfigurationAsync(
+                    directoryConfig.DirectoryPath, 
+                    directoryConfig.AiProvider, 
+                    directoryConfig.AiModel, 
+                    directoryConfig.OperationMode);
+                
+                // Update global configuration to reflect this choice
+                config.LastDirectory = directoryConfig.DirectoryPath;
+                config.LastProvider = directoryConfig.AiProvider;
+                config.LastModel = directoryConfig.AiModel;
+                config.LastOperationMode = directoryConfig.OperationMode;
+                
+                // Save the updated global configuration
+                ConfigurationService.SaveConfiguration(config, logger);
+                
+                logger?.LogInformation("Used previous directory configuration: {Directory} -> {Provider}/{Model}/{Mode}", 
+                    directory, directoryConfig.AiProvider, directoryConfig.AiModel, directoryConfig.OperationMode);
+                
+                // Return special marker to indicate we used previous config
+                return $"__USE_PREVIOUS_CONFIG__{directory}";
+            }
+            else
+            {
+                Console.WriteLine("⚠️ Previous configuration declined. Proceeding with new setup for this directory.");
+            }
+        }
+        
+        return directory;
     }
 
 #pragma warning disable S1172 // Remove unused function parameters
@@ -5577,29 +5682,33 @@ private static Task WaitForKeyPress()
             // Ignore console clear errors in test environments
         }
         
-        // Header with styled box
-        Console.WriteLine();
-        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
-        
-        // AI Provider Status
-        var providerStatus = GetProviderStatusDisplay(config);
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Provider Status"), MenuStyler.InfoColor);
-        MenuStyler.WriteColoredLine($"  🤖 Current Provider: {providerStatus}", MenuStyler.StatusColor);
-        Console.WriteLine();
-        
-        // Frequently Used Features - Based on Q11 Answer: Interactive Chat (4), RAG Search (8), Ask AI (5)
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⭐ Most Used Features"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(1, "Interactive Chat Mode (continuous conversation)", "💬"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(2, "RAG-enhanced AI questioning", "🧠"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(3, "Ask AI questions (with optional RAG enhancement)", "🤖"));
-        Console.WriteLine();
-        
-        // Sub-Menu Categories - Based on Q10 Answer: Configuration, Operations, Management, Quick Actions
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📂 Menu Categories"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption(4, "Operations (Files, Analysis, Search)", "⚙️"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(5, "Configuration (Settings, Providers, Directory)", "🔧"));
-        Console.WriteLine(MenuStyler.FormatMenuOption(6, "Management (Database, Logs, System)", "🛠️"));
-        Console.WriteLine();
+        // Only display menu output in non-test environment
+        if (!IsTestEnvironment())
+        {
+            // Header with styled box
+            Console.WriteLine();
+            MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader("📚 HlpAI - Intelligent Document Assistant"), MenuStyler.HeaderColor);
+            
+            // AI Provider Status
+            var providerStatus = GetProviderStatusDisplay(config);
+            MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("🤖 AI Provider Status"), MenuStyler.InfoColor);
+            MenuStyler.WriteColoredLine($"  🤖 Current Provider: {providerStatus}", MenuStyler.StatusColor);
+            Console.WriteLine();
+            
+            // Frequently Used Features - Based on Q11 Answer: Interactive Chat (4), RAG Search (8), Ask AI (5)
+            MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⭐ Most Used Features"), MenuStyler.AccentColor);
+            Console.WriteLine(MenuStyler.FormatMenuOption(1, "Interactive Chat Mode (continuous conversation)", "💬"));
+            Console.WriteLine(MenuStyler.FormatMenuOption(2, "RAG-enhanced AI questioning", "🧠"));
+            Console.WriteLine(MenuStyler.FormatMenuOption(3, "Ask AI questions (with optional RAG enhancement)", "🤖"));
+            Console.WriteLine();
+            
+            // Sub-Menu Categories - Based on Q10 Answer: Configuration, Operations, Management, Quick Actions
+            MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("📂 Menu Categories"), MenuStyler.AccentColor);
+            Console.WriteLine(MenuStyler.FormatMenuOption(4, "Operations (Files, Analysis, Search)", "⚙️"));
+            Console.WriteLine(MenuStyler.FormatMenuOption(5, "Configuration (Settings, Providers, Directory)", "🔧"));
+            Console.WriteLine(MenuStyler.FormatMenuOption(6, "Management (Database, Logs, System)", "🛠️"));
+            Console.WriteLine();
+        }
         
         // Clear the menu actions and set up new mappings
         _currentMenuActions.Clear();
@@ -5612,14 +5721,18 @@ private static Task WaitForKeyPress()
         
         // Store the maximum option number for input validation
         _maxMenuOption = 6;
-        Console.WriteLine();
         
-        // Quick Actions Section
-        MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
-        Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen (clear)", "🖥️"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu (menu)", "📋"));
-        Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit (quit)", "🚪"));
-        Console.WriteLine();
+        // Quick Actions Section - only display in non-test environment
+        if (!IsTestEnvironment())
+        {
+            Console.WriteLine();
+            
+            MenuStyler.WriteColoredLine(MenuStyler.CreateSectionSeparator("⚡ Quick Actions"), MenuStyler.AccentColor);
+            Console.WriteLine(MenuStyler.FormatMenuOption("c", "Clear screen (clear)", "🖥️"));
+            Console.WriteLine(MenuStyler.FormatMenuOption("m", "Show this menu (menu)", "📋"));
+            Console.WriteLine(MenuStyler.FormatMenuOption("q", "Quit (quit)", "🚪"));
+            Console.WriteLine();
+        }
     }
 
     public static void ShowOperationsMenu()
@@ -5946,13 +6059,16 @@ private static Task WaitForKeyPress()
             // Ignore console clear errors in test environments
         }
         
-        // Use styled header
-        MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader(header), MenuStyler.HeaderColor);
-        
-        if (!string.IsNullOrEmpty(breadcrumb))
+        // Use styled header - only display in non-test environment
+        if (!IsTestEnvironment())
         {
-            MenuStyler.WriteColoredLine(MenuStyler.FormatBreadcrumb(breadcrumb), MenuStyler.InfoColor);
-            Console.WriteLine();
+            MenuStyler.WriteColoredLine(MenuStyler.CreateStyledHeader(header), MenuStyler.HeaderColor);
+            
+            if (!string.IsNullOrEmpty(breadcrumb))
+            {
+                MenuStyler.WriteColoredLine(MenuStyler.FormatBreadcrumb(breadcrumb), MenuStyler.InfoColor);
+                Console.WriteLine();
+            }
         }
     }
     
@@ -5961,13 +6077,12 @@ private static Task WaitForKeyPress()
     /// </summary>
     public static async Task ShowBriefPauseAsync(string? message = null, int delayMs = 1500)
     {
-        if (!string.IsNullOrEmpty(message))
-        {
-            Console.WriteLine(message);
-        }
-        
         if (!IsTestEnvironment())
         {
+            if (!string.IsNullOrEmpty(message))
+            {
+                Console.WriteLine(message);
+            }
             await Task.Delay(delayMs);
         }
     }
@@ -5998,97 +6113,101 @@ private static Task WaitForKeyPress()
 
     public static void ShowUsage()
     {
-        Console.WriteLine("🎯 MCP RAG Extended Demo");
-        Console.WriteLine("========================");
-        Console.WriteLine();
-        Console.WriteLine("USAGE:");
-        Console.WriteLine("  dotnet run                              # Interactive setup mode");
-        Console.WriteLine("  dotnet run <directory> [model] [mode]  # Command line mode");
-        Console.WriteLine("  dotnet run -- --audit <directory>      # Audit mode");
-        Console.WriteLine("  dotnet run -- [logging options]        # Logging configuration");
-        Console.WriteLine();
-        Console.WriteLine("INTERACTIVE MODE:");
-        Console.WriteLine("  Run without parameters for guided setup:");
-        Console.WriteLine("  • Choose document directory");
-        Console.WriteLine("  • Select AI model from available options");
-        Console.WriteLine("  • Configure operation mode");
-        Console.WriteLine("  • Perfect for first-time users!");
-        Console.WriteLine();
-        Console.WriteLine("COMMAND LINE MODE:");
-        Console.WriteLine("  <directory>  Required. Path to directory containing documents to process");
-        Console.WriteLine("  [model]      Optional. Ollama model name (will prompt for selection if not provided)");
-        Console.WriteLine("  [mode]       Optional. Operation mode: mcp, rag, hybrid (default: hybrid)");
-        Console.WriteLine();
-        Console.WriteLine("LOGGING OPTIONS:");
-        Console.WriteLine("  --help, -h                              Show this help message");
-        Console.WriteLine("  --enable-logging                       Enable error logging");
-        Console.WriteLine("  --disable-logging                      Disable error logging");
-        Console.WriteLine("  --log-level <level>                    Set minimum log level (Error, Warning, Information)");
-        Console.WriteLine("  --log-retention-days <days>            Set log retention period in days (default: 30)");
-        Console.WriteLine("  --clear-logs                           Clear all existing error logs");
-        Console.WriteLine("  --show-log-stats                       Display error log statistics");
-        Console.WriteLine("  --show-recent-logs [count]             Show recent error logs (default: 10)");
-        Console.WriteLine();
-        Console.WriteLine("CONFIGURATION OPTIONS:");
-        Console.WriteLine("  --show-config                          Display current application configuration");
-        Console.WriteLine("  --get-remember-last-directory          Get current RememberLastDirectory setting");
-        Console.WriteLine("  --set-remember-last-directory <value>  Set RememberLastDirectory (true/false)");
-        Console.WriteLine();
-        Console.WriteLine("FILE EXPORT OPTIONS:");
-        Console.WriteLine("  --export-files [output_path]          Export file list to specified path");
-        Console.WriteLine("  --list-files-export [output_path]     Display and export file list");
-        Console.WriteLine("  --export-format <format>              Export format: csv, json, txt, xml (default: csv)");
-        Console.WriteLine("  --export-metadata                     Include file metadata in export (default: true)");
-        Console.WriteLine();
-        Console.WriteLine("EXTRACTOR MANAGEMENT OPTIONS:");
-        Console.WriteLine("  --list-extractors                      List all available file extractors");
-        Console.WriteLine("  --extractor-stats                      Show extractor statistics and extension counts");
-        Console.WriteLine("  --add-file-type <key:ext,ext>         Add file extensions to extractor (e.g., text:docx,rtf)");
-        Console.WriteLine("  --remove-file-type <key:ext,ext>      Remove file extensions from extractor");
-        Console.WriteLine("  --test-extraction <file_path>         Test file extraction with current configuration");
-        Console.WriteLine("  --reset-extractor <key>               Reset extractor to default configuration");
-        Console.WriteLine();
-        Console.WriteLine("EXAMPLES:");
-        Console.WriteLine("  dotnet run                                       # Interactive setup");
-        Console.WriteLine("  dotnet run \"C:\\MyDocuments\"                    # Will prompt for model selection");
-        Console.WriteLine("  dotnet run \"C:\\MyDocuments\" \"llama3.1\"          # Use specific model");
-        Console.WriteLine("  dotnet run \"C:\\MyDocuments\" \"llama3.2\" \"rag\"    # Use specific model and mode");
-        Console.WriteLine("  dotnet run -- --audit \"C:\\MyDocuments\"         # Audit mode");
-        Console.WriteLine("  dotnet run -- --show-log-stats                  # View error log statistics");
-        Console.WriteLine("  dotnet run -- --clear-logs                      # Clear all error logs");
-        Console.WriteLine("  dotnet run -- --log-level Error                 # Set log level to Error only");
-        Console.WriteLine("  dotnet run -- --enable-logging                  # Enable error logging");
-        Console.WriteLine("  dotnet run \"C:\\MyDocs\" --log-level Information  # Run with detailed logging");
-        Console.WriteLine("  dotnet run \"C:\\MyDocs\" --export-files myfiles.csv # Export file list to CSV");
-        Console.WriteLine("  dotnet run \"C:\\MyDocs\" --list-files-export        # Show and export file list");
-        Console.WriteLine("  dotnet run \"C:\\MyDocs\" --export-format json       # Export as JSON format");
-        Console.WriteLine("  dotnet run -- --list-extractors                     # List available file extractors");
-        Console.WriteLine("  dotnet run -- --extractor-stats                     # Show extractor statistics");
-        Console.WriteLine("  dotnet run -- --add-file-type text:docx,rtf         # Add .docx and .rtf to text extractor");
-        Console.WriteLine("  dotnet run -- --test-extraction \"C:\\test.docx\"      # Test extraction of specific file");
-        Console.WriteLine("  dotnet run -- --reset-extractor text                # Reset text extractor to defaults");
-        Console.WriteLine("  dotnet run -- --show-config                         # Display current configuration");
-        Console.WriteLine("  dotnet run -- --get-remember-last-directory         # Check RememberLastDirectory setting");
-        Console.WriteLine("  dotnet run -- --set-remember-last-directory true    # Enable RememberLastDirectory");
-        Console.WriteLine("  dotnet run -- --set-remember-last-directory false   # Disable RememberLastDirectory");
-        Console.WriteLine();
-        Console.WriteLine("OPERATION MODES:");
-        Console.WriteLine("  hybrid   - Full MCP + RAG capabilities (recommended)");
-        Console.WriteLine("  mcp      - Model Context Protocol server only");
-        Console.WriteLine("  rag      - RAG (Retrieval-Augmented Generation) functionality only");
-        Console.WriteLine();
-        Console.WriteLine("SUPPORTED FILE TYPES:");
-        Console.WriteLine("  📄 Text files: .txt, .md, .log, .csv");
-        Console.WriteLine("  🌐 Web files: .html, .htm");
-        Console.WriteLine("  📕 Documents: .pdf");
-        Console.WriteLine("  📚 Help files: .hhc (all platforms), .chm (Windows only)");
-        Console.WriteLine();
-        Console.WriteLine("PREREQUISITES:");
-        Console.WriteLine("  • .NET 9.0 SDK");
-        Console.WriteLine("  • Ollama installed and running (for AI features)");
-        Console.WriteLine("  • Models: ollama pull llama3.2 && ollama pull nomic-embed-text");
-        Console.WriteLine();
-        Console.WriteLine("TIP: Run with --audit <directory> first to analyze your documents before indexing!");
+        // Only show usage output in non-test environment
+        if (!IsTestEnvironment())
+        {
+            Console.WriteLine("🎯 MCP RAG Extended Demo");
+            Console.WriteLine("========================");
+            Console.WriteLine();
+            Console.WriteLine("USAGE:");
+            Console.WriteLine("  dotnet run                              # Interactive setup mode");
+            Console.WriteLine("  dotnet run <directory> [model] [mode]  # Command line mode");
+            Console.WriteLine("  dotnet run -- --audit <directory>      # Audit mode");
+            Console.WriteLine("  dotnet run -- [logging options]        # Logging configuration");
+            Console.WriteLine();
+            Console.WriteLine("INTERACTIVE MODE:");
+            Console.WriteLine("  Run without parameters for guided setup:");
+            Console.WriteLine("  • Choose document directory");
+            Console.WriteLine("  • Select AI model from available options");
+            Console.WriteLine("  • Configure operation mode");
+            Console.WriteLine("  • Perfect for first-time users!");
+            Console.WriteLine();
+            Console.WriteLine("COMMAND LINE MODE:");
+            Console.WriteLine("  <directory>  Required. Path to directory containing documents to process");
+            Console.WriteLine("  [model]      Optional. Ollama model name (will prompt for selection if not provided)");
+            Console.WriteLine("  [mode]       Optional. Operation mode: mcp, rag, hybrid (default: hybrid)");
+            Console.WriteLine();
+            Console.WriteLine("LOGGING OPTIONS:");
+            Console.WriteLine("  --help, -h                              Show this help message");
+            Console.WriteLine("  --enable-logging                       Enable error logging");
+            Console.WriteLine("  --disable-logging                      Disable error logging");
+            Console.WriteLine("  --log-level <level>                    Set minimum log level (Error, Warning, Information)");
+            Console.WriteLine("  --log-retention-days <days>            Set log retention period in days (default: 30)");
+            Console.WriteLine("  --clear-logs                           Clear all existing error logs");
+            Console.WriteLine("  --show-log-stats                       Display error log statistics");
+            Console.WriteLine("  --show-recent-logs [count]             Show recent error logs (default: 10)");
+            Console.WriteLine();
+            Console.WriteLine("CONFIGURATION OPTIONS:");
+            Console.WriteLine("  --show-config                          Display current application configuration");
+            Console.WriteLine("  --get-remember-last-directory          Get current RememberLastDirectory setting");
+            Console.WriteLine("  --set-remember-last-directory <value>  Set RememberLastDirectory (true/false)");
+            Console.WriteLine();
+            Console.WriteLine("FILE EXPORT OPTIONS:");
+            Console.WriteLine("  --export-files [output_path]          Export file list to specified path");
+            Console.WriteLine("  --list-files-export [output_path]     Display and export file list");
+            Console.WriteLine("  --export-format <format>              Export format: csv, json, txt, xml (default: csv)");
+            Console.WriteLine("  --export-metadata                     Include file metadata in export (default: true)");
+            Console.WriteLine();
+            Console.WriteLine("EXTRACTOR MANAGEMENT OPTIONS:");
+            Console.WriteLine("  --list-extractors                      List all available file extractors");
+            Console.WriteLine("  --extractor-stats                      Show extractor statistics and extension counts");
+            Console.WriteLine("  --add-file-type <key:ext,ext>         Add file extensions to extractor (e.g., text:docx,rtf)");
+            Console.WriteLine("  --remove-file-type <key:ext,ext>      Remove file extensions from extractor");
+            Console.WriteLine("  --test-extraction <file_path>         Test file extraction with current configuration");
+            Console.WriteLine("  --reset-extractor <key>               Reset extractor to default configuration");
+            Console.WriteLine();
+            Console.WriteLine("EXAMPLES:");
+            Console.WriteLine("  dotnet run                                       # Interactive setup");
+            Console.WriteLine("  dotnet run \"C:\\MyDocuments\"                    # Will prompt for model selection");
+            Console.WriteLine("  dotnet run \"C:\\MyDocuments\" \"llama3.1\"          # Use specific model");
+            Console.WriteLine("  dotnet run \"C:\\MyDocuments\" \"llama3.2\" \"rag\"    # Use specific model and mode");
+            Console.WriteLine("  dotnet run -- --audit \"C:\\MyDocuments\"         # Audit mode");
+            Console.WriteLine("  dotnet run -- --show-log-stats                  # View error log statistics");
+            Console.WriteLine("  dotnet run -- --clear-logs                      # Clear all error logs");
+            Console.WriteLine("  dotnet run -- --log-level Error                 # Set log level to Error only");
+            Console.WriteLine("  dotnet run -- --enable-logging                  # Enable error logging");
+            Console.WriteLine("  dotnet run \"C:\\MyDocs\" --log-level Information  # Run with detailed logging");
+            Console.WriteLine("  dotnet run \"C:\\MyDocs\" --export-files myfiles.csv # Export file list to CSV");
+            Console.WriteLine("  dotnet run \"C:\\MyDocs\" --list-files-export        # Show and export file list");
+            Console.WriteLine("  dotnet run \"C:\\MyDocs\" --export-format json       # Export as JSON format");
+            Console.WriteLine("  dotnet run -- --list-extractors                     # List available file extractors");
+            Console.WriteLine("  dotnet run -- --extractor-stats                     # Show extractor statistics");
+            Console.WriteLine("  dotnet run -- --add-file-type text:docx,rtf         # Add .docx and .rtf to text extractor");
+            Console.WriteLine("  dotnet run -- --test-extraction \"C:\\test.docx\"      # Test extraction of specific file");
+            Console.WriteLine("  dotnet run -- --reset-extractor text                # Reset text extractor to defaults");
+            Console.WriteLine("  dotnet run -- --show-config                         # Display current configuration");
+            Console.WriteLine("  dotnet run -- --get-remember-last-directory         # Check RememberLastDirectory setting");
+            Console.WriteLine("  dotnet run -- --set-remember-last-directory true    # Enable RememberLastDirectory");
+            Console.WriteLine("  dotnet run -- --set-remember-last-directory false   # Disable RememberLastDirectory");
+            Console.WriteLine();
+            Console.WriteLine("OPERATION MODES:");
+            Console.WriteLine("  hybrid   - Full MCP + RAG capabilities (recommended)");
+            Console.WriteLine("  mcp      - Model Context Protocol server only");
+            Console.WriteLine("  rag      - RAG (Retrieval-Augmented Generation) functionality only");
+            Console.WriteLine();
+            Console.WriteLine("SUPPORTED FILE TYPES:");
+            Console.WriteLine("  📄 Text files: .txt, .md, .log, .csv");
+            Console.WriteLine("  🌐 Web files: .html, .htm");
+            Console.WriteLine("  📕 Documents: .pdf");
+            Console.WriteLine("  📚 Help files: .hhc (all platforms), .chm (Windows only)");
+            Console.WriteLine();
+            Console.WriteLine("PREREQUISITES:");
+            Console.WriteLine("  • .NET 9.0 SDK");
+            Console.WriteLine("  • Ollama installed and running (for AI features)");
+            Console.WriteLine("  • Models: ollama pull llama3.2 && ollama pull nomic-embed-text");
+            Console.WriteLine();
+            Console.WriteLine("TIP: Run with --audit <directory> first to analyze your documents before indexing!");
+        }
     }
 
     static void DisplayResponse(McpResponse response, string fallbackTitle = "Response")

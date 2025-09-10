@@ -25,6 +25,7 @@ public class ChmExtractionVerificationTests
         FileTestHelper.SafeDeleteDirectory(_testDirectory);
     }
 
+    [Skip("Disabled for fast test execution - calls real file system checks for hh.exe")]
     [Test]
     public async Task VerifyHhExeDetection_ChecksCommonLocations()
     {

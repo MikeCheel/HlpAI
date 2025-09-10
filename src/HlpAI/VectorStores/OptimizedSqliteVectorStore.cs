@@ -168,12 +168,31 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
             VALUES (@id, @source_file, @content, @chunk_index, @embedding, @metadata, @indexed_at, @file_hash, @file_modified, @file_size)
         ";
 
-        using var transaction = await _connection.BeginTransactionAsync();
+        // Fast retry logic for database locking issues in concurrent environments
+        SqliteTransaction? transaction = null;
+        const int maxRetries = 2;
+        const int delayMs = 10;
+        
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            try
+            {
+                transaction = (SqliteTransaction)await _connection.BeginTransactionAsync();
+                break;
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 5) // SQLITE_BUSY
+            {
+                if (attempt == maxRetries - 1)
+                    throw;
+                    
+                await Task.Delay(delayMs); // Short fixed delay
+            }
+        }
 
         try
         {
             // Remove existing chunks for this file within the transaction
-            await RemoveFileChunksAsync(filePath, (SqliteTransaction)transaction);
+            await RemoveFileChunksAsync(filePath, transaction!);
             for (int i = 0; i < chunks.Count; i++)
             {
                 var chunkMetadata = metadata ?? [];
@@ -184,7 +203,7 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
                 var embedding = await _embeddingService.GetEmbeddingAsync(chunks[i]);
                 var embeddingBytes = EmbeddingToBytes(embedding);
 
-                using var command = new SqliteCommand(insertSql, _connection, (SqliteTransaction)transaction);
+                using var command = new SqliteCommand(insertSql, _connection, transaction);
                 command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
                 command.Parameters.AddWithValue("@source_file", filePath);
                 command.Parameters.AddWithValue("@content", chunks[i]);
@@ -200,9 +219,9 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
             }
 
             // Update file metadata table for quick future lookups
-            await UpdateFileMetadataAsync(filePath, fileHash, fileInfo.Length, lastModified, chunks.Count, (SqliteTransaction)transaction);
+            await UpdateFileMetadataAsync(filePath, fileHash, fileInfo.Length, lastModified, chunks.Count, transaction!);
 
-            await transaction.CommitAsync();
+            await transaction!.CommitAsync();
             _logger?.LogInformation("Successfully indexed {FilePath} with {ChunkCount} chunks (hash: {Hash})", 
                 filePath, chunks.Count, fileHash.Length >= 8 ? fileHash[..8] : fileHash);
         }
@@ -212,7 +231,7 @@ public class OptimizedSqliteVectorStore : IVectorStore, IDisposable
             try
             {
                 // Only rollback if the transaction is still active
-                if (transaction.Connection != null)
+                if (transaction?.Connection != null)
                 {
                     await transaction.RollbackAsync();
                 }

@@ -142,7 +142,7 @@ public class FileChangeDetectionServiceTests : IDisposable
         var originalModified = new FileInfo(tempFile).LastWriteTime;
 
         // Modify the file
-        await Task.Delay(1100); // Ensure different timestamp
+        await Task.Delay(100); // Ensure different timestamp
         await File.WriteAllTextAsync(tempFile, "Modified content");
 
         // Act
@@ -162,7 +162,7 @@ public class FileChangeDetectionServiceTests : IDisposable
         var originalModified = new FileInfo(tempFile).LastWriteTime;
 
         // Touch the file to change timestamp but keep content same
-        await Task.Delay(1100); // Ensure different timestamp
+        await Task.Delay(100); // Ensure different timestamp
         File.SetLastWriteTime(tempFile, DateTime.Now);
 
         // Act

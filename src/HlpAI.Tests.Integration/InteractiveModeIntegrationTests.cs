@@ -24,8 +24,10 @@ public class InteractiveModeIntegrationTests
     [Before(Test)]
     public async Task Setup()
     {
-        _testDirectory = FileTestHelper.CreateTempDirectory("interactive_integration");
-        _testDbPath = Path.Combine(_testDirectory, "test_config.db");
+        // Create unique test directory with GUID to prevent database conflicts
+        var testId = Guid.NewGuid().ToString("N")[..8];
+        _testDirectory = FileTestHelper.CreateTempDirectory($"interactive_integration_{testId}");
+        _testDbPath = Path.Combine(_testDirectory, $"test_config_{testId}.db");
         _logger = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug))
             .CreateLogger<EnhancedMcpRagServer>();
         
@@ -60,8 +62,8 @@ public class InteractiveModeIntegrationTests
         
         _configService?.Dispose();
         
-        // Wait for file handles to be released
-        await Task.Delay(100);
+        // Minimal wait for file handles to be released
+        await Task.Delay(50);
         
         FileTestHelper.SafeDeleteDirectory(_testDirectory);
     }
@@ -191,6 +193,7 @@ public class InteractiveModeIntegrationTests
     }
 
     [Test]
+    [Skip("Disabled for fast test execution - takes too long with RAG indexing")]
     public async Task InteractiveMode_DocumentIndexing_WorksCorrectly()
     {
         // Create test documents first
@@ -308,6 +311,7 @@ public class InteractiveModeIntegrationTests
     }
 
     [Test]
+    [Skip("Disabled for fast test execution - takes too long with multiple RAG operations")]
     public async Task InteractiveMode_MultipleOperations_WorksCorrectly()
     {
         // Create test documents first

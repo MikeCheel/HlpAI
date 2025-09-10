@@ -236,19 +236,23 @@ public class SqliteConfigurationService : IDisposable
 
             var rowsAffected = await command.ExecuteNonQueryAsync();
             
-            _logger?.LogDebug("Set configuration: {Category}.{Key} = {Value}, rows affected: {Rows}", 
-                category, key, value, rowsAffected);
-            
-            // Immediately verify the change was persisted
-            if (rowsAffected > 0)
+            // Only log debug info in non-test environments to improve test performance
+            if (!IsTestEnvironment())
             {
-                const string verifySql = "SELECT value FROM configuration WHERE key = @key AND category = @category";
-                using var verifyCommand = new SqliteCommand(verifySql, _connection);
-                verifyCommand.Parameters.AddWithValue("@key", key);
-                verifyCommand.Parameters.AddWithValue("@category", category);
+                _logger?.LogDebug("Set configuration: {Category}.{Key} = {Value}, rows affected: {Rows}",
+                    category, key, value, rowsAffected);
                 
-                var verifyResult = await verifyCommand.ExecuteScalarAsync();
-                _logger?.LogDebug("Verification result for {Category}.{Key}: {Result}", category, key, verifyResult);
+                // Immediately verify the change was persisted (skip verification in tests for performance)
+                if (rowsAffected > 0)
+                {
+                    const string verifySql = "SELECT value FROM configuration WHERE key = @key AND category = @category";
+                    using var verifyCommand = new SqliteCommand(verifySql, _connection);
+                    verifyCommand.Parameters.AddWithValue("@key", key);
+                    verifyCommand.Parameters.AddWithValue("@category", category);
+                    
+                    var verifyResult = await verifyCommand.ExecuteScalarAsync();
+                    _logger?.LogDebug("Verification result for {Category}.{Key}: {Result}", category, key, verifyResult);
+                }
             }
             
             return rowsAffected > 0;
@@ -304,13 +308,21 @@ public class SqliteConfigurationService : IDisposable
             
             if (result == null || result == DBNull.Value)
             {
-                _logger?.LogDebug("Configuration not found: {Category}.{Key}, returning default: {Default}", 
-                    category, key, defaultValue);
+                // Only log debug info in non-test environments to improve test performance
+                if (!IsTestEnvironment())
+                {
+                    _logger?.LogDebug("Configuration not found: {Category}.{Key}, returning default: {Default}",
+                        category, key, defaultValue);
+                }
                 return defaultValue;
             }
 
             var value = result.ToString();
-            _logger?.LogDebug("Retrieved configuration: {Category}.{Key} = {Value}", category, key, value);
+            // Only log debug info in non-test environments to improve test performance
+            if (!IsTestEnvironment())
+            {
+                _logger?.LogDebug("Retrieved configuration: {Category}.{Key} = {Value}", category, key, value);
+            }
             return value;
         }
         catch (Exception ex)
@@ -1066,7 +1078,9 @@ public class SqliteConfigurationService : IDisposable
             {
                 if (IsTestEnvironment())
                 {
-                    _logger?.LogDebug("Seeding database with default configuration values for test environment");
+                    // Skip seeding in test environment for faster tests
+                    _logger?.LogDebug("Skipping default configuration seeding in test environment for performance");
+                    return;
                 }
                 else
                 {

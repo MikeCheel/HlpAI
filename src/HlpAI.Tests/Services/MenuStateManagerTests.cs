@@ -51,7 +51,7 @@ public class MenuStateManagerTests
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             
             // Additional wait to ensure file handles are released
-            Thread.Sleep(500);
+            Thread.Sleep(100);
             
             // Restore original user profile
             Environment.SetEnvironmentVariable("USERPROFILE", _originalUserProfile);
@@ -68,7 +68,7 @@ public class MenuStateManagerTests
                     }
                     catch (IOException) when (i < 4)
                     {
-                        Thread.Sleep(200 * (i + 1));
+                        Thread.Sleep(50 * (i + 1));
                         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
                     }
                 }
@@ -86,7 +86,7 @@ public class MenuStateManagerTests
                     }
                     catch (IOException) when (i < 2)
                     {
-                        Thread.Sleep(200 * (i + 1));
+                        Thread.Sleep(50 * (i + 1));
                     }
                 }
             }

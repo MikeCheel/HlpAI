@@ -359,7 +359,7 @@ public class AppConfiguration
     /// <summary>
     /// When this configuration was last updated - defaults will be seeded from database
     /// </summary>
-    public DateTime LastUpdated { get; set; }
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// Version of the configuration format (for future migrations) - defaults will be seeded from database

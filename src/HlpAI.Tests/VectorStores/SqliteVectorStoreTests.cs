@@ -165,7 +165,7 @@ public class SqliteVectorStoreTests
     {
         // Arrange
         var filePath = "long_test.txt";
-        var content = string.Join(" ", Enumerable.Repeat("word", 2000)); // Create long content
+        var content = string.Join(" ", Enumerable.Repeat("word", 5000)); // Create longer content to exceed chunk size
 
         // Act
         await _vectorStore.IndexDocumentAsync(filePath, content);

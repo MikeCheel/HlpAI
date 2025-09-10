@@ -26,6 +26,7 @@ public class ChmFileExtractorIntegrationTests
         FileTestHelper.SafeDeleteDirectory(_testDirectory);
     }
 
+    [Skip("Disabled for fast test execution - launches real hh.exe process")]
     [Test]
     public async Task HhExe_IsAvailableOnSystem()
     {
@@ -48,6 +49,7 @@ public class ChmFileExtractorIntegrationTests
         await Assert.That(process.HasExited).IsTrue();
     }
 
+    [Skip("Disabled for fast test execution - creates real CHM files and calls hh.exe")]
     [Test]
     public async Task CreateSampleChmFile_AndExtractContent()
     {

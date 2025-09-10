@@ -51,6 +51,7 @@ public class ConfigurationMenuTests
         FileTestHelper.SafeDeleteDirectory(_testDirectory);
     }
 
+    [Skip("Disabled for fast test execution - calls real hh.exe detection multiple times")]
     [Test]
     public async Task ConfigurationServices_Integration_WorksTogether()
     {

@@ -243,7 +243,7 @@ public class OptimizedSqliteVectorStoreTests : IDisposable
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
                 
                 // Wait for file handles to be released
-                await Task.Delay(200);
+                await Task.Delay(50);
                 
                 // Retry deletion with exponential backoff
                 for (int i = 0; i < 5; i++)
